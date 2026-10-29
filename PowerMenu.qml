@@ -1,12 +1,17 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
 
-// Menu de energia: bloquear, suspender, hibernar, sair, reiniciar e desligar.
-// Suspender e hibernar só aparecem quando o sistema permite. Sair, reiniciar
-// e desligar pedem um segundo toque em até 3 s.
+// Energia (spec §3.4): sempre 3 + 3, na grade de 3 colunas iguais.
+//   Q Bloquear · W Suspender · E Hibernar       (ações seguras)
+//   A Sair     · S Reiniciar · D Desligar        (confirm: dois toques)
+// Suspender e hibernar ficam esmaecidos no lugar quando o sistema não deixa
+// (com o motivo na sublinha); a grade nunca muda de forma.
+//
+// Contrato com o host: active, fg/bg/accent/danger, metrics, keyboardMode,
+// closeRequested(), navigate(target), footerStatus, footerHints, footerAlert,
+// handleKey(event) → bool, handleEscape() → bool, focusFirst().
 Item {
     id: root
 
@@ -14,30 +19,43 @@ Item {
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
-    // Cor de alerta para botões armados.
     property color danger: Commons.Color.urgent
 
     // O host liga enquanto este estado está visível.
     property bool active: false
+    property bool keyboardMode: false
+    property Metrics metrics: Metrics {}
 
     signal closeRequested()
     signal navigate(string target)
 
-    implicitWidth: 400
-    implicitHeight: content.implicitHeight
-
-    readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
-    readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-    readonly property color dim: Commons.Color.muted
-
-    // Lado dos quadrados e espaço entre eles: três por linha.
-    readonly property int tileSpacing: 14
-    readonly property int tileSize: Math.floor((implicitWidth - 2 * tileSpacing) / 3)
+    implicitWidth: metrics.content
+    implicitHeight: grid.implicitHeight
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
+    function fmt(template, args) {
+        return String(template).replace(/%(\d+)/g, (m, n) => {
+            const i = parseInt(n) - 1;
+            return i >= 0 && i < args.length ? String(args[i]) : m;
+        });
+    }
+
+    // ---------- Rodapé ----------
+    readonly property bool anyArmed: logoutTile.armed || rebootTile.armed || shutdownTile.armed
+    readonly property string footerStatus: anyArmed ? strings.t("power.confirmHint")
+                                         : uptimeText !== "" ? fmt(strings.t("power.uptime"), [uptimeText])
+                                         : ""
+    readonly property bool footerAlert: anyArmed
+    readonly property string footerHints: strings.t("hint.confirmTwice")
+
+    // ---------- Teclado (o host chama) ----------
+    function handleKey(event) { return grid.handleKey(event); }
+    function handleEscape() { return grid.handleEscape(); }
+    function focusFirst() { return grid.focusFirst(); }
+
     // ---------- Disponibilidade de suspender/hibernar ----------
-    // Mesma regra do menu do sistema: suspender some quando o atalho
+    // Mesma regra do menu do sistema: suspender sai quando o atalho
     // "suspend-off" está ligado ou quando o sono está desativado na máquina;
     // hibernar exige swap suficiente e o hook de retomada configurado.
     property bool suspendAvailable: true
@@ -61,21 +79,41 @@ Item {
         }
     }
 
-    // ---------- Confirmação (sair, reiniciar, desligar) ----------
-    property string armed: ""
-    Timer {
-        id: armTimer
-        interval: 3000
-        onTriggered: root.armed = ""
+    // ---------- Tempo ligado (rodapé em repouso) ----------
+    property string uptimeText: ""
+
+    function formatUptime(seconds) {
+        const s = Math.max(0, Math.floor(seconds));
+        const d = Math.floor(s / 86400);
+        const h = Math.floor((s % 86400) / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const n = v => Commons.I18n.formatNumber(v);
+        if (d > 0) return n(d) + " d " + n(h) + " h";
+        if (h > 0) return n(h) + " h " + n(m) + " min";
+        return n(m) + " min";
     }
 
-    function disarm() {
-        armTimer.stop();
-        root.armed = "";
+    Process {
+        id: uptimeProc
+        command: ["cat", "/proc/uptime"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const v = parseFloat(String(text).trim().split(/\s+/)[0]);
+                root.uptimeText = isNaN(v) ? "" : root.formatUptime(v);
+            }
+        }
+    }
+
+    Timer {
+        interval: 60000
+        repeat: true
+        running: root.active
+        onTriggered: if (!uptimeProc.running) uptimeProc.running = true
     }
 
     function refresh() {
         if (!availProc.running) availProc.running = true;
+        if (!uptimeProc.running) uptimeProc.running = true;
     }
 
     onActiveChanged: {
@@ -84,201 +122,87 @@ Item {
     }
     Component.onCompleted: if (active) refresh()
 
+    function disarm() {
+        logoutTile.disarm();
+        rebootTile.disarm();
+        shutdownTile.disarm();
+    }
+
     // Fecha a ilha e só depois executa, para a ação não aparecer por trás dela.
     function runClosed(cmd) {
         root.disarm();
         root.closeRequested();
-        Quickshell.execDetached(["sh", "-c", "sleep 0.35; exec \"$@\"", "sh"].concat(cmd));
+        // Espera fixa: é o tempo de a janela sumir, não uma animação.
+        const wait = (root.metrics.msCloseFirst / 1000).toFixed(2);
+        Quickshell.execDetached(["sh", "-c", "sleep \"$0\"; exec \"$@\"", wait].concat(cmd));
     }
 
-    function confirmOrRun(key, cmd) {
-        if (root.armed === key) {
-            root.runClosed(cmd);
-        } else {
-            root.armed = key;
-            armTimer.restart();
-        }
-    }
+    // ---------- Grade ----------
+    PanelGrid {
+        id: grid
+        width: root.metrics.content
+        metrics: root.metrics
+        strings: strings
+        keyboardMode: root.keyboardMode
+        fg: root.fg
+        bg: root.bg
+        accent: root.accent
+        danger: root.danger
 
-    // ---------- Componentes internos ----------
-    // Quadrado grande de cantos contínuos com ícone e rótulo.
-    component PowerButton: Item {
-        id: pb
-        property string key: ""
-        property string icon: ""
-        property string label: ""
-        readonly property bool isArmed: root.armed !== "" && root.armed === key
-        signal clicked()
-
-        width: root.tileSize
-        height: root.tileSize
-
-        // Tinta do conteúdo: fundo do tema sobre o vermelho quando armado.
-        property color ink: isArmed ? root.bg : (pbHover.hovered ? root.accent : root.fg)
-        Behavior on ink { ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
-
-        ContinuousRect {
-            id: tile
-            anchors.fill: parent
-            radius: 18
-            color: pb.isArmed ? root.danger : root.surface
-            Behavior on color { ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
-            scale: pbTap.pressed ? 0.97 : 1
-            Behavior on scale { NumberAnimation { duration: Commons.Style.duration(140); easing.type: Easing.OutCubic } }
-
-            // Destaque de hover
-            ContinuousRect {
-                anchors.fill: parent
-                radius: 18
-                color: root.surfaceHover
-                opacity: pbHover.hovered && !pb.isArmed ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-            }
-
-            Column {
-                anchors.centerIn: parent
-                width: parent.width - 16
-                spacing: 10
-
-                Icon {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    name: pb.icon
-                    size: 34
-                    filled: pb.isArmed
-                    color: pb.ink
-                }
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    text: pb.isArmed ? strings.t("power.confirm") : pb.label
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    color: pb.ink
-                }
-            }
-        }
-
-        HoverHandler { id: pbHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { id: pbTap; onTapped: pb.clicked() }
-    }
-
-    // ---------- Layout ----------
-    ColumnLayout {
-        id: content
-        width: root.implicitWidth
-        spacing: root.tileSpacing
-
-        // Cabeçalho: voltar ao painel de controle + título
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 12
-
-            Item {
-                id: back
-                Layout.preferredWidth: backRow.implicitWidth + 26
-                Layout.preferredHeight: 32
-
-                ContinuousRect {
-                    anchors.fill: parent
-                    radius: height / 2
-                    color: backHover.hovered ? Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.14) : root.surface
-                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                }
-                Row {
-                    id: backRow
-                    anchors.centerIn: parent
-                    spacing: 6
-                    Icon {
-                        anchors.verticalCenter: parent.verticalCenter
-                        name: "chevron_left"
-                        size: 18
-                        color: backHover.hovered ? root.accent : root.fg
-                        Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                    }
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: strings.t("power.back")
-                        font.pixelSize: 13
-                        color: root.fg
-                    }
-                }
-                HoverHandler { id: backHover; cursorShape: Qt.PointingHandCursor }
-                TapHandler { onTapped: root.navigate("control") }
-            }
-
-            Item { Layout.fillWidth: true }
-
-            Text {
-                Layout.rightMargin: 4
-                text: strings.t("power.title")
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-                color: root.fg
-            }
-        }
-
-        // Linha 1: ações que preservam a sessão
-        Row {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: root.tileSpacing
-
-            PowerButton {
-                key: "lock"
+        // Linha Q W E: preserva a sessão.
+        GridRow {
+            columns: 3
+            Tile {
                 icon: "lock"
                 label: strings.t("power.lock")
-                onClicked: root.runClosed(["omarchy", "system", "lock"])
+                closesIsland: true
+                onActivated: root.runClosed(["omarchy", "system", "lock"])
             }
-            PowerButton {
-                key: "suspend"
-                visible: root.suspendAvailable
+            Tile {
                 icon: "bedtime"
                 label: strings.t("power.suspend")
-                onClicked: root.runClosed(["systemctl", "suspend"])
+                available: root.suspendAvailable
+                unavailableText: strings.t("power.suspendOff")
+                closesIsland: true
+                onActivated: root.runClosed(["systemctl", "suspend"])
             }
-            PowerButton {
-                key: "hibernate"
-                visible: root.hibernateAvailable
-                icon: "mode_standby" // hibernar
+            Tile {
+                icon: "ac_unit"
                 label: strings.t("power.hibernate")
-                onClicked: root.runClosed(["systemctl", "hibernate"])
+                available: root.hibernateAvailable
+                unavailableText: strings.t("power.hibernateOff")
+                closesIsland: true
+                onActivated: root.runClosed(["systemctl", "hibernate"])
             }
         }
 
-        // Linha 2: ações que encerram a sessão (pedem confirmação)
-        Row {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: root.tileSpacing
-
-            PowerButton {
-                key: "logout"
+        // Linha A S D: encerra a sessão, pede dois toques.
+        GridRow {
+            columns: 3
+            Tile {
+                id: logoutTile
                 icon: "logout"
                 label: strings.t("power.logout")
-                onClicked: root.confirmOrRun("logout", ["omarchy", "system", "logout"])
+                kind: "confirm"
+                closesIsland: true
+                onActivated: root.runClosed(["omarchy", "system", "logout"])
             }
-            PowerButton {
-                key: "reboot"
+            Tile {
+                id: rebootTile
                 icon: "restart_alt"
                 label: strings.t("power.reboot")
-                onClicked: root.confirmOrRun("reboot", ["omarchy", "system", "reboot"])
+                kind: "confirm"
+                closesIsland: true
+                onActivated: root.runClosed(["omarchy", "system", "reboot"])
             }
-            PowerButton {
-                key: "shutdown"
+            Tile {
+                id: shutdownTile
                 icon: "power_settings_new"
                 label: strings.t("power.shutdown")
-                onClicked: root.confirmOrRun("shutdown", ["omarchy", "system", "shutdown"])
+                kind: "confirm"
+                closesIsland: true
+                onActivated: root.runClosed(["omarchy", "system", "shutdown"])
             }
-        }
-
-        // Dica que aparece enquanto um botão está armado.
-        Text {
-            Layout.fillWidth: true
-            horizontalAlignment: Text.AlignHCenter
-            text: strings.t("power.confirmHint")
-            font.pixelSize: 12
-            color: root.danger
-            opacity: root.armed !== "" ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
         }
     }
 }

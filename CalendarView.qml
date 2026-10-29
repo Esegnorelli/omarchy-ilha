@@ -1,324 +1,577 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs.Commons as Commons
 
-// Calendário do mês: cabeçalho com mês e ano, setas entre meses e grade de
-// 6 semanas a partir do primeiro dia da semana do idioma. Abre pelo relógio;
-// Esc fecha, setas trocam o mês e Home volta para hoje.
+// Tempo (spec §3.4, view id "calendar"): mês inteiro na largura da grade,
+// lembretes rápidos e fuso horário.
+//
+//   bloco 242   ‹ Mês de ano ›  (32) · iniciais (18) · 6 × 32 linhas de 7 × 76
+//   LEMBRETES   legenda com "2 ativos · próximo 18:40"
+//   Q W E R     +5 min · +15 min · +30 min · +1 h
+//   A S D(F)    Ver lembretes · Limpar (confirma) · Fuso horário (fecha antes)
+//
+// Contrato de estado: active, shell, fg/bg/accent/danger, metrics,
+// keyboardMode, footerStatus, footerHints, handleKey(event) → bool,
+// handleEscape() → bool, focusFirst(), closeRequested(), navigate(target).
+// Teclas próprias: PgUp/PgDn trocam o mês, Home volta para hoje.
 Item {
-  id: root
+    id: root
 
-  // Cores do tema (o host passa as mesmas).
-  property color fg: Commons.Color.bar.text
-  property color bg: Commons.Color.bar.background
-  property color accent: Commons.Color.accent
-  property color danger: Commons.Color.urgent
+    // Cores do tema (o host passa as mesmas).
+    property color fg: Commons.Color.bar.text
+    property color bg: Commons.Color.bar.background
+    property color accent: Commons.Color.accent
+    property color danger: Commons.Color.urgent
+    property color muted: Commons.Color.muted
 
-  // O host liga enquanto este estado está visível.
-  property bool active: false
-  property var shell: null
+    property bool active: false
+    property var shell: null
+    property Metrics metrics: Metrics {}
+    property bool keyboardMode: false
 
-  signal closeRequested()
-  signal navigate(string target)
+    signal closeRequested()
+    signal navigate(string target)
 
-  Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+    Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
-  implicitWidth: 380
-  implicitHeight: content.implicitHeight
+    implicitWidth: metrics.content
+    implicitHeight: grid.implicitHeight
 
-  focus: true
+    readonly property var loc: Qt.locale(Commons.I18n.formatLocale)
+    readonly property bool rtl: Commons.I18n.rightToLeft
+    // Primeiro dia da semana do idioma, em 0 = domingo (Qt usa 7 para domingo).
+    readonly property int weekStart: ((loc.firstDayOfWeek % 7) + 7) % 7
 
-  readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-  readonly property color hoverTint: Qt.rgba(fg.r, fg.g, fg.b, 0.12)
-  readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.6)
-  readonly property color faint: Qt.rgba(fg.r, fg.g, fg.b, 0.28)
-  readonly property var loc: Qt.locale(Commons.I18n.formatLocale)
-  readonly property bool rtl: Commons.I18n.rightToLeft
+    // ---------- Contrato ----------
+    readonly property string footerStatus: root.todayText
+    readonly property string footerHints: strings.t("hint.time")
 
-  // Primeiro dia da semana do idioma, em 0 = domingo (Qt usa 7 para domingo).
-  readonly property int weekStart: ((loc.firstDayOfWeek % 7) + 7) % 7
-
-  // ---------- Data de hoje (só atualiza enquanto visível) ----------
-  SystemClock {
-    id: clock
-    enabled: root.active
-    precision: SystemClock.Minutes
-  }
-  readonly property int todayYear: clock.date.getFullYear()
-  readonly property int todayMonth: clock.date.getMonth()
-  readonly property int todayDay: clock.date.getDate()
-
-  // ---------- Mês exibido ----------
-  property int viewYear: todayYear
-  property int viewMonth: todayMonth
-  readonly property bool showingToday: viewYear === todayYear && viewMonth === todayMonth
-
-  // Enquanto o usuário não navegar, a vista acompanha a virada do mês.
-  property bool followToday: true
-
-  function goToday() {
-    followToday = true
-    viewYear = todayYear
-    viewMonth = todayMonth
-  }
-  function showMonth(year, month) {
-    followToday = false
-    viewYear = year
-    viewMonth = month
-  }
-  function shiftMonth(delta) {
-    const d = new Date(viewYear, viewMonth + delta, 1)
-    showMonth(d.getFullYear(), d.getMonth())
-  }
-  onTodayMonthChanged: if (followToday) goToday()
-  onTodayYearChanged: if (followToday) goToday()
-
-  onActiveChanged: if (active) { goToday(); root.forceActiveFocus() }
-  Component.onCompleted: { goToday(); if (active) root.forceActiveFocus() }
-
-  Keys.onPressed: event => {
-    const key = Commons.Util.readingKey(event, false)
-    if (key === Qt.Key_Escape) { root.closeRequested(); event.accepted = true }
-    else if (key === Qt.Key_Left || key === Qt.Key_PageUp) { root.shiftMonth(-1); event.accepted = true }
-    else if (key === Qt.Key_Right || key === Qt.Key_PageDown) { root.shiftMonth(1); event.accepted = true }
-    else if (key === Qt.Key_Home) { root.goToday(); event.accepted = true }
-  }
-
-  function capitalize(s) {
-    return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s
-  }
-
-  readonly property string monthTitle: capitalize(
-    new Date(viewYear, viewMonth, 1).toLocaleDateString(loc, strings.t("calendar.monthFormat")))
-
-  readonly property string todayText: {
-    // "quinta-feira" fica "quinta", mais curto no rodapé.
-    const s = clock.date.toLocaleDateString(loc, strings.t("calendar.todayFormat")).replace("-feira", "")
-    return strings.t("calendar.today").arg(s)
-  }
-
-  // Iniciais dos dias, na ordem do idioma; sábado e domingo ficam mais apagados.
-  readonly property var weekdays: {
-    const out = []
-    for (let i = 0; i < 7; i++) {
-      const jsDay = (weekStart + i) % 7
-      // dayName aceita 0..6 com 0 = domingo, igual ao Date.getDay().
-      out.push({ label: loc.dayName(jsDay, Locale.NarrowFormat), weekend: jsDay === 0 || jsDay === 6 })
-    }
-    return out
-  }
-
-  // 42 células (6 semanas), cada uma com dia, mês e ano.
-  readonly property var cells: {
-    const first = new Date(viewYear, viewMonth, 1)
-    const offset = (first.getDay() - weekStart + 7) % 7
-    const out = []
-    for (let i = 0; i < 42; i++) {
-      const d = new Date(viewYear, viewMonth, 1 - offset + i)
-      out.push({
-        day: d.getDate(),
-        month: d.getMonth(),
-        year: d.getFullYear(),
-        inMonth: d.getMonth() === viewMonth,
-        weekend: d.getDay() === 0 || d.getDay() === 6
-      })
-    }
-    return out
-  }
-
-  // ---------- Componentes internos ----------
-  component ArrowChip: Item {
-    id: arrow
-    property string icon: ""
-    signal clicked()
-
-    implicitWidth: 34
-    implicitHeight: 34
-
-    ContinuousRect {
-      anchors.fill: parent
-      radius: height / 2
-      color: arrowHover.hovered ? root.hoverTint : root.surface
-      Behavior on color {
-        ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-      }
-    }
-    Icon {
-      anchors.centerIn: parent
-      name: arrow.icon
-      size: 20
-      color: arrowHover.hovered ? root.accent : root.fg
-      Behavior on color {
-        ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-      }
-    }
-    HoverHandler { id: arrowHover; cursorShape: Qt.PointingHandCursor }
-    TapHandler { onTapped: arrow.clicked() }
-  }
-
-  // ---------- Layout ----------
-  ColumnLayout {
-    id: content
-    width: root.implicitWidth
-    spacing: 12
-
-    // Cabeçalho: ‹  Mês de ano  ›
-    RowLayout {
-      Layout.fillWidth: true
-      spacing: 8
-
-      ArrowChip {
-        // Setas trocam de lado em idiomas RTL.
-        icon: root.rtl ? "chevron_right" : "chevron_left"
-        onClicked: root.shiftMonth(-1)
-      }
-
-      Item {
-        id: title
-        Layout.fillWidth: true
-        Layout.preferredHeight: 34
-
-        ContinuousRect {
-          anchors.fill: parent
-          radius: height / 2
-          color: titleHover.hovered && !root.showingToday ? root.hoverTint : "transparent"
-          Behavior on color {
-            ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-          }
+    function handleKey(event) {
+        const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier);
+        if (!mods) {
+            if (event.key === Qt.Key_PageUp) { root.shiftMonth(-1); return true; }
+            if (event.key === Qt.Key_PageDown) { root.shiftMonth(1); return true; }
+            if (event.key === Qt.Key_Home) { root.goToday(); return true; }
         }
-        Row {
-          anchors.centerIn: parent
-          spacing: 8
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.monthTitle
-            font.pixelSize: 15
-            font.weight: Font.DemiBold
-            color: root.fg
-          }
-          // Ponto que avisa que há um "voltar para hoje" disponível.
-          ContinuousRect {
-            anchors.verticalCenter: parent.verticalCenter
-            width: 6
-            height: 6
-            radius: 3
-            color: root.accent
-            opacity: root.showingToday ? 0 : 1
-            Behavior on opacity {
-              NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-            }
-          }
-        }
-        HoverHandler {
-          id: titleHover
-          cursorShape: root.showingToday ? Qt.ArrowCursor : Qt.PointingHandCursor
-        }
-        TapHandler { onTapped: root.goToday() }
-      }
+        return grid.handleKey(event);
+    }
+    function handleEscape() { return grid.handleEscape(); }
+    function focusFirst() { prevButton.forceActiveFocus(Qt.TabFocusReason); return true; }
 
-      ArrowChip {
-        icon: root.rtl ? "chevron_left" : "chevron_right"
-        onClicked: root.shiftMonth(1)
-      }
+    // ---------- Execução ----------
+    // Abre outra interface: recolhe a ilha antes (runAfterClose, 350 ms).
+    function runAfterClose(cmd) {
+        root.closeRequested();
+        const wait = (root.metrics.msCloseFirst / 1000).toFixed(2);
+        Quickshell.execDetached(["sh", "-c", "sleep \"$0\"; exec \"$@\"", wait].concat(cmd));
     }
 
-    // Cartão com a grade do mês.
-    Item {
-      Layout.fillWidth: true
-      Layout.preferredHeight: gridColumn.implicitHeight + 24
+    // ---------- Data de hoje (só atualiza enquanto visível) ----------
+    SystemClock {
+        id: clock
+        enabled: root.active
+        precision: SystemClock.Minutes
+    }
+    readonly property int todayYear: clock.date.getFullYear()
+    readonly property int todayMonth: clock.date.getMonth()
+    readonly property int todayDay: clock.date.getDate()
 
-      ContinuousRect {
-        anchors.fill: parent
-        radius: 18
-        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.05)
-      }
+    // ---------- Mês exibido ----------
+    property int viewYear: todayYear
+    property int viewMonth: todayMonth
+    readonly property bool showingToday: viewYear === todayYear && viewMonth === todayMonth
+    // Enquanto o usuário não navegar, a vista acompanha a virada do mês.
+    property bool followToday: true
 
-      Column {
-        id: gridColumn
-        x: 12
-        y: 12
-        width: parent.width - 24
-        spacing: 4
+    function goToday() {
+        const dir = (todayYear * 12 + todayMonth) - (viewYear * 12 + viewMonth);
+        followToday = true;
+        viewYear = todayYear;
+        viewMonth = todayMonth;
+        if (dir !== 0) monthSwap.play(dir > 0 ? 1 : -1);
+    }
+    function showMonth(year, month) {
+        const dir = (year * 12 + month) - (viewYear * 12 + viewMonth);
+        followToday = false;
+        viewYear = year;
+        viewMonth = month;
+        if (dir !== 0) monthSwap.play(dir > 0 ? 1 : -1);
+    }
+    function shiftMonth(delta) {
+        const d = new Date(viewYear, viewMonth + delta, 1);
+        showMonth(d.getFullYear(), d.getMonth());
+    }
+    onTodayMonthChanged: if (followToday) goToday()
+    onTodayYearChanged: if (followToday) goToday()
 
-        // Iniciais dos dias da semana
-        Row {
-          width: parent.width
-          Repeater {
-            model: root.weekdays
-            Text {
-              required property var modelData
-              width: gridColumn.width / 7
-              height: 22
-              horizontalAlignment: Text.AlignHCenter
-              verticalAlignment: Text.AlignVCenter
-              text: modelData.label
-              font.pixelSize: 12
-              font.weight: Font.DemiBold
-              color: modelData.weekend ? root.faint : root.dim
-            }
-          }
+    function capitalize(s) {
+        return s.length > 0 ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+    }
+
+    readonly property string monthTitle: capitalize(
+        new Date(viewYear, viewMonth, 1).toLocaleDateString(loc, strings.t("calendar.monthFormat")))
+
+    readonly property string todayText: {
+        // "quinta-feira" fica "quinta", mais curto no rodapé.
+        const s = clock.date.toLocaleDateString(loc, strings.t("calendar.todayFormat")).replace("-feira", "");
+        return strings.t("calendar.today").arg(s);
+    }
+
+    // Iniciais dos dias, na ordem do idioma; sábado e domingo ficam apagados.
+    readonly property var weekdays: {
+        const out = [];
+        for (let i = 0; i < 7; i++) {
+            const jsDay = (weekStart + i) % 7;
+            out.push({ label: loc.dayName(jsDay, Locale.NarrowFormat), weekend: jsDay === 0 || jsDay === 6 });
         }
+        return out;
+    }
 
-        // Grade de 6 semanas
-        Grid {
-          id: grid
-          width: parent.width
-          columns: 7
+    // 42 células (6 semanas), cada uma com dia, mês e ano.
+    readonly property var cells: {
+        const first = new Date(viewYear, viewMonth, 1);
+        const offset = (first.getDay() - weekStart + 7) % 7;
+        const out = [];
+        for (let i = 0; i < 42; i++) {
+            const d = new Date(viewYear, viewMonth, 1 - offset + i);
+            out.push({
+                day: d.getDate(),
+                month: d.getMonth(),
+                year: d.getFullYear(),
+                inMonth: d.getMonth() === viewMonth,
+                weekend: d.getDay() === 0 || d.getDay() === 6
+            });
+        }
+        return out;
+    }
 
-          Repeater {
-            model: root.cells
-            Item {
-              id: cell
-              required property var modelData
-              readonly property bool isToday: modelData.day === root.todayDay
-                                              && modelData.month === root.todayMonth
-                                              && modelData.year === root.todayYear
-              width: grid.width / 7
-              height: 38
+    // ---------- Lembretes ----------
+    property var reminders: []
+    readonly property int reminderCount: reminders.length
 
-              ContinuousRect {
-                anchors.centerIn: parent
-                width: 34
-                height: 32
-                radius: 12
-                color: cell.isToday ? root.accent : root.hoverTint
-                opacity: cell.isToday ? 1 : (cellHover.hovered ? 1 : 0)
-                Behavior on opacity {
-                  NumberAnimation { duration: Commons.Style.duration(140); easing.type: Easing.OutCubic }
+    // Hora em que o próximo lembrete toca ("18:40"), ou vazio.
+    readonly property string nextReminderAt: {
+        let best = null;
+        for (const r of root.reminders) {
+            const s = Number(r.remainingSeconds);
+            if (!isFinite(s)) continue;
+            if (best === null || s < Number(best.remainingSeconds)) best = r;
+        }
+        return best && best.atTime ? String(best.atTime) : "";
+    }
+
+    readonly property string remindersStatus: {
+        if (root.reminderCount === 0) return strings.t("calendar.remindersNone");
+        const count = strings.tn("calendar.remindersActive", root.reminderCount)
+                          .arg(Commons.I18n.formatNumber(root.reminderCount));
+        return root.nextReminderAt === "" ? count
+             : count + " · " + strings.t("calendar.remindersNext").arg(root.nextReminderAt);
+    }
+
+    Process {
+        id: remindersProc
+        command: ["omarchy", "reminder", "show", "-j"]
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                try {
+                    const data = JSON.parse(text);
+                    root.reminders = Array.isArray(data.reminders) ? data.reminders : [];
+                } catch (e) {
+                    root.reminders = [];
                 }
-              }
-              Text {
-                anchors.centerIn: parent
-                text: cell.modelData.day
-                font.pixelSize: 13
-                font.weight: cell.isToday ? Font.DemiBold : Font.Normal
-                color: cell.isToday ? root.bg
-                     : !cell.modelData.inMonth ? root.faint
-                     : cell.modelData.weekend ? root.dim
-                     : root.fg
-              }
-
-              HoverHandler { id: cellHover }
-              // Tocar num dia de outro mês leva até aquele mês.
-              TapHandler {
-                onTapped: if (!cell.modelData.inMonth)
-                  root.showMonth(cell.modelData.year, cell.modelData.month)
-              }
             }
-          }
         }
-      }
+    }
+    function refreshReminders() {
+        if (!remindersProc.running) remindersProc.running = true;
     }
 
-    // Rodapé com a data de hoje por extenso
-    Text {
-      Layout.fillWidth: true
-      horizontalAlignment: Text.AlignHCenter
-      text: root.todayText
-      font.pixelSize: 13
-      elide: Text.ElideRight
-      color: root.dim
+    // Releitura logo depois de criar ou limpar lembretes.
+    Timer {
+        id: reminderReread
+        interval: 600
+        onTriggered: root.refreshReminders()
     }
-  }
+    // Mantém o "próximo" atualizado enquanto o painel está aberto.
+    Timer {
+        interval: 30000
+        repeat: true
+        running: root.active && root.reminderCount > 0
+        onTriggered: root.refreshReminders()
+    }
+
+    // Ignora o mesmo toque repetido enquanto a releitura anterior não
+    // terminou, para um toque duplo não criar dois lembretes iguais.
+    // Outro botão (Q e logo W) vale: são dois lembretes pedidos.
+    property int lastReminderMinutes: 0
+    function addReminder(minutes) {
+        if (reminderReread.running && minutes === root.lastReminderMinutes) return;
+        root.lastReminderMinutes = minutes;
+        Quickshell.execDetached(["omarchy", "reminder", String(minutes), strings.t("calendar.reminderDefault")]);
+        reminderReread.restart();
+    }
+    function clearReminders() {
+        if (reminderReread.running) return;
+        Quickshell.execDetached(["omarchy", "reminder", "clear"]);
+        reminderReread.restart();
+    }
+    function showReminders() {
+        Quickshell.execDetached(["omarchy-reminder", "show"]);
+    }
+
+    // Hora em que um lembrete de N minutos tocaria, para a sublinha.
+    function atTime(minutes) {
+        const d = new Date(clock.date.getTime() + minutes * 60000);
+        return strings.t("calendar.reminderAt").arg(d.toLocaleTimeString(root.loc, Locale.ShortFormat));
+    }
+
+    // ---------- Fuso horário ----------
+    property string timezone: ""
+    Process {
+        id: timezoneProc
+        command: ["timedatectl", "show", "-p", "Timezone", "--value"]
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: root.timezone = text.trim()
+        }
+    }
+
+    onActiveChanged: {
+        if (active) {
+            goToday();
+            refreshReminders();
+            if (!timezoneProc.running) timezoneProc.running = true;
+            Qt.callLater(root.focusFirst);
+        } else {
+            clearTile.disarm();
+        }
+    }
+    Component.onCompleted: {
+        goToday();
+        if (active) {
+            refreshReminders();
+            timezoneProc.running = true;
+            Qt.callLater(root.focusFirst);
+        }
+    }
+
+    // ---------- Componentes internos ----------
+    // Botão ‹ › do cabeçalho: pílula de 32 px, focável, com anel no modo teclado.
+    component NavButton: Item {
+        id: nav
+        property string icon: ""
+        signal clicked()
+
+        width: 44
+        height: 32
+        activeFocusOnTab: true
+        Accessible.role: Accessible.Button
+
+        function activate() { nav.pulse(); nav.clicked(); return true; }
+        property bool _pulsing: false
+        function pulse() { nav._pulsing = true; navPulse.restart(); }
+        Timer { id: navPulse; interval: Math.max(1, Commons.Style.duration(root.metrics.msPress)); onTriggered: nav._pulsing = false }
+
+        Item {
+            anchors.fill: parent
+            scale: navTap.pressed || nav._pulsing ? root.metrics.pressScale : 1
+            Behavior on scale { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut } }
+
+            ContinuousRect {
+                anchors.fill: parent
+                radius: height / 2
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, navHover.hovered ? root.metrics.alphaHover : root.metrics.alphaIdle)
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+            Icon {
+                anchors.centerIn: parent
+                name: nav.icon
+                size: 20
+                color: navHover.hovered || (nav.activeFocus && root.keyboardMode) ? root.accent : root.fg
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+        }
+        ContinuousRect {
+            anchors.fill: parent
+            anchors.margins: -root.metrics.ring
+            radius: height / 2
+            color: "transparent"
+            borderWidth: root.metrics.ring
+            borderColor: root.accent
+            opacity: nav.activeFocus && root.keyboardMode ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.OutCubic } }
+        }
+        HoverHandler { id: navHover; cursorShape: Qt.PointingHandCursor }
+        TapHandler { id: navTap; onTapped: nav.activate() }
+    }
+
+    // ---------- Layout ----------
+    PanelGrid {
+        id: grid
+        metrics: root.metrics
+        strings: strings
+        keyboardMode: root.keyboardMode
+        fg: root.fg
+        bg: root.bg
+        accent: root.accent
+        danger: root.danger
+        muted: root.muted
+
+        // ----- Bloco do calendário: 32 + 18 + 6 × 32 = 242 -----
+        Item {
+            id: calendar
+            width: root.metrics.content
+            height: 242
+
+            // Itens focáveis do bloco (setas do PanelGrid passam por eles).
+            function focusItems() { return [prevButton, nextButton]; }
+
+            readonly property real cellWidth: 76
+            readonly property real gridX: (width - 7 * cellWidth) / 2
+
+            // Cabeçalho: ‹  Mês de ano  ›
+            Item {
+                id: header
+                width: parent.width
+                height: 32
+
+                NavButton {
+                    id: prevButton
+                    x: calendar.gridX
+                    icon: root.rtl ? "chevron_right" : "chevron_left"
+                    Accessible.name: strings.t("calendar.previousMonth")
+                    onClicked: root.shiftMonth(-1)
+                }
+                NavButton {
+                    id: nextButton
+                    x: parent.width - calendar.gridX - width
+                    icon: root.rtl ? "chevron_left" : "chevron_right"
+                    Accessible.name: strings.t("calendar.nextMonth")
+                    onClicked: root.shiftMonth(1)
+                }
+
+                // Título: tocar volta para hoje quando outro mês está à mostra.
+                Item {
+                    id: title
+                    anchors.centerIn: parent
+                    width: titleRow.implicitWidth + 28
+                    height: 32
+
+                    ContinuousRect {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
+                        opacity: titleHover.hovered && !root.showingToday ? 1 : 0
+                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                    }
+                    Row {
+                        id: titleRow
+                        anchors.centerIn: parent
+                        spacing: 8
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.monthTitle
+                            textFormat: Text.PlainText
+                            font.pixelSize: 15
+                            font.weight: Font.DemiBold
+                            color: root.fg
+                        }
+                        // Ponto: há um "voltar para hoje" disponível.
+                        ContinuousRect {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: root.showingToday ? 0 : 6
+                            height: 6
+                            radius: 3
+                            color: root.accent
+                            opacity: root.showingToday ? 0 : 1
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                            Behavior on width { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                        }
+                    }
+                    HoverHandler {
+                        id: titleHover
+                        cursorShape: root.showingToday ? Qt.ArrowCursor : Qt.PointingHandCursor
+                    }
+                    TapHandler { onTapped: root.goToday() }
+                }
+            }
+
+            // Iniciais dos dias da semana (18 px)
+            Row {
+                x: calendar.gridX
+                y: 32
+                Repeater {
+                    model: root.weekdays
+                    Text {
+                        required property var modelData
+                        width: calendar.cellWidth
+                        height: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        text: modelData.label
+                        textFormat: Text.PlainText
+                        font.pixelSize: root.metrics.captionText
+                        font.weight: Font.DemiBold
+                        color: root.muted
+                        opacity: modelData.weekend ? 0.6 : 1
+                    }
+                }
+            }
+
+            // Grade de 6 semanas (6 × 32). Ao trocar de mês, desliza de leve
+            // no sentido da troca e reaparece (sem quique).
+            Item {
+                id: days
+                x: calendar.gridX
+                y: 50
+                width: 7 * calendar.cellWidth
+                height: 192
+                clip: true
+
+                Grid {
+                    id: dayGrid
+                    columns: 7
+                    property real shift: 0
+                    x: shift
+                    Repeater {
+                        model: root.cells
+                        Item {
+                            id: cell
+                            required property var modelData
+                            readonly property bool isToday: modelData.day === root.todayDay
+                                                            && modelData.month === root.todayMonth
+                                                            && modelData.year === root.todayYear
+                            width: calendar.cellWidth
+                            height: 32
+
+                            ContinuousRect {
+                                anchors.centerIn: parent
+                                width: 48
+                                height: 28
+                                radius: height / 2
+                                color: cell.isToday ? root.accent
+                                     : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
+                                opacity: cell.isToday ? 1 : (cellHover.hovered ? 1 : 0)
+                                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                            }
+                            Text {
+                                anchors.centerIn: parent
+                                text: Commons.I18n.formatNumber(cell.modelData.day)
+                                textFormat: Text.PlainText
+                                font.pixelSize: 13
+                                font.weight: cell.isToday ? Font.DemiBold : Font.Normal
+                                color: cell.isToday ? root.bg
+                                     : (!cell.modelData.inMonth || cell.modelData.weekend) ? root.muted
+                                     : root.fg
+                                opacity: cell.isToday || cell.modelData.inMonth ? 1 : 0.5
+                            }
+
+                            HoverHandler {
+                                id: cellHover
+                                cursorShape: cell.modelData.inMonth ? Qt.ArrowCursor : Qt.PointingHandCursor
+                            }
+                            // Tocar num dia de outro mês leva até aquele mês.
+                            TapHandler {
+                                onTapped: if (!cell.modelData.inMonth)
+                                    root.showMonth(cell.modelData.year, cell.modelData.month)
+                            }
+                        }
+                    }
+                }
+
+                ParallelAnimation {
+                    id: monthSwap
+                    property int dir: 1
+                    function play(d) {
+                        monthSwap.stop();
+                        monthSwap.dir = d;
+                        if (Commons.Style.duration(200) <= 0) return;
+                        monthSwap.start();
+                    }
+                    NumberAnimation {
+                        target: dayGrid
+                        property: "shift"
+                        from: 14 * monthSwap.dir
+                        to: 0
+                        duration: Commons.Style.duration(220)
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Commons.Style.easeOut
+                    }
+                    NumberAnimation {
+                        target: dayGrid
+                        property: "opacity"
+                        from: 0.25
+                        to: 1
+                        duration: Commons.Style.duration(root.metrics.msFadeIn)
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
+        }
+
+        // ----- Lembretes: Q W E R -----
+        GridRow {
+            caption: strings.t("calendar.reminders")
+            captionStatus: root.remindersStatus
+
+            Tile {
+                icon: "alarm_add"
+                label: strings.t("calendar.reminderIn5")
+                sublabel: root.atTime(5)
+                onActivated: root.addReminder(5)
+            }
+            Tile {
+                icon: "alarm_add"
+                label: strings.t("calendar.reminderIn15")
+                sublabel: root.atTime(15)
+                onActivated: root.addReminder(15)
+            }
+            Tile {
+                icon: "alarm_add"
+                label: strings.t("calendar.reminderIn30")
+                sublabel: root.atTime(30)
+                onActivated: root.addReminder(30)
+            }
+            Tile {
+                icon: "alarm_add"
+                label: strings.t("calendar.reminderIn60")
+                sublabel: root.atTime(60)
+                onActivated: root.addReminder(60)
+            }
+        }
+
+        // ----- A S D(F) -----
+        GridRow {
+            Tile {
+                icon: "notifications"
+                label: strings.t("calendar.remindersShow")
+                sublabel: root.reminderCount > 0
+                          ? strings.tn("calendar.remindersActive", root.reminderCount).arg(Commons.I18n.formatNumber(root.reminderCount))
+                          : ""
+                available: root.reminderCount > 0
+                unavailableText: strings.t("calendar.remindersEmptyShort")
+                onActivated: root.showReminders()
+            }
+            Tile {
+                id: clearTile
+                icon: "delete_sweep"
+                kind: "confirm"
+                label: strings.t("calendar.remindersClear")
+                sublabel: strings.t("calendar.remindersClearHint")
+                available: root.reminderCount > 0
+                unavailableText: strings.t("calendar.remindersEmptyShort")
+                onActivated: root.clearReminders()
+            }
+            Tile {
+                icon: "public"
+                label: strings.t("calendar.timezone")
+                sublabel: root.timezone
+                stretch: true
+                closesIsland: true
+                onActivated: root.runAfterClose(["omarchy", "menu", "timezone"])
+            }
+        }
+    }
 }

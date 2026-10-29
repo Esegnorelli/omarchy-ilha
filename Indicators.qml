@@ -6,6 +6,10 @@ import qs.Commons as Commons
 // Fileira de indicadores da ilha. Só aparece o que está ligado, e tocar
 // resolve: para a gravação, tira o Não perturbe, abre Ferramentas…
 //
+// Na faixa (Strip) cada indicador ocupa uma vaga fixa de 24 px ("slot") e a
+// fileira tem "capacity" vagas. Se não couber, a última vaga vira "+N", que
+// abre o painel dono do primeiro indicador escondido (ownerOf).
+//
 // Fontes (ver o plano):
 // - Não perturbe, luz noturna, manter acordado: proxies do shell
 //   (shell.firstPartyServiceFor). Sem shell (fora do Omarchy, no teste),
@@ -364,36 +368,59 @@ Item {
         case "dnd": allowNotifications(); break
         case "nightlight": nightlightOff(); break
         case "stayAwake": allowIdle(); break
-        case "reminders": showReminders(); break
+        case "reminders": root.navigate("calendar"); break
         case "updates": root.navigate("tools"); break
         case "notifications": showNotificationHistory(); break
         }
     }
 
-    implicitWidth: row.implicitWidth
+    // Painel que cuida de cada indicador (usado pelo "+N").
+    function ownerOf(key) {
+        switch (key) {
+        case "recording": return "capture"
+        case "reminders": return "calendar"
+        case "updates":
+        case "notifications": return "tools"
+        default: return "control"
+        }
+    }
+
+    // ---- Vagas ----
+    // Largura fixa de cada vaga e quantas cabem (-1 = sem limite).
+    property int slot: 24
+    property int capacity: -1
+    readonly property bool overflowing: capacity >= 0 && items.length > capacity
+    readonly property var shownItems: overflowing ? items.slice(0, Math.max(0, capacity - 1)) : items
+    readonly property int hiddenCount: items.length - shownItems.length
+    readonly property bool showMore: overflowing && capacity >= 1
+
+    implicitWidth: (shownItems.length + (showMore ? 1 : 0)) * slot
     implicitHeight: 30
-    visible: items.length > 0
+    width: implicitWidth
+    visible: implicitWidth > 0
 
     Row {
         id: row
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
+        spacing: 0
 
         Repeater {
-            model: root.items
+            model: root.shownItems
 
             Item {
                 id: chip
                 required property var modelData
 
-                width: chipRow.implicitWidth + 14
+                width: root.slot
                 height: 30
 
                 Accessible.role: Accessible.Button
                 Accessible.name: root.labelFor(modelData.key, modelData.count)
 
                 ContinuousRect {
-                    anchors.fill: parent
+                    anchors.centerIn: parent
+                    width: root.slot
+                    height: root.slot
                     radius: height / 2
                     color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.10)
                     opacity: chipHover.hovered ? 1 : 0
@@ -403,29 +430,25 @@ Item {
                     }
                 }
 
-                Row {
-                    id: chipRow
+                Icon {
                     anchors.centerIn: parent
-                    spacing: 4
+                    name: chip.modelData.icon
+                    color: chip.modelData.tint
+                    size: 17
+                    filled: true
+                }
 
-                    Icon {
-                        anchors.verticalCenter: parent.verticalCenter
-                        name: chip.modelData.icon
-                        color: chip.modelData.tint
-                        size: 18
-                        filled: true
-                    }
-
-                    Text {
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: chip.modelData.count > 0
-                        text: Commons.I18n.formatNumber(chip.modelData.count)
-                        color: root.fg
-                        opacity: 0.85
-                        font.pixelSize: 12
-                        font.weight: Font.DemiBold
-                        textFormat: Text.PlainText
-                    }
+                // Contagem: número pequeno no canto, sem alargar a vaga.
+                Text {
+                    visible: chip.modelData.count > 0
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.topMargin: 2
+                    text: chip.modelData.count > 9 ? "9+" : Commons.I18n.formatNumber(chip.modelData.count)
+                    color: root.fg
+                    font.pixelSize: 9
+                    font.weight: Font.Bold
+                    textFormat: Text.PlainText
                 }
 
                 HoverHandler {
@@ -435,6 +458,51 @@ Item {
 
                 TapHandler {
                     onTapped: root.activate(chip.modelData.key)
+                }
+            }
+        }
+
+        // "+N": abre o painel do primeiro indicador que não coube.
+        Item {
+            id: more
+            visible: root.showMore
+            width: root.slot
+            height: 30
+
+            Accessible.role: Accessible.Button
+            Accessible.name: strings.tn("indicators.more", root.hiddenCount).arg(Commons.I18n.formatNumber(root.hiddenCount))
+
+            ContinuousRect {
+                anchors.centerIn: parent
+                width: root.slot
+                height: 18
+                radius: height / 2
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, moreHover.hovered ? 0.18 : 0.10)
+
+                Behavior on color {
+                    ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                }
+            }
+
+            Text {
+                anchors.centerIn: parent
+                text: "+" + Commons.I18n.formatNumber(root.hiddenCount)
+                color: root.fg
+                font.pixelSize: 11
+                font.weight: Font.DemiBold
+                textFormat: Text.PlainText
+            }
+
+            HoverHandler {
+                id: moreHover
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+                onTapped: {
+                    const first = root.items[root.shownItems.length]
+                    if (first)
+                        root.navigate(root.ownerOf(first.key))
                 }
             }
         }

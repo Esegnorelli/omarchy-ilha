@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import Quickshell.Bluetooth
@@ -8,13 +7,23 @@ import Quickshell.Services.Pipewire
 import Quickshell.Services.UPower
 import qs.Commons as Commons
 
-// Central de controle: data/hora, Wi-Fi, Bluetooth, microfone, alternâncias
-// do Omarchy (luz noturna, não perturbe, manter acordado, animações, modo
-// jogo), volume, bateria (só em notebook) e atalhos para outros estados da ilha.
+// Controle (spec §3.4, painel 2): ligar, ajustar, conectar.
+//   Q Microfone · W Não perturbe · E Luz noturna · R Manter acordado
+//   A Animações · S Modo jogo · D Wi-Fi* · F Bluetooth*
+//     (sem Wi-Fi e sem BT: Modo jogo vai até c4; só um deles: ele vai até c4)
+//   Volume: LabeledRow com slider (−/= ±5%, M mudo; tocar no rótulo = mudo)
+//   Rede: InfoRow (interface · tipo, IPv4) com C QR do Wi-Fi* e V Velocidade
+//     (sem Wi-Fi: Velocidade ocupa c3–c4)
+//   Rodapé: bateria (notebook) e o resumo do que está ligado, ou "Tudo normal".
+// A altura é a mesma em qualquer máquina: o microfone ausente fica cinza no lugar.
 //
 // Luz noturna, Não perturbe e Manter acordado usam os proxies do host
 // (shell.firstPartyServiceFor) quando `shell` existe; sem ele, caem nos
 // comandos `omarchy toggle ...` e releem o status.
+//
+// Contrato de estado: active, shell, closeRequested(), navigate(target),
+// fg/bg/accent/danger, metrics, keyboardMode, footerStatus, footerHints,
+// footerAlert, handleKey(event) → bool, handleEscape() → bool, focusFirst().
 Item {
     id: root
 
@@ -29,52 +38,156 @@ Item {
 
     // Verdadeiro enquanto este estado está visível na ilha (definido pelo host).
     property bool active: false
+    property Metrics metrics: Metrics {}
+    property bool keyboardMode: false
 
     // Pede ao host para recolher a ilha.
     signal closeRequested()
-    // Pede ao host para trocar de estado ("capture", "style", "tools", "power"...).
+    // Pede ao host para trocar de estado.
     signal navigate(string target)
 
-    implicitWidth: 400
-    implicitHeight: content.implicitHeight
-
-    readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
-    readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.13)
-    readonly property color dim: Commons.Color.muted
+    implicitWidth: metrics.content
+    implicitHeight: grid.implicitHeight
 
     Commons.Translations {
         id: strings
         directory: Qt.resolvedUrl("i18n")
     }
 
-    // ---------- Relógio ----------
-    SystemClock {
-        id: clock
-        precision: SystemClock.Minutes
+    // Troca %1, %2... numa passada só (um SSID com "%2" não é trocado de novo).
+    function fmt(template, args) {
+        return String(template).replace(/%(\d+)/g, (m, n) => {
+            const i = parseInt(n) - 1;
+            return i >= 0 && i < args.length ? String(args[i]) : m;
+        });
     }
-    readonly property var locale: Qt.locale(Commons.I18n.formatLocale)
-    readonly property string dateText: clock.date.toLocaleString(locale, strings.t("control.dateFormat")).replace("-feira", "")
-    readonly property string timeText: clock.date.toLocaleString(locale, strings.t("control.timeFormat"))
 
-    // ---------- Wi-Fi (Quickshell.Networking) ----------
+    // Abre um painel do Omarchy pelo host (que escolhe a implementação ativa).
+    function summonPanel(id, payload) {
+        if (!root.shell || typeof root.shell.summon !== "function") return;
+        root.closeRequested();
+        root.shell.summon(id, JSON.stringify(payload || {}));
+    }
+
+    // ---------- Rede (Quickshell.Networking) ----------
     readonly property var netDevices: Networking.devices ? Networking.devices.values : []
-    readonly property var wifiDevice: {
+
+    // Mesmo critério do painel de rede do Omarchy: prefere o conectado.
+    function findDevice(type) {
+        const devices = root.netDevices || [];
         let fallback = null;
-        for (const d of netDevices) {
-            if (!d || d.type !== DeviceType.Wifi) continue;
+        for (let i = 0; i < devices.length; i++) {
+            const d = devices[i];
+            if (!d || d.type !== type) continue;
             if (d.connected) return d;
             if (!fallback) fallback = d;
         }
         return fallback;
     }
+
+    function connectedNetwork(device) {
+        if (!device || !device.networks) return null;
+        const list = device.networks.values || [];
+        for (let i = 0; i < list.length; i++)
+            if (list[i] && list[i].connected) return list[i];
+        return null;
+    }
+
+    readonly property var wiredDevice: findDevice(DeviceType.Wired)
+    readonly property var wifiDevice: findDevice(DeviceType.Wifi)
+    readonly property var wifiNetwork: connectedNetwork(wifiDevice)
+    readonly property var wiredNetwork: connectedNetwork(wiredDevice)
+
     readonly property bool hasWifi: wifiDevice !== null
     readonly property bool wifiOn: Networking.wifiEnabled
-    readonly property string wifiSsid: {
-        if (!wifiDevice || !wifiDevice.networks) return "";
-        for (const n of wifiDevice.networks.values) {
-            if (n && n.connected) return n.name;
-        }
+    readonly property string wifiSsid: wifiNetwork && wifiNetwork.name ? String(wifiNetwork.name) : ""
+
+    // Cabo tem prioridade quando os dois estão ligados (rota padrão).
+    readonly property string netKind: {
+        if (wiredDevice && wiredDevice.connected) return "ethernet";
+        if (wifiNetwork || (wifiDevice && wifiDevice.connected)) return "wifi";
+        return "disconnected";
+    }
+    readonly property var netDevice: netKind === "ethernet" ? wiredDevice : netKind === "wifi" ? wifiDevice : null
+    readonly property string netIface: netDevice ? String(netDevice.name || "") : ""
+    readonly property string netName: {
+        if (netKind === "wifi") return wifiSsid;
+        if (netKind === "ethernet") return wiredNetwork && wiredNetwork.name ? String(wiredNetwork.name) : "";
         return "";
+    }
+    property string netAddress: ""
+
+    // Endereço IPv4 da interface atual, lido só com o estado aberto.
+    Process {
+        id: ipProc
+        property string forIface: ""
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                let addr = "";
+                try {
+                    const data = JSON.parse(text);
+                    for (let i = 0; i < data.length && addr === ""; i++) {
+                        const infos = data[i].addr_info || [];
+                        for (let j = 0; j < infos.length; j++) {
+                            if (infos[j].family === "inet" && infos[j].local) {
+                                addr = String(infos[j].local);
+                                break;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    addr = "";
+                }
+                if (ipProc.forIface === root.netIface) root.netAddress = addr;
+            }
+        }
+    }
+
+    function refreshAddress() {
+        if (!root.active) return;
+        if (root.netIface === "") {
+            root.netAddress = "";
+            return;
+        }
+        if (ipProc.running) {
+            ipReread.restart();
+            return;
+        }
+        ipProc.forIface = root.netIface;
+        ipProc.command = ["ip", "-j", "-4", "addr", "show", "dev", root.netIface];
+        ipProc.running = true;
+    }
+
+    // Tenta de novo se a troca de interface chegou durante uma leitura.
+    Timer {
+        id: ipReread
+        interval: 400
+        onTriggered: root.refreshAddress()
+    }
+
+    onNetIfaceChanged: { root.netAddress = ""; refreshAddress(); }
+    onNetKindChanged: refreshAddress()
+    Connections {
+        target: root
+        function onActiveChanged() { if (root.active) root.refreshAddress(); }
+    }
+    QtObject { Component.onCompleted: root.refreshAddress() }
+
+    function openWifiQr() {
+        const payload = {};
+        if (root.netKind === "wifi" && root.netIface !== "") {
+            payload.iface = root.netIface;
+            if (root.netName !== "") payload.ssid = root.netName;
+        }
+        summonPanel("omarchy.wifiqr", payload);
+    }
+
+    function openSpeedTest() {
+        let connection = "";
+        if (root.netKind === "wifi") connection = root.netName || strings.t("control.net.wifi");
+        else if (root.netKind === "ethernet") connection = strings.t("control.net.ethernet");
+        summonPanel("omarchy.speedtest", connection !== "" ? { connection: connection } : {});
     }
 
     function toggleWifi() {
@@ -396,167 +509,151 @@ Item {
     }
     Component.onCompleted: if (active) { refreshToggles(); gmExistsProc.running = true; }
 
-    // ---------- Componentes internos ----------
-    component Tile: ContinuousRect {
-        id: tile
-        property bool on: false
-        property string icon: ""
-        property string label: ""
-        property string sublabel: ""
-        property int tileHeight: 64
-        signal clicked()
-
-        Layout.fillWidth: true
-        Layout.preferredWidth: 1
-        Layout.preferredHeight: tileHeight
-        radius: 16
-        color: on ? root.accent : (tileHover.hovered ? root.surfaceHover : root.surface)
-        Behavior on color {
-            ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+    // ---------- Hardware (lido uma vez) ----------
+    // Os dispositivos chegam aos poucos depois de carregar; depois de visto, o
+    // bloco fica. Assim a grade não muda de forma enquanto o painel está aberto.
+    property bool hwWifi: false
+    property bool hwBluetooth: false
+    onHasWifiChanged: if (hasWifi) hwWifi = true
+    onHasBluetoothChanged: if (hasBluetooth) hwBluetooth = true
+    QtObject {
+        Component.onCompleted: {
+            if (root.hasWifi) root.hwWifi = true;
+            if (root.hasBluetooth) root.hwBluetooth = true;
         }
-        scale: tileTap.pressed ? 0.97 : 1
-        Behavior on scale {
-            NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-        }
-
-        property color ink: on ? root.bg : root.fg
-        Behavior on ink {
-            ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-        }
-
-        Row {
-            anchors.left: parent.left
-            anchors.leftMargin: 14
-            anchors.right: parent.right
-            anchors.rightMargin: 12
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 10
-
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                width: 22
-                name: tile.icon
-                size: 22
-                filled: tile.on
-                color: tile.ink
-            }
-            Column {
-                anchors.verticalCenter: parent.verticalCenter
-                width: parent.width - 32
-                spacing: 2
-                Text {
-                    width: parent.width
-                    text: tile.label
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    elide: Text.ElideRight
-                    color: tile.ink
-                }
-                Text {
-                    width: parent.width
-                    text: tile.sublabel
-                    textFormat: Text.PlainText
-                    font.pixelSize: 12
-                    elide: Text.ElideRight
-                    color: tile.ink
-                    opacity: 0.72
-                }
-            }
-        }
-
-        HoverHandler { id: tileHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { id: tileTap; onTapped: tile.clicked() }
     }
 
-    component NavChip: ContinuousRect {
-        id: chip
-        property string icon: ""
-        property string label: ""
-        signal clicked()
-
-        Layout.fillWidth: true
-        Layout.preferredWidth: chipRow.implicitWidth + 20
-        Layout.preferredHeight: 36
-        radius: height / 2
-        color: chipHover.hovered ? root.surfaceHover : root.surface
-        Behavior on color {
-            ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-        }
-        scale: chipTap.pressed ? 0.97 : 1
-        Behavior on scale {
-            NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-        }
-
-        Row {
-            id: chipRow
-            anchors.centerIn: parent
-            spacing: 6
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: chip.icon
-                size: 17
-                filled: chipHover.hovered
-                color: chipHover.hovered ? root.accent : root.fg
-                Behavior on color {
-                    ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                }
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                text: chip.label
-                font.pixelSize: 12
-                color: root.fg
-            }
-        }
-
-        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { id: chipTap; onTapped: chip.clicked() }
+    // ---------- Rodapé ----------
+    readonly property bool batteryLow: hasBattery && batteryLevel <= 0.1 && !charging
+    readonly property string batteryText: {
+        if (!hasBattery) return "";
+        const pct = strings.t("control.percent").arg(Math.round(batteryLevel * 100));
+        return fmt(charging ? strings.t("control.footer.batteryCharging") : strings.t("control.footer.battery"), [pct]);
     }
+    // Nomes do que está ligado e muda o comportamento do sistema.
+    readonly property var activeNames: {
+        const out = [];
+        if (dndOn) out.push(strings.t("control.dnd"));
+        if (nightOn) out.push(strings.t("control.nightlight"));
+        if (stayAwake) out.push(strings.t("control.stayAwake"));
+        if (gameModeOn) out.push(strings.t("control.gameMode"));
+        if (hasMic && micMuted) out.push(strings.t("control.footer.micMuted"));
+        return out;
+    }
+    readonly property string footerStatus: {
+        const parts = [];
+        if (batteryText !== "") parts.push(batteryText);
+        if (activeNames.length > 0) parts.push(activeNames.join(", "));
+        return parts.length > 0 ? parts.join(" · ") : strings.t("control.footer.allNormal");
+    }
+    readonly property bool footerAlert: batteryLow
+    readonly property string footerHints: strings.t("hint.toggle")
+
+    // ---------- Teclado ----------
+    function handleKey(event) {
+        const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+        if (!mods) {
+            const k = event.key;
+            if (k === Qt.Key_Minus || k === Qt.Key_Underscore) {
+                root.setVolume(root.volume - 0.05);
+                return true;
+            }
+            if (k === Qt.Key_Equal || k === Qt.Key_Plus) {
+                root.setVolume(root.volume + 0.05);
+                return true;
+            }
+            if (k === Qt.Key_M && !(event.modifiers & Qt.ShiftModifier)) {
+                if (!event.isAutoRepeat) root.toggleSinkMute();
+                return true;
+            }
+        }
+        return grid.handleKey(event);
+    }
+    function handleEscape() { return grid.handleEscape(); }
+    function focusFirst() { return grid.focusFirst(); }
 
     // ---------- Layout ----------
-    ColumnLayout {
-        id: content
-        width: root.implicitWidth
-        spacing: 12
+    PanelGrid {
+        id: grid
+        metrics: root.metrics
+        strings: strings
+        keyboardMode: root.keyboardMode
+        fg: root.fg
+        bg: root.bg
+        accent: root.accent
+        danger: root.danger
 
-        // Cabeçalho: data e hora
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 4
-            Text {
-                Layout.fillWidth: true
-                text: root.dateText
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-                color: root.fg
+        GridRow {
+            Tile {
+                kind: "toggle"
+                on: root.hasMic && !root.micMuted
+                available: root.hasMic
+                icon: root.hasMic && !root.micMuted ? "mic" : "mic_off"
+                label: strings.t("control.microphone")
+                sublabel: root.micMuted ? strings.t("control.micMuted") : strings.t("control.micActive")
+                unavailableText: strings.t("control.noMic")
+                onActivated: root.toggleMic()
             }
-            Text {
-                text: root.timeText
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-                color: root.accent
+            Tile {
+                kind: "toggle"
+                on: root.dndOn
+                icon: root.dndOn ? "notifications_off" : "notifications"
+                label: strings.t("control.dnd")
+                sublabel: root.dndOn ? strings.t("control.dndOn") : strings.t("control.off")
+                onActivated: root.toggleDnd()
+            }
+            Tile {
+                kind: "toggle"
+                on: root.nightOn
+                icon: "dark_mode"
+                label: strings.t("control.nightlight")
+                sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
+                onActivated: root.toggleNight()
+            }
+            Tile {
+                kind: "toggle"
+                on: root.stayAwake
+                icon: "coffee"
+                label: strings.t("control.stayAwake")
+                sublabel: root.stayAwake ? strings.t("control.stayAwakeOn") : strings.t("control.off")
+                onActivated: root.toggleStayAwake()
             }
         }
 
-        // Blocos de liga/desliga
-        RowLayout {
-            Layout.fillWidth: true
-            visible: root.hasWifi || root.hasBluetooth || root.hasMic
-            spacing: 8
-
+        GridRow {
             Tile {
-                visible: root.hasWifi
+                kind: "toggle"
+                on: root.animationsOn
+                icon: "animation"
+                label: strings.t("control.animations")
+                sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
+                onActivated: root.toggleAnimations()
+            }
+            Tile {
+                kind: "toggle"
+                stretch: true
+                on: root.gameModeOn
+                busy: root.gameBusy
+                icon: "sports_esports"
+                label: strings.t("control.gameMode")
+                sublabel: root.gameModeOn ? strings.t("control.gameModeOn") : strings.t("control.off")
+                onActivated: root.toggleGameMode()
+            }
+            Tile {
+                visible: root.hwWifi
+                kind: "toggle"
+                stretch: true
                 on: root.wifiOn
                 icon: root.wifiOn ? "wifi" : "wifi_off"
                 label: strings.t("control.wifi")
                 sublabel: !root.wifiOn ? strings.t("control.off")
                           : (root.wifiSsid !== "" ? root.wifiSsid : strings.t("control.noConnection"))
-                onClicked: root.toggleWifi()
+                onActivated: root.toggleWifi()
             }
             Tile {
-                visible: root.hasBluetooth
+                visible: root.hwBluetooth
+                kind: "toggle"
+                stretch: true
                 on: root.btOn
                 icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
                 label: strings.t("control.bluetooth")
@@ -564,240 +661,52 @@ Item {
                           : (root.btConnected > 0
                              ? strings.tn("control.connected", root.btConnected).arg(Commons.I18n.formatNumber(root.btConnected))
                              : strings.t("control.on"))
-                onClicked: root.toggleBluetooth()
-            }
-            Tile {
-                visible: root.hasMic
-                on: !root.micMuted
-                icon: root.micMuted ? "mic_off" : "mic"
-                label: strings.t("control.microphone")
-                sublabel: root.micMuted ? strings.t("control.micMuted") : strings.t("control.micActive")
-                onClicked: root.toggleMic()
+                onActivated: root.toggleBluetooth()
             }
         }
 
-        // Alternâncias do Omarchy (grade de 2 colunas)
-        GridLayout {
-            Layout.fillWidth: true
-            columns: 2
-            columnSpacing: 8
-            rowSpacing: 8
-
-            Tile {
-                tileHeight: 56
-                on: root.nightOn
-                icon: "dark_mode"
-                label: strings.t("control.nightlight")
-                sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
-                onClicked: root.toggleNight()
-            }
-            Tile {
-                tileHeight: 56
-                on: root.dndOn
-                icon: "notifications_off"
-                label: strings.t("control.dnd")
-                sublabel: root.dndOn ? strings.t("control.dndOn") : strings.t("control.off")
-                onClicked: root.toggleDnd()
-            }
-            Tile {
-                tileHeight: 56
-                on: root.stayAwake
-                icon: "coffee"
-                label: strings.t("control.stayAwake")
-                sublabel: root.stayAwake ? strings.t("control.stayAwakeOn") : strings.t("control.off")
-                onClicked: root.toggleStayAwake()
-            }
-            Tile {
-                tileHeight: 56
-                on: root.animationsOn
-                icon: "animation"
-                label: strings.t("control.animations")
-                sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
-                onClicked: root.toggleAnimations()
-            }
-            Tile {
-                Layout.columnSpan: 2
-                tileHeight: 56
-                on: root.gameModeOn
-                icon: "sports_esports"
-                label: strings.t("control.gameMode")
-                sublabel: root.gameBusy ? strings.t("control.applying")
-                          : root.gameModeOn ? strings.t("control.gameModeOn") : strings.t("control.off")
-                onClicked: root.toggleGameMode()
-            }
+        LabeledRow {
+            variant: "slider"
+            icon: !root.sinkReady || root.sinkMuted || root.volume === 0 ? "volume_off"
+                  : root.volume < 0.5 ? "volume_down" : "volume_up"
+            label: strings.t("control.volume")
+            value: !root.sinkReady ? strings.t("control.noOutput")
+                   : root.sinkMuted ? strings.t("control.micMuted")
+                   : strings.t("control.percent").arg(Math.round(root.volume * 100))
+            sliderValue: Math.min(1, root.volume)
+            dimmed: !root.sinkReady || root.sinkMuted
+            onMoved: v => root.setVolume(v)
+            onLabelTapped: root.toggleSinkMute()
         }
 
-        // Volume
-        ContinuousRect {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 52
-            visible: root.sinkReady
-            radius: 16
-            color: root.surface
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 16
-                spacing: 10
-
-                // Ícone: alterna mudo
-                ContinuousRect {
-                    Layout.preferredWidth: 36
-                    Layout.preferredHeight: 36
-                    radius: height / 2
-                    color: muteHover.hovered ? root.surfaceHover : "transparent"
-                    Behavior on color {
-                        ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                    }
-                    Icon {
-                        anchors.centerIn: parent
-                        name: root.sinkMuted || root.volume === 0 ? "volume_off"
-                              : root.volume < 0.5 ? "volume_down"
-                              : "volume_up"
-                        size: 20
-                        filled: !root.sinkMuted
-                        color: root.sinkMuted ? root.dim : root.fg
-                    }
-                    HoverHandler { id: muteHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: root.toggleSinkMute() }
-                }
-
-                // Trilho do volume
-                Item {
-                    id: slider
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-
-                    function setFromX(x) { root.setVolume(x / width); }
-
-                    ContinuousRect {
-                        id: track
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width
-                        height: 8
-                        radius: height / 2
-                        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.14)
-
-                        ContinuousRect {
-                            height: parent.height
-                            radius: height / 2
-                            width: Math.max(height, track.width * Math.min(1, root.volume))
-                            color: root.sinkMuted ? root.dim : root.accent
-                            Behavior on width {
-                                enabled: !sliderDrag.active
-                                NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }
-                            }
-                            Behavior on color {
-                                ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }
-                            }
-                        }
-                    }
-
-                    ContinuousRect {
-                        id: knob
-                        width: 16
-                        height: 16
-                        radius: height / 2
-                        anchors.verticalCenter: parent.verticalCenter
-                        x: Math.min(1, root.volume) * (slider.width - width)
-                        color: root.fg
-                        scale: sliderHover.hovered || sliderDrag.active ? 1.15 : 1
-                        Behavior on scale {
-                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
-                        }
-                        Behavior on x {
-                            enabled: !sliderDrag.active
-                            NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }
-                        }
-                    }
-
-                    HoverHandler { id: sliderHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler {
-                        onTapped: (eventPoint) => slider.setFromX(eventPoint.position.x)
-                    }
-                    DragHandler {
-                        id: sliderDrag
-                        target: null
-                        xAxis.enabled: true
-                        yAxis.enabled: false
-                        onCentroidChanged: if (active) slider.setFromX(centroid.position.x)
-                    }
-                }
-
-                Text {
-                    Layout.preferredWidth: 40
-                    horizontalAlignment: Text.AlignRight
-                    text: strings.t("control.percent").arg(Math.round(root.volume * 100))
-                    font.pixelSize: 13
-                    color: root.sinkMuted ? root.dim : root.fg
-                }
+        InfoRow {
+            Accessible.name: strings.t("control.network")
+            icon: root.netKind === "ethernet" ? "lan" : root.netKind === "wifi" ? "wifi" : "wifi_off"
+            alert: root.netKind === "disconnected"
+            title: {
+                if (root.netKind === "disconnected") return strings.t("control.net.offline");
+                const kind = root.netKind === "wifi" ? strings.t("control.net.wifi") : strings.t("control.net.ethernet");
+                const name = root.netKind === "wifi" && root.netName !== "" ? root.netName : root.netIface;
+                return name !== "" ? root.fmt(strings.t("control.net.title"), [name, kind]) : kind;
             }
-        }
+            detail: root.netKind === "disconnected" ? strings.t("control.net.offlineHint")
+                    : root.netAddress !== "" ? root.netAddress : strings.t("control.net.noAddress")
 
-        // Bateria (só em notebook)
-        ContinuousRect {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 44
-            visible: root.hasBattery
-            radius: 16
-            color: root.surface
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 16
-                anchors.rightMargin: 16
-                spacing: 10
-                Icon {
-                    name: root.charging ? "battery_charging_full"
-                          : root.batteryLevel > 0.85 ? "battery_full"
-                          : root.batteryLevel > 0.6 ? "battery_5_bar"
-                          : root.batteryLevel > 0.35 ? "battery_3_bar"
-                          : root.batteryLevel > 0.1 ? "battery_2_bar"
-                          : "battery_alert"
-                    size: 20
-                    filled: true
-                    color: root.batteryLevel <= 0.1 && !root.charging ? root.danger : root.fg
-                }
-                Text {
-                    Layout.fillWidth: true
-                    text: root.charging ? strings.t("control.batteryCharging") : strings.t("control.battery")
-                    font.pixelSize: 13
-                    color: root.fg
-                }
-                Text {
-                    text: strings.t("control.percent").arg(Math.round(root.batteryLevel * 100))
-                    font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    color: root.fg
-                }
+            Tile {
+                visible: root.hwWifi
+                // Dois botões de 122 px: só o texto cabe (como na spec).
+                label: strings.t("control.net.wifiQr")
+                available: root.shell !== null && root.netKind === "wifi"
+                closesIsland: true
+                onActivated: root.openWifiQr()
             }
-        }
-
-        // Atalhos para outros estados da ilha
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            NavChip {
-                icon: "photo_camera"
-                label: strings.t("control.navCapture")
-                onClicked: root.navigate("capture")
-            }
-            NavChip {
-                icon: "palette"
-                label: strings.t("control.navStyle")
-                onClicked: root.navigate("style")
-            }
-            NavChip {
-                icon: "build"
-                label: strings.t("control.navTools")
-                onClicked: root.navigate("tools")
-            }
-            NavChip {
-                icon: "power_settings_new"
-                label: strings.t("control.navPower")
-                onClicked: root.navigate("power")
+            Tile {
+                stretch: true
+                icon: root.hwWifi ? "" : "speed"
+                label: strings.t("control.net.speedTest")
+                available: root.shell !== null && root.netKind !== "disconnected"
+                closesIsland: true
+                onActivated: root.openSpeedTest()
             }
         }
     }

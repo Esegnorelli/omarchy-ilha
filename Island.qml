@@ -4,6 +4,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import qs.Commons as Commons
+import "TileArm.js" as TileArm
 
 // Ilha: plugin de barra (kind "bar") que substitui a barra do Omarchy por uma
 // pílula só, no topo, que muda de forma.
@@ -11,8 +12,19 @@ import qs.Commons as Commons
 // Em repouso não aparece nada (só uma bolinha de 8 px se houver indicador
 // ligado). Uma faixa invisível de 3 px nos 600 px do centro da borda de cima
 // revela a pílula: a bolinha desce, estica até virar a pílula e o conteúdo
-// entra. Os painéis (Apps, Controle, Captura, Estilo, Ferramentas,
-// Calendário, Energia) e o OSD são estados da mesma pílula.
+// entra. Os painéis (Apps, Controle, Captura, Estilo, Ferramentas, Tempo,
+// Energia) e o OSD são estados da mesma pílula.
+//
+// Layout (spec §3.3): largura fixa de 568 em hover e em todo painel (o OSD
+// tem a sua). Coluna = Strip (46, relógio no centro exato da tela) + estado
+// ativo + PanelFooter. Clicar num ícone abre o painel e liga o "modo menu":
+// repousar 150 ms noutro ícone troca de painel, descer o ponteiro cancela,
+// clicar no ícone ativo volta à faixa e sair com o ponteiro não fecha.
+//
+// Teclado (spec §4): o estado trata a tecla primeiro (handleKey); depois vêm
+// 0–6 / Alt+0–6 (categorias), Ctrl+Tab / Ctrl+Shift+Tab e a cadeia do Esc
+// (handleEscape do estado → fechar). keyboardMode liga ao abrir por IPC ou
+// atalho e na primeira tecla; mover o ponteiro mais de 8 px desliga.
 //
 // Contrato com o host (shell.qml do Omarchy): as propriedades injetadas,
 // o estado publicado (barHidden, barSize, screenBarSizes, fontFamily,
@@ -62,11 +74,32 @@ Item {
     property bool checkUpdates: true
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+    // Outro nome para repassar: dentro de Strip { strings: … } o nome
+    // "strings" seria a própria propriedade da faixa.
+    readonly property var translations: strings
+
+    // Medidas da grade, repassadas aos estados (StateSlot.wire).
+    property Metrics metrics: Metrics {}
+
+    // ---- Teclado ----
+    // Modo teclado: anel de foco, letras cheias e dígitos na faixa.
+    property bool keyboardMode: false
+    // Alt segurado mostra os dígitos da faixa.
+    property bool altHeld: false
+    // Último painel aberto (Super+Z → "toggle last").
+    property string lastView: "control"
+    // Tecla pendente de "run <estado> <tecla>": { view, event }.
+    property var pendingRun: null
+
+    // A notch "respira" (1.0 → 1.015 → 1.0) quando um indicador liga ou chega um OSD.
+    signal breathe()
 
     // ---- Estados ----
     // Painel aberto: "" ou um destes.
     property string view: ""
     readonly property var views: ["launcher", "control", "capture", "style", "tools", "calendar", "power"]
+    // Ordem da faixa: 0 = Tempo, 1–6 = Apps … Energia (dígitos e Ctrl+Tab).
+    readonly property var categoryOrder: ["calendar", "launcher", "control", "capture", "style", "tools", "power"]
     // Monitor que mostra painéis, OSD e eventos (só um por vez).
     property string panelScreen: ""
 
@@ -78,7 +111,7 @@ Item {
     readonly property var widgetViews: ({
         "omarchy.audio": "control",
         "omarchy.bluetooth": "control",
-        "omarchy.network": "tools",
+        "omarchy.network": "control",
         "omarchy.clock": "calendar",
         "omarchy.power": "power"
     })
@@ -90,8 +123,15 @@ Item {
         return screens.length > 0 ? String(screens[0].name) : ""
     }
 
+    // "last" vira o último painel aberto.
+    function resolveView(target) {
+        const t = String(target || "")
+        return t === "last" ? lastView : t
+    }
+
     // Abre um estado num monitor (o focado, se não for dito).
     function show(target, screenName) {
+        target = resolveView(target)
         if (views.indexOf(target) < 0)
             return false
         panelScreen = screenName && screenName !== "" ? screenName : focusedScreenName()
@@ -101,6 +141,7 @@ Item {
 
     // Alterna: abrir o que já está aberto fecha.
     function toggle(target, screenName) {
+        target = resolveView(target)
         if (views.indexOf(target) < 0)
             return false
         if (view === target) {
@@ -112,6 +153,101 @@ Item {
 
     function close() {
         view = ""
+    }
+
+    onViewChanged: {
+        if (view !== "")
+            lastView = view
+        else
+            altHeld = false
+        // Nenhum confirm fica armado ao trocar de painel.
+        TileArm.disarmAll()
+    }
+
+    // Clique na faixa: abre; clicar no ativo volta à faixa sozinha.
+    function categoryClick(target, screenName) {
+        keyboardMode = false
+        if (view === target && panelScreen === screenName) {
+            close()
+            return
+        }
+        show(target, screenName)
+    }
+
+    // Dígito ou Alt+dígito: abre; o dígito do painel aberto volta à faixa
+    // (que fica um instante, como num evento).
+    function categoryKey(target) {
+        if (view === target) {
+            close()
+            revealEvent()
+            return
+        }
+        show(target, panelScreen)
+    }
+
+    // Ctrl+Tab (+1) / Ctrl+Shift+Tab (-1), na ordem da faixa, com volta.
+    function cycle(step) {
+        const n = categoryOrder.length
+        const at = categoryOrder.indexOf(view)
+        const from = at < 0 ? categoryOrder.indexOf(lastView) : at
+        show(categoryOrder[((from + step) % n + n) % n], panelScreen)
+    }
+
+    // "Q", "shift+Q", "⇧Q", "enter", "pgdn"… → evento sintético para handleKey.
+    function parseKey(name) {
+        let raw = String(name || "").trim()
+        let mods = 0
+        const parts = raw.split("+")
+        if (parts.length > 1 && parts[parts.length - 1] !== "") {
+            raw = parts.pop()
+            for (const m of parts) {
+                const lower = m.toLowerCase()
+                if (lower === "shift") mods |= Qt.ShiftModifier
+                else if (lower === "ctrl" || lower === "control") mods |= Qt.ControlModifier
+                else if (lower === "alt") mods |= Qt.AltModifier
+                else return null
+            }
+        }
+        if (raw.indexOf("⇧") === 0) {
+            mods |= Qt.ShiftModifier
+            raw = raw.slice(1)
+        }
+        const named = {
+            "enter": Qt.Key_Return, "return": Qt.Key_Return, "space": Qt.Key_Space,
+            "esc": Qt.Key_Escape, "escape": Qt.Key_Escape, "tab": Qt.Key_Tab,
+            "up": Qt.Key_Up, "down": Qt.Key_Down, "left": Qt.Key_Left, "right": Qt.Key_Right,
+            "pgup": Qt.Key_PageUp, "pageup": Qt.Key_PageUp, "pgdn": Qt.Key_PageDown,
+            "pagedown": Qt.Key_PageDown, "home": Qt.Key_Home, "end": Qt.Key_End
+        }
+        let key = named[raw.toLowerCase()]
+        let text = raw === "space" ? " " : ""
+        if (key === undefined) {
+            if (raw.length !== 1)
+                return null
+            const code = raw.toUpperCase().charCodeAt(0)
+            // Qt.Key_A…Z, 0…9, "-", "=", "[", "]" têm o código ASCII da tecla.
+            if (code < 0x20 || code > 0x7e)
+                return null
+            key = code
+            text = (mods & Qt.ShiftModifier) ? raw.toUpperCase() : raw.toLowerCase()
+        }
+        return { key: key, modifiers: mods, text: text, isAutoRepeat: false, accepted: false, synthetic: true }
+    }
+
+    // run <estado> <tecla>: abre no modo teclado e manda a tecla quando o
+    // estado estiver na tela.
+    function runKey(target, keyName) {
+        target = resolveView(target)
+        if (views.indexOf(target) < 0)
+            return "unknown"
+        const event = parseKey(keyName)
+        if (!event)
+            return "invalid-key"
+        keyboardMode = true
+        if (view !== target)
+            show(target, "")
+        pendingRun = { view: target, event: event, at: Date.now() }
+        return "ok"
     }
 
     function showOsd(payloadJson) {
@@ -127,6 +263,7 @@ Item {
             panelScreen = focusedScreenName()
         osdPayload = payload
         osdShown = true
+        island.breathe()
         const parsed = parseInt(payload.duration !== undefined && String(payload.duration) !== "" ? payload.duration : "1200", 10)
         const duration = isNaN(parsed) ? 1200 : Math.max(0, parsed)
         if (duration > 0) {
@@ -157,6 +294,7 @@ Item {
             console.log("ilha: no pill state for " + pluginId)
             return false
         }
+        keyboardMode = true
         return show(target, focusedScreenName())
     }
 
@@ -197,6 +335,8 @@ Item {
             barSize: barSize,
             screenBarSizes: screenBarSizes,
             view: view,
+            lastView: lastView,
+            keyboardMode: keyboardMode,
             panelScreen: panelScreen,
             osd: osdShown
         })
@@ -216,6 +356,9 @@ Item {
     }
 
     // ---- Indicadores: uma fonte só, espelhada em cada monitor ----
+    // (repassada por este nome: em Strip { indicatorSource: … } o nome
+    // "indicatorSource" seria a propriedade da própria faixa)
+    readonly property var sharedIndicators: indicatorSource
     Indicators {
         id: indicatorSource
         visible: false
@@ -224,6 +367,7 @@ Item {
         onBecameActive: what => {
             if (what !== "notifications")
                 island.revealEvent()
+            island.breathe()
         }
     }
 
@@ -290,19 +434,32 @@ Item {
             clock.enabled = true
         }
 
-        function open(): void { island.show("calendar", "") }
+        function open(): void { island.keyboardMode = true; island.show("calendar", "") }
         function close(): void { if (island.view === "calendar") island.close() }
-        function show(): void { island.show("calendar", "") }
+        function show(): void { island.keyboardMode = true; island.show("calendar", "") }
         function hide(): void { if (island.view === "calendar") island.close() }
-        function toggle(): void { island.toggle("calendar", "") }
+        function toggle(): void { island.keyboardMode = true; island.toggle("calendar", "") }
     }
 
-    // Alvo próprio: omarchy-shell ilha open <estado> | close | osd <json> | state
+    // Alvo próprio: omarchy-shell ilha open <estado|last> | toggle <estado|last>
+    // | run <estado> <tecla> | close | osd <json> | state
     Commons.ShellIpc {
         target: "ilha"
 
+        // Como antes: abrir o que já está aberto fecha.
         function open(target: string): string {
+            island.keyboardMode = true
             return island.toggle(String(target), "") ? "ok" : "unknown"
+        }
+
+        function toggle(target: string): string {
+            island.keyboardMode = true
+            return island.toggle(String(target), "") ? "ok" : "unknown"
+        }
+
+        // Abre o painel no modo teclado e manda a tecla: ilha run capture Q
+        function run(target: string, key: string): string {
+            return island.runKey(String(target), String(key))
         }
 
         function close(): string {
@@ -320,7 +477,7 @@ Item {
         }
 
         function state(): string {
-            return JSON.stringify({ view: island.view, osd: island.osdShown, hidden: island.barHidden, screen: island.panelScreen })
+            return JSON.stringify({ view: island.view, lastView: island.lastView, keyboard: island.keyboardMode, osd: island.osdShown, hidden: island.barHidden, screen: island.panelScreen })
         }
     }
 
@@ -328,6 +485,7 @@ Item {
         id: clock
         precision: SystemClock.Minutes
     }
+
 
     // ---- Uma janela por monitor ----
     Variants {
@@ -341,6 +499,7 @@ Item {
 
             readonly property string screenName: String(modelData.name)
             readonly property bool isTarget: island.panelScreen === screenName
+            readonly property Metrics metrics: island.metrics
 
             anchors.top: true
             exclusionMode: ExclusionMode.Ignore
@@ -357,6 +516,8 @@ Item {
             // ---- O que esta janela mostra ----
             readonly property bool hoverAllowed: !island.barHidden
             readonly property bool hovered: hoverAllowed && (surfaceHover.hovered || closeDelay.running)
+            // Com painel aberto (modo menu) o ponteiro sair não fecha: o modo
+            // segue a view; só o modo hover depende do ponteiro.
             readonly property string mode: isTarget && island.view !== "" ? island.view
                 : isTarget && island.osdShown ? "osd"
                 : hovered ? "hover"
@@ -365,10 +526,9 @@ Item {
             readonly property bool revealed: mode !== "rest"
             readonly property bool dotVisible: !island.barHidden && indicatorSource.anyActive
 
-            // Tamanho do estado atual.
+            // Estado (painel ou OSD) na tela; nulo em hover e repouso.
             readonly property Item modeItem: {
                 switch (mode) {
-                case "hover": return hoverContent
                 case "launcher": return launcherSlot
                 case "control": return controlSlot
                 case "capture": return captureSlot
@@ -380,15 +540,18 @@ Item {
                 default: return null
                 }
             }
-            readonly property bool isPanel: mode !== "hover" && mode !== "osd" && mode !== "rest"
-            readonly property real targetWidth: !modeItem ? 12
-                : mode === "hover" ? hoverContent.implicitWidth + 32
-                : mode === "osd" ? modeItem.implicitWidth + 32
-                : modeItem.implicitWidth + 40
-            readonly property real targetHeight: !modeItem ? 12
-                : mode === "hover" ? 50
-                : mode === "osd" ? modeItem.implicitHeight + 16
-                : Math.min(modeItem.implicitHeight + 40, win.height - 16)
+            readonly property bool isPanel: island.views.indexOf(mode) >= 0
+            // A faixa fica em hover e em todo painel, sempre no mesmo lugar.
+            readonly property bool hasStrip: mode === "hover" || isPanel
+            // Largura constante (568) em hover e painéis; o OSD tem a sua.
+            readonly property real targetWidth: mode === "rest" ? 12
+                : mode === "osd" ? (modeItem ? modeItem.implicitWidth + 32 : 12)
+                : metrics.width
+            // faixa 46 (+ 8 + estado + 8 + rodapé 20 + 12 nos painéis).
+            readonly property real targetHeight: mode === "rest" ? 12
+                : mode === "osd" ? (modeItem ? modeItem.implicitHeight + 16 : 12)
+                : mode === "hover" ? metrics.strip
+                : Math.min(metrics.chrome + (modeItem ? modeItem.implicitHeight : 0), win.height - 16)
 
             // ---- Coreografia ----
             // 0: repouso (sumida ou bolinha); 1: bolinha de 12 px no lugar;
@@ -399,6 +562,10 @@ Item {
             readonly property bool animate: Commons.Style.duration(1) > 0
             readonly property bool shrinking: phase < 2 || !revealed
             readonly property bool contentOn: phase === 2 && revealed && contentLatched
+            // A faixa só depende da largura (constante entre hover e painéis):
+            // trocar de painel não a faz piscar.
+            readonly property bool stripOn: phase === 2 && revealed && hasStrip
+                && pill.width >= (targetWidth + 2 * flare) * 0.8 && pill.height >= metrics.strip * 0.8
 
             function checkLatch() {
                 if (phase === 2 && revealed && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8)
@@ -438,6 +605,19 @@ Item {
             onTargetWidthChanged: Qt.callLater(checkLatch)
             onTargetHeightChanged: Qt.callLater(checkLatch)
 
+            // O rodapé mostra o estado que está de fato na tela (não troca de
+            // texto antes do conteúdo novo entrar).
+            property Item footerSlot: null
+            onContentOnChanged: {
+                if (!contentOn)
+                    return
+                if (isPanel)
+                    footerSlot = modeItem
+                // Depois que o slot reavaliar "enabled" (senão o tile Q ainda
+                // não aceita foco).
+                Qt.callLater(focusState)
+            }
+
             Timer {
                 id: stepTimer
                 onTriggered: {
@@ -459,6 +639,125 @@ Item {
             Timer {
                 id: closeDelay
                 interval: 300
+            }
+
+            // ---- Respiro: 1.0 → 1.015 → 1.0 em ~260 ms, sempre desacelerando ----
+            property real breath: 1
+
+            SequentialAnimation {
+                id: breathAnim
+                NumberAnimation {
+                    target: win; property: "breath"; to: win.metrics.breathScale
+                    duration: Commons.Style.duration(Math.round(win.metrics.msBreath * 0.4))
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: win; property: "breath"; to: 1
+                    duration: Commons.Style.duration(Math.round(win.metrics.msBreath * 0.6))
+                    easing.type: Easing.OutCubic
+                }
+            }
+
+            Connections {
+                target: island
+                function onBreathe() {
+                    if (win.animate && (win.revealed || win.dotVisible))
+                        breathAnim.restart()
+                }
+                // Modo teclado novo: a próxima posição do ponteiro vira a âncora.
+                function onKeyboardModeChanged() { win.kbAnchored = false }
+            }
+
+            // ---- Teclado ----
+            property point kbAnchor: Qt.point(0, 0)
+            property bool kbAnchored: false
+
+            function currentState() {
+                return isPanel && modeItem && modeItem.item ? modeItem.item : null
+            }
+
+            // Ao entrar um painel: foco no item Q (focusFirst) ou no estado.
+            // O lançador foca o próprio campo; um campo já focado não é roubado.
+            function focusState() {
+                if (!isTarget || !isPanel || mode === "launcher")
+                    return
+                const state = currentState()
+                if (!state) {
+                    keys.forceActiveFocus()
+                    return
+                }
+                let focused = keys.Window.activeFocusItem
+                while (focused && focused !== state)
+                    focused = focused.parent
+                if (focused)
+                    return
+                state.forceActiveFocus()
+                if (typeof state.focusFirst === "function")
+                    state.focusFirst()
+            }
+
+            // Tecla vinda da superfície (ou sintetizada por "run").
+            function dispatchKey(event) {
+                const k = event.key
+                if (k === Qt.Key_Alt || k === Qt.Key_AltGr) {
+                    island.altHeld = true
+                    return false
+                }
+                if (k === Qt.Key_Shift || k === Qt.Key_Control || k === Qt.Key_Meta
+                        || k === Qt.Key_Super_L || k === Qt.Key_Super_R)
+                    return false
+                island.keyboardMode = true
+                const state = currentState()
+                if (state && typeof state.handleKey === "function" && state.handleKey(event))
+                    return true
+                return globalKey(event)
+            }
+
+            function globalKey(event) {
+                const k = event.key
+                const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)
+                if (k >= Qt.Key_0 && k <= Qt.Key_6 && (mods === 0 || mods === Qt.AltModifier)) {
+                    if (!event.isAutoRepeat)
+                        island.categoryKey(island.categoryOrder[k - Qt.Key_0])
+                    return true
+                }
+                if ((k === Qt.Key_Tab || k === Qt.Key_Backtab) && (mods & Qt.ControlModifier)) {
+                    island.cycle(k === Qt.Key_Backtab || (mods & Qt.ShiftModifier) ? -1 : 1)
+                    return true
+                }
+                if (k === Qt.Key_Escape) {
+                    // Cadeia: desarmar → limpar a busca (o estado decide) → fechar.
+                    const state = currentState()
+                    if (state && typeof state.handleEscape === "function" && state.handleEscape())
+                        return true
+                    island.close()
+                    return true
+                }
+                return false
+            }
+
+            // "run <estado> <tecla>": espera o estado entrar e manda a tecla.
+            function tryRun() {
+                const p = island.pendingRun
+                if (!p)
+                    return
+                if (Date.now() - p.at > 3000) {
+                    island.pendingRun = null
+                    return
+                }
+                const slot = win.modeItem
+                if (win.mode !== p.view || !slot || !slot.item || !slot.shown)
+                    return
+                island.pendingRun = null
+                win.focusState()
+                win.dispatchKey(p.event)
+            }
+
+            Timer {
+                interval: 40
+                repeat: true
+                running: win.isTarget && island.pendingRun !== null
+                onTriggered: win.tryRun()
             }
 
             // ---- Entrada: faixa de ativação + a pílula ----
@@ -501,41 +800,56 @@ Item {
                 HoverHandler {
                     id: surfaceHover
                     onHoveredChanged: if (!hovered) closeDelay.restart()
+                    // Mover o ponteiro mais de 8 px sai do modo teclado.
+                    onPointChanged: {
+                        if (!island.keyboardMode || !win.isTarget || !hovered)
+                            return
+                        const p = point.position
+                        if (!win.kbAnchored) {
+                            win.kbAnchor = Qt.point(p.x, p.y)
+                            win.kbAnchored = true
+                            return
+                        }
+                        if (Math.hypot(p.x - win.kbAnchor.x, p.y - win.kbAnchor.y) > win.metrics.pointerModeThreshold)
+                            island.keyboardMode = false
+                    }
                 }
 
-                // Esc fecha qualquer painel. Fica na superfície, que é ancestral
-                // de todos os estados: um Esc que o estado não tratar sobe até
-                // aqui. O lançador trata o Esc no próprio campo.
-                Keys.onEscapePressed: island.close()
+                // Tratador central: fica na superfície, ancestral de todos os
+                // estados, então recebe toda tecla que o item focado não aceitou.
+                Keys.onPressed: event => {
+                    if (win.dispatchKey(event))
+                        event.accepted = true
+                }
+                Keys.onReleased: event => {
+                    if (event.key === Qt.Key_Alt || event.key === Qt.Key_AltGr)
+                        island.altHeld = false
+                }
+
+                // Alt+0…6 e Ctrl+Tab valem até dentro do campo do lançador
+                // (onde os dígitos digitam): atalhos passam antes do foco.
+                Shortcut { sequence: "Alt+0"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(0) }
+                Shortcut { sequence: "Alt+1"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(1) }
+                Shortcut { sequence: "Alt+2"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(2) }
+                Shortcut { sequence: "Alt+3"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(3) }
+                Shortcut { sequence: "Alt+4"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(4) }
+                Shortcut { sequence: "Alt+5"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(5) }
+                Shortcut { sequence: "Alt+6"; enabled: win.isTarget && island.view !== ""; onActivated: win.shortcutCategory(6) }
+                Shortcut {
+                    sequence: "Ctrl+Tab"
+                    enabled: win.isTarget && island.view !== ""
+                    onActivated: { island.keyboardMode = true; island.cycle(1) }
+                }
+                Shortcut {
+                    sequences: ["Ctrl+Shift+Tab", "Ctrl+Backtab"]
+                    enabled: win.isTarget && island.view !== ""
+                    onActivated: { island.keyboardMode = true; island.cycle(-1) }
+                }
 
                 // Foco de reserva quando o estado não tem item carregado.
                 Item {
                     id: keys
                     focus: true
-                }
-
-                // Ao abrir um painel, o foco vai para o próprio estado (setas
-                // do calendário, por exemplo); o lançador foca o campo sozinho.
-                Connections {
-                    target: win
-                    function onModeChanged() {
-                        if (!win.isTarget || island.view === "" || island.view === "launcher")
-                            return
-                        Qt.callLater(() => {
-                            const slot = win.modeItem
-                            const state = slot && slot.item ? slot.item : null
-                            if (!state) {
-                                keys.forceActiveFocus()
-                                return
-                            }
-                            // Não rouba o foco de um campo que o estado já focou.
-                            let focused = keys.Window.activeFocusItem
-                            while (focused && focused !== state)
-                                focused = focused.parent
-                            if (!focused)
-                                state.forceActiveFocus()
-                        })
-                    }
                 }
 
                 Item {
@@ -551,6 +865,9 @@ Item {
                     y: win.phase > 0 || asDot ? 0 : -14
                     opacity: win.phase > 0 || asDot ? 1 : 0
                     clip: true
+                    // Respiro preso à borda de cima: o centro (e o relógio) não sai do lugar.
+                    transformOrigin: Item.Top
+                    scale: win.breath
 
                     onWidthChanged: win.checkLatch()
                     onHeightChanged: win.checkLatch()
@@ -598,176 +915,51 @@ Item {
                         }
                     }
 
-                    // ---- Hover: o que está acontecendo | relógio | o que dá para fazer ----
-                    Item {
-                        id: hoverContent
+                    // ---- Faixa: workspaces · app · indicadores | relógio | 6 ícones ----
+                    Strip {
+                        id: strip
 
-                        // Cada lado tem a largura do próprio conteúdo: sem espaço vazio.
-                        readonly property real gap: 18
-                        readonly property bool shown: win.mode === "hover" && win.contentOn
+                        // Preso ao centro da pílula (e a pílula ao centro da tela): o
+                        // relógio fica no centro exato mesmo enquanto a mola da
+                        // largura passa do alvo ao revelar.
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: 0
+                        screenName: win.screenName
+                        activeView: win.isTarget ? island.view : ""
+                        menuMode: win.isTarget && island.view !== ""
+                        keyboardMode: win.isTarget && island.view !== "" && island.keyboardMode
+                        altHeld: win.isTarget && island.altHeld
+                        indicatorSource: island.sharedIndicators
+                        shell: island.shell
+                        strings: island.translations
+                        now: clock.date
+                        fg: island.fg
+                        bg: island.bg
+                        accent: island.accent
+                        danger: island.danger
+                        metrics: win.metrics
 
-                        anchors.centerIn: parent
-                        implicitWidth: leftGroup.implicitWidth + clockBox.implicitWidth + rightGroup.implicitWidth + 2 * gap
-                        implicitHeight: 46
-                        width: implicitWidth
-                        height: implicitHeight
-                        opacity: shown ? 1 : 0
-                        scale: shown ? 1 : 0.97
+                        opacity: win.stripOn ? 1 : 0
+                        scale: win.stripOn ? 1 : 0.97
                         visible: opacity > 0
-                        enabled: shown
+                        enabled: win.stripOn
 
                         Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(hoverContent.shown ? 180 : 120); easing.type: Easing.OutCubic }
+                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? 180 : 120); easing.type: Easing.OutCubic }
                         }
                         Behavior on scale {
-                            NumberAnimation { duration: Commons.Style.duration(hoverContent.shown ? 180 : 120); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? 180 : 120); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
                         }
 
-                        Row {
-                            id: leftGroup
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 12
-
-                            Row {
-                                id: workspaceRow
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 6
-                                leftPadding: 4
-
-                                Repeater {
-                                    model: Hyprland.workspaces.values.filter(ws => ws.id > 0
-                                        && (!ws.monitor || String(ws.monitor.name) === win.screenName))
-
-                                    Item {
-                                        id: wsDot
-                                        required property var modelData
-                                        readonly property bool current: modelData.active
-
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: current ? 18 : 8
-                                        height: 14
-
-                                        Behavior on width {
-                                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                                        }
-
-                                        ContinuousRect {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width
-                                            height: 8
-                                            radius: height / 2
-                                            color: wsDot.current ? island.accent
-                                                : Qt.rgba(island.fg.r, island.fg.g, island.fg.b, wsHover.hovered ? 0.6 : 0.35)
-                                        }
-
-                                        HoverHandler {
-                                            id: wsHover
-                                            cursorShape: Qt.PointingHandCursor
-                                        }
-
-                                        TapHandler {
-                                            onTapped: wsDot.modelData.activate()
-                                        }
-                                    }
-                                }
-                            }
-
-                            Indicators {
-                                anchors.verticalCenter: parent.verticalCenter
-                                source: indicatorSource
-                                shell: island.shell
-                                fg: island.fg
-                                accent: island.accent
-                                danger: island.danger
-                                onNavigate: target => island.show(target, win.screenName)
-                            }
+                        onCategoryClicked: target => island.categoryClick(target, win.screenName)
+                        onCategoryDwelled: target => {
+                            if (win.isTarget && island.view !== "")
+                                island.show(target, win.screenName)
                         }
-
-                        // Relógio no centro: tocar abre o calendário.
-                        Item {
-                            id: clockBox
-                            x: leftGroup.implicitWidth + hoverContent.gap
-                            anchors.verticalCenter: parent.verticalCenter
-                            implicitWidth: Math.max(timeText.implicitWidth, dateText.implicitWidth) + 16
-                            implicitHeight: 40
-                            width: implicitWidth
-                            height: implicitHeight
-
-                            Accessible.role: Accessible.Button
-                            Accessible.name: strings.t("island.calendar")
-
-                            ContinuousRect {
-                                anchors.fill: parent
-                                radius: 14
-                                color: Qt.rgba(island.fg.r, island.fg.g, island.fg.b, 0.10)
-                                opacity: clockHover.hovered ? 1 : 0
-
-                                Behavior on opacity {
-                                    NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-                                }
-                            }
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: -1
-
-                                Text {
-                                    id: timeText
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
-                                    color: island.fg
-                                    font.pixelSize: 15
-                                    font.weight: Font.DemiBold
-                                    textFormat: Text.PlainText
-                                }
-
-                                Text {
-                                    id: dateText
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "ddd, d MMM")
-                                    color: Commons.Color.muted
-                                    font.pixelSize: 11
-                                    textFormat: Text.PlainText
-                                }
-                            }
-
-                            HoverHandler {
-                                id: clockHover
-                                cursorShape: Qt.PointingHandCursor
-                            }
-
-                            TapHandler {
-                                onTapped: island.show("calendar", win.screenName)
-                            }
-                        }
-
-                        Row {
-                            id: rightGroup
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 2
-
-                            Repeater {
-                                model: [
-                                    { icon: "apps", target: "launcher", key: "island.apps" },
-                                    { icon: "tune", target: "control", key: "island.control" },
-                                    { icon: "photo_camera", target: "capture", key: "island.capture" },
-                                    { icon: "palette", target: "style", key: "island.style" },
-                                    { icon: "build", target: "tools", key: "island.tools" },
-                                    { icon: "power_settings_new", target: "power", key: "island.power" }
-                                ]
-
-                                IconButton {
-                                    required property var modelData
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    icon: modelData.icon
-                                    label: strings.t(modelData.key)
-                                    fg: island.fg
-                                    accent: island.accent
-                                    onTapped: island.show(modelData.target, win.screenName)
-                                }
-                            }
+                        onWorkspaceClicked: island.close()
+                        onIndicatorNavigate: target => {
+                            island.keyboardMode = false
+                            island.show(target, win.screenName)
                         }
                     }
 
@@ -780,13 +972,92 @@ Item {
                     StateSlot { id: calendarSlot; hostWindow: win; hostIsland: island; name: "calendar"; source: "CalendarView.qml" }
                     StateSlot { id: powerSlot; hostWindow: win; hostIsland: island; name: "power"; source: "PowerMenu.qml" }
                     StateSlot { id: osdSlot; hostWindow: win; hostIsland: island; name: "osd"; source: "OsdView.qml" }
+
+                    // ---- Rodapé: estado à esquerda, dicas à direita ----
+                    PanelFooter {
+                        id: footer
+                        readonly property bool shown: win.isPanel && win.contentOn && win.footerSlot !== null
+
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: win.metrics.strip + win.metrics.padTop
+                            + (win.footerSlot ? win.footerSlot.implicitHeight : 0) + win.metrics.gap
+                        status: win.footerSlot ? win.footerSlot.footerStatus : ""
+                        hints: win.footerSlot ? win.footerSlot.footerHints : ""
+                        alert: win.footerSlot ? win.footerSlot.footerAlert : false
+                        fg: island.fg
+                        danger: island.danger
+                        metrics: win.metrics
+                        opacity: shown ? 1 : 0
+                        visible: opacity > 0
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: Commons.Style.duration(footer.shown ? win.metrics.msFadeIn : win.metrics.msFadeOut); easing.type: Easing.OutCubic }
+                        }
+                    }
                 }
+
+                // ---- Dica da faixa ("Captura · 3"), por baixo do notch ----
+                Item {
+                    id: tip
+                    readonly property bool shown: strip.tooltipShown && win.stripOn && strip.tooltipX >= 0
+                    property string text: ""
+                    property real centerX: 0
+
+                    // Guarda o último texto para o fade de saída não piscar vazio.
+                    onShownChanged: if (shown) { text = strip.tooltipText; centerX = strip.tooltipX }
+                    Connections {
+                        target: strip
+                        function onTooltipTextChanged() { if (tip.shown) tip.text = strip.tooltipText }
+                        function onTooltipXChanged() { if (tip.shown) tip.centerX = strip.tooltipX }
+                    }
+
+                    width: tipText.implicitWidth + 20
+                    height: 26
+                    x: Math.max(4, Math.min(surface.width - width - 4, pill.x + strip.x + centerX - width / 2))
+                    y: pill.y + win.metrics.strip + 6
+                    opacity: shown ? 1 : 0
+                    visible: opacity > 0
+
+                    Behavior on opacity {
+                        NumberAnimation { duration: Commons.Style.duration(tip.shown ? 160 : 120); easing.type: Easing.OutCubic }
+                    }
+
+                    ContinuousRect {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: island.bg
+                        borderWidth: 1
+                        borderColor: Qt.rgba(island.fg.r, island.fg.g, island.fg.b, 0.12)
+                    }
+
+                    Text {
+                        id: tipText
+                        anchors.centerIn: parent
+                        text: tip.text
+                        color: island.fg
+                        font.pixelSize: 12
+                        textFormat: Text.PlainText
+                    }
+                }
+            }
+
+            function shortcutCategory(digit) {
+                island.keyboardMode = true
+                island.categoryKey(island.categoryOrder[digit])
             }
         }
     }
 
     // Um estado carregado de arquivo. Se o arquivo faltar ou quebrar, só
     // aquele estado some; a barra continua de pé.
+    //
+    // Contrato (tudo opcional além de active/closeRequested/navigate):
+    //   entra:  active, fg, bg, accent, danger, shell, metrics, keyboardMode,
+//           checkUpdates
+    //           (payload no OSD)
+    //   sai:    closeRequested(), navigate(target) = trocar de categoria,
+    //           footerStatus, footerHints, footerAlert (lidos pelo rodapé),
+    //           handleKey(event) → bool, handleEscape() → bool, focusFirst()
     component StateSlot: Item {
         id: slot
 
@@ -803,21 +1074,31 @@ Item {
         readonly property bool current: slot.hostWindow.mode === name
         readonly property bool shown: current && slot.hostWindow.contentOn
 
-        anchors.centerIn: parent
+        // Rodapé do painel (vazio se o estado não publicar).
+        readonly property string footerStatus: item && item.footerStatus !== undefined ? String(item.footerStatus) : ""
+        readonly property string footerHints: item && item.footerHints !== undefined ? String(item.footerHints) : ""
+        readonly property bool footerAlert: !!(item && item.footerAlert)
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        // Painéis começam abaixo da faixa; o OSD fica centrado na pílula.
+        y: name === "osd" ? Math.round((parent.height - height) / 2)
+            : slot.hostIsland.metrics.strip + slot.hostIsland.metrics.padTop
         implicitWidth: loader.item ? loader.item.implicitWidth : 0
         implicitHeight: loader.item ? loader.item.implicitHeight : 0
         width: implicitWidth
         height: implicitHeight
         opacity: shown ? 1 : 0
         scale: shown ? 1 : 0.97
-        visible: opacity > 0
+        // Visível já ao entrar (o fade ainda em 0): focusFirst só acha itens visíveis.
+        visible: shown || opacity > 0
         enabled: shown
 
+        // Troca de painel: 120 ms saindo, 160 ms entrando.
         Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(slot.shown ? 180 : 120); easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Commons.Style.duration(slot.shown ? slot.hostIsland.metrics.msFadeIn : slot.hostIsland.metrics.msFadeOut); easing.type: Easing.OutCubic }
         }
         Behavior on scale {
-            NumberAnimation { duration: Commons.Style.duration(slot.shown ? 180 : 120); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+            NumberAnimation { duration: Commons.Style.duration(slot.shown ? slot.hostIsland.metrics.msFadeIn : slot.hostIsland.metrics.msFadeOut); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
         }
 
         Loader {
@@ -847,6 +1128,10 @@ Item {
             bindIfPresent(target, "accent", () => slot.hostIsland.accent)
             bindIfPresent(target, "danger", () => slot.hostIsland.danger)
             bindIfPresent(target, "shell", () => slot.hostIsland.shell)
+            bindIfPresent(target, "metrics", () => slot.hostIsland.metrics)
+            bindIfPresent(target, "keyboardMode", () => slot.hostIsland.keyboardMode)
+            // Testes fora do shell desligam a checagem de atualizações (git fetch).
+            bindIfPresent(target, "checkUpdates", () => slot.hostIsland.checkUpdates)
             if (slot.name === "osd")
                 bindIfPresent(target, "payload", () => slot.hostIsland.osdPayload)
             if (target.closeRequested)
@@ -856,6 +1141,7 @@ Item {
                     else if (slot.hostIsland.view === slot.name)
                         slot.hostIsland.close()
                 })
+            // navigate(target) = trocar de categoria (como clicar na faixa).
             if (target.navigate)
                 target.navigate.connect(dest => {
                     if (!slot.hostIsland.show(String(dest), slot.hostWindow.screenName))

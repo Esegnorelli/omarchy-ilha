@@ -2,7 +2,11 @@ import QtQuick
 import qs.Commons as Commons
 
 // Botão redondo com um ícone Material Symbols (nome em "icon"). No hover ganha um fundo suave em
-// cápsula contínua; ao tocar cede um pouco.
+// cápsula contínua; ao tocar cede um pouco. "highlighted" é a pílula do estado
+// aberto (spec §2): accent a 18%, ícone em accent e preenchido.
+//
+// API pública: icon, label, highlighted, size (36), iconSize (20), fg, accent,
+// readonly hovered, readonly pressed; sinal tapped().
 Item {
     id: button
 
@@ -12,12 +16,13 @@ Item {
     property color accent: Commons.Color.accent
     // Destaca o botão (por exemplo, o estado aberto agora).
     property bool highlighted: false
-    property int size: 30
-    property int iconSize: 19
+    property int size: 36
+    property int iconSize: 20
     // Nome para leitores de tela; quem usa passa um texto traduzido.
     property string label: ""
 
     readonly property bool hovered: hoverHandler.hovered
+    readonly property bool pressed: tapHandler.pressed
 
     signal tapped()
 
@@ -32,11 +37,15 @@ Item {
     ContinuousRect {
         anchors.fill: parent
         radius: height / 2
-        color: Qt.rgba(button.fg.r, button.fg.g, button.fg.b, button.highlighted ? 0.14 : 0.10)
+        color: button.highlighted ? Qt.rgba(button.accent.r, button.accent.g, button.accent.b, 0.18)
+                                  : Qt.rgba(button.fg.r, button.fg.g, button.fg.b, 0.10)
         opacity: hoverHandler.hovered || button.highlighted ? 1 : 0
 
         Behavior on opacity {
             NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+        }
+        Behavior on color {
+            ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
         }
     }
 
@@ -48,6 +57,9 @@ Item {
         color: button.highlighted ? button.accent : button.fg
         opacity: hoverHandler.hovered || button.highlighted ? 1 : 0.82
 
+        Behavior on color {
+            ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+        }
         Behavior on opacity {
             NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
         }

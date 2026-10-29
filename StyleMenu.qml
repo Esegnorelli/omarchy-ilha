@@ -1,11 +1,19 @@
 import QtQuick
 import QtQuick.Effects
-import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
 
-// Aparência: tema, plano de fundo, fonte monoespaçada e estilo das janelas.
+// Estilo (spec §3.4): como o sistema parece.
+//
+//   TEMA            legenda com o tema atual; galeria 4 × 2 visível (188 px),
+//                   rola e abre no tema atual; setas + ↵ dentro dela
+//   FUNDO           Q Próximo fundo · W Escolher fundo… · E Cores do fundo · R Todos os temas…
+//   JANELAS E FONTE Cantos (S D F) · Transparência (X C V) · Fonte ‹ chips › ([ ])
+//
+// Contrato de estado: active, fg/bg/accent/danger, metrics, keyboardMode,
+// footerStatus, footerHints, handleKey(event) → bool, handleEscape() → bool,
+// focusFirst(), closeRequested(), navigate(target).
 Item {
     id: root
 
@@ -14,22 +22,53 @@ Item {
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
-    property color dim: Commons.Color.muted
+    property color muted: Commons.Color.muted
 
     // O host liga enquanto este estado está visível; as leituras são refeitas ao ligar.
     property bool active: false
+    property var shell: null
+    property Metrics metrics: Metrics {}
+    property bool keyboardMode: false
+
+    readonly property bool rtl: Commons.I18n.rightToLeft
 
     signal closeRequested()
     signal navigate(string target)
 
-    implicitWidth: 420
-    implicitHeight: content.implicitHeight
-
-    readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
-    readonly property color surfaceStrong: Qt.rgba(fg.r, fg.g, fg.b, 0.12)
-    readonly property color hoverTint: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+    implicitWidth: metrics.content
+    implicitHeight: grid.implicitHeight
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
+
+    // ---------- Contrato ----------
+    readonly property string footerStatus: [root.currentTheme, root.background].filter(s => s !== "").join(" · ")
+    readonly property string footerHints: strings.t("hint.style")
+
+    function handleKey(event) {
+        const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+        if (!mods && (event.key === Qt.Key_BracketLeft || event.key === Qt.Key_BracketRight)) {
+            // Cada passo aplica a fonte: segurar a tecla não dispara uma rajada.
+            if (!event.isAutoRepeat) {
+                if (event.key === Qt.Key_BracketLeft) fontRow.prev();
+                else fontRow.next();
+            }
+            return true;
+        }
+        return grid.handleKey(event);
+    }
+    function handleEscape() { return grid.handleEscape(); }
+    function focusFirst() { gallery.forceActiveFocus(Qt.TabFocusReason); return true; }
+
+    // Cursor de teclado na galeria (índice do tema).
+    property int galleryCursor: -1
+
+    // Estado da linha Fundo: nome do arquivo e, se houver, o andamento das cores.
+    readonly property string paletteStatus: root.wallpaperIsVideo ? strings.t("style.wallpaperColorsVideo")
+                                          : root.paletteBusy ? strings.t("style.wallpaperColorsBusy")
+                                          : root.paletteFailed ? strings.t("style.wallpaperColorsFailed")
+                                          : ""
+    readonly property string backgroundStatus: root.paletteFailed && !root.paletteBusy ? root.paletteStatus
+                                             : [root.background, root.paletteStatus].filter(s => s !== "").join(" · ")
 
     // ---------- Estado lido do sistema ----------
     property var themes: []          // [{ name, preview }]
@@ -55,10 +94,16 @@ Item {
     }
 
     onActiveChanged: {
-        if (active) refresh();
-        else recheck.stop();
+        if (active) {
+            refresh();
+            root.galleryCursor = root.currentThemeIndex;
+            Qt.callLater(gallery.revealCurrent);
+            Qt.callLater(root.focusFirst);
+        } else {
+            recheck.stop();
+        }
     }
-    Component.onCompleted: if (active) refresh()
+    Component.onCompleted: if (active) { refresh(); Qt.callLater(root.focusFirst); }
 
     function refresh() {
         root.pendingTheme = "";
@@ -91,7 +136,8 @@ Item {
     // Para ações que abrem outra interface: recolhe a ilha antes de executar.
     function runAfterClose(cmd) {
         root.closeRequested();
-        Quickshell.execDetached(["sh", "-c", "sleep 0.35; exec \"$@\"", "sh"].concat(cmd));
+        const wait = (root.metrics.msCloseFirst / 1000).toFixed(2);
+        Quickshell.execDetached(["sh", "-c", "sleep \"$0\"; exec \"$@\"", wait].concat(cmd));
     }
 
     function setTheme(name) {
@@ -104,7 +150,6 @@ Item {
     function setFont(name) {
         if (name === root.currentFont) return;
         root.currentFont = name;
-        Qt.callLater(fontStrip.revealCurrent);
         root.run(["omarchy", "font", "set", name]);
     }
     function setCorners(mode) {
@@ -166,7 +211,7 @@ Item {
                 }
                 root.themes = out;
                 root.themesLoaded = true;
-                Qt.callLater(grid.revealCurrent);
+                Qt.callLater(gallery.revealCurrent);
             }
         }
     }
@@ -186,7 +231,7 @@ Item {
                 }
                 root.pendingTheme = "";
                 if (t !== "" && t !== "Unknown") root.currentTheme = t;
-                Qt.callLater(grid.revealCurrent);
+                Qt.callLater(gallery.revealCurrent);
             }
         }
     }
@@ -197,7 +242,6 @@ Item {
             id: fontListOut
             onStreamFinished: {
                 root.fonts = root.lines(fontListOut.text);
-                Qt.callLater(fontStrip.revealCurrent);
             }
         }
     }
@@ -208,7 +252,6 @@ Item {
             id: fontCurrentOut
             onStreamFinished: {
                 root.currentFont = fontCurrentOut.text.trim();
-                Qt.callLater(fontStrip.revealCurrent);
             }
         }
     }
@@ -269,651 +312,441 @@ Item {
     }
 
     // ---------- Componentes internos ----------
-    // Chip em cápsula: selecionado fica na cor de destaque.
-    component Chip: Item {
-        id: chip
-        property string icon: ""
-        property string label: ""
-        property string labelFont: ""
-        property bool selected: false
-        signal clicked()
+    // Legenda de 16 px (mesmo desenho da legenda do GridRow).
+    component Caption: Item {
+        id: cap
+        property string text: ""
+        property string status: ""
+        property bool statusStrong: false
+        width: root.metrics.content
+        height: root.metrics.caption
 
-        implicitWidth: chipRow.implicitWidth + 28
-        implicitHeight: 32
-
-        property color ink: selected ? root.bg : root.fg
-        Behavior on ink { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-
-        scale: chipTap.pressed ? 0.97 : 1
-        Behavior on scale { NumberAnimation { duration: Commons.Style.duration(120); easing.type: Easing.OutCubic } }
-
-        ContinuousRect {
-            anchors.fill: parent
-            radius: height / 2
-            color: chip.selected ? root.accent : root.surface
-            Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-        }
-        ContinuousRect {
-            anchors.fill: parent
-            radius: height / 2
-            color: root.hoverTint
-            opacity: chipHover.hovered && !chip.selected ? 1 : 0
-            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-        }
-        Row {
-            id: chipRow
-            anchors.centerIn: parent
-            width: Math.min(implicitWidth, chip.width - 16)
-            spacing: 7
-            Icon {
-                visible: chip.icon !== ""
-                anchors.verticalCenter: parent.verticalCenter
-                name: chip.icon
-                size: 16
-                filled: chip.selected
-                color: chip.ink
-            }
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, chip.width - 16 - (chip.icon !== "" ? 20 : 0))
-                text: chip.label
-                textFormat: Text.PlainText
-                font.family: chip.labelFont !== "" ? chip.labelFont : Qt.application.font.family
-                font.pixelSize: 13
-                font.weight: chip.selected ? Font.DemiBold : Font.Normal
-                elide: Text.ElideRight
-                color: chip.ink
-            }
-        }
-        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-        TapHandler { id: chipTap; onTapped: chip.clicked() }
-    }
-
-    component SectionTitle: Text {
-        font.pixelSize: 13
-        font.weight: Font.DemiBold
-        color: root.fg
-    }
-
-    // Valor atual à direita de um título (nome de tema, fonte, arquivo).
-    component SectionValue: Text {
-        Layout.fillWidth: true
-        horizontalAlignment: Text.AlignRight
-        textFormat: Text.PlainText
-        font.pixelSize: 12
-        elide: Text.ElideRight
-        color: root.dim
-    }
-
-    // Cartão de seção: superfície sutil com cantos contínuos.
-    component Card: Item {
-        id: card
-        default property alias body: cardBody.data
-        Layout.fillWidth: true
-        implicitHeight: cardBody.implicitHeight + 28
-        ContinuousRect {
-            anchors.fill: parent
-            radius: 18
-            color: root.surface
-        }
-        ColumnLayout {
-            id: cardBody
-            x: 14
-            y: 14
-            width: card.width - 28
-            spacing: 10
-        }
-    }
-
-    // Controle segmentado: a pílula de destaque desliza até a opção atual.
-    component Segmented: Item {
-        id: seg
-        property var options: []   // [{ value, label }]
-        property string current: ""
-        signal picked(string value)
-
-        Layout.fillWidth: true
-        implicitHeight: 34
-
-        readonly property int currentIndex: {
-            for (let i = 0; i < options.length; i++)
-                if (options[i].value === current) return i;
-            return -1;
-        }
-        readonly property real segWidth: options.length > 0 ? (width - 6) / options.length : 0
-        // Só anima depois do primeiro valor lido, para não deslizar ao abrir.
-        property bool settled: false
-        onCurrentIndexChanged: if (currentIndex >= 0) Qt.callLater(() => seg.settled = true)
-
-        ContinuousRect {
-            anchors.fill: parent
-            radius: height / 2
-            color: root.surface
-        }
-        ContinuousRect {
-            x: 3 + Math.max(0, seg.currentIndex) * seg.segWidth
-            y: 3
-            width: seg.segWidth
-            height: seg.height - 6
-            radius: height / 2
-            color: root.accent
-            opacity: seg.currentIndex >= 0 ? 1 : 0
-            Behavior on x {
-                enabled: seg.settled
-                NumberAnimation { duration: Commons.Style.duration(220); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-            }
-            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
-        }
-        Row {
-            x: 3
-            y: 3
-            Repeater {
-                model: seg.options
-                delegate: Item {
-                    id: segItem
-                    required property var modelData
-                    required property int index
-                    readonly property bool selected: index === seg.currentIndex
-                    width: seg.segWidth
-                    height: seg.height - 6
-
-                    ContinuousRect {
-                        anchors.fill: parent
-                        radius: height / 2
-                        color: root.hoverTint
-                        opacity: segHover.hovered && !segItem.selected ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-                    }
-                    Text {
-                        anchors.centerIn: parent
-                        width: Math.min(implicitWidth, parent.width - 12)
-                        horizontalAlignment: Text.AlignHCenter
-                        text: segItem.modelData.label
-                        font.pixelSize: 12
-                        font.weight: segItem.selected ? Font.DemiBold : Font.Normal
-                        elide: Text.ElideRight
-                        color: segItem.selected ? root.bg : root.fg
-                        Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                    }
-                    HoverHandler { id: segHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: seg.picked(segItem.modelData.value) }
-                }
-            }
-        }
-    }
-
-    // Rótulo com ícone acima de um controle segmentado.
-    component OptionLabel: Row {
-        id: optLabel
-        property string icon: ""
-        property string label: ""
-        spacing: 8
-        Icon {
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: 2
             anchors.verticalCenter: parent.verticalCenter
-            name: optLabel.icon
-            size: 16
-            color: root.dim
+            width: Math.min(implicitWidth, parent.width / 2)
+            text: cap.text
+            textFormat: Text.PlainText
+            font.pixelSize: root.metrics.captionText
+            font.weight: Font.DemiBold
+            font.capitalization: Font.AllUppercase
+            font.letterSpacing: 0.6
+            elide: Text.ElideRight
+            color: root.muted
         }
         Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 2
             anchors.verticalCenter: parent.verticalCenter
-            text: optLabel.label
-            font.pixelSize: 13
-            color: root.fg
+            width: Math.min(implicitWidth, parent.width / 2)
+            horizontalAlignment: Text.AlignRight
+            text: cap.status
+            textFormat: Text.PlainText
+            font.pixelSize: root.metrics.captionText
+            font.weight: cap.statusStrong ? Font.DemiBold : Font.Normal
+            elide: Text.ElideRight
+            color: cap.statusStrong ? root.accent : root.muted
+            Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
         }
     }
 
     // ---------- Layout ----------
-    ColumnLayout {
-        id: content
-        width: root.implicitWidth
-        spacing: 12
+    PanelGrid {
+        id: grid
+        metrics: root.metrics
+        strings: strings
+        keyboardMode: root.keyboardMode
+        fg: root.fg
+        bg: root.bg
+        accent: root.accent
+        danger: root.danger
+        muted: root.muted
 
-        // Cabeçalho
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
-            Chip {
-                icon: "chevron_left"
-                label: strings.t("style.back")
-                onClicked: root.navigate("control")
-            }
-            Item { Layout.fillWidth: true }
-            Icon {
-                name: "palette"
-                size: 19
-                filled: true
-                color: root.accent
-            }
-            Text {
-                Layout.rightMargin: 4
-                text: strings.t("style.title")
-                font.pixelSize: 15
-                font.weight: Font.DemiBold
-                color: root.fg
-            }
-        }
-
-        // ---------- Temas ----------
-        RowLayout {
-            Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 4
-            spacing: 12
-            SectionTitle { text: strings.t("style.theme") }
-            SectionValue {
-                readonly property bool applying: root.pendingTheme !== "" || root.paletteBusy
-                text: applying ? strings.t("style.applying") : root.currentTheme
-                color: applying ? root.dim : root.accent
-            }
-        }
-
+        // ----- Tema: legenda + galeria (20 + 188) -----
         Item {
-            Layout.fillWidth: true
-            Layout.preferredHeight: grid.height
+            id: themeBlock
+            width: root.metrics.content
+            height: root.metrics.caption + root.metrics.captionGap + 188
 
-            GridView {
-                id: grid
-                width: parent.width
-                height: root.themes.length === 0 ? 48
-                        : Math.min(cellHeight * 2 + 28, Math.ceil(root.themes.length / 3) * cellHeight)
-                cellWidth: Math.floor(width / 3)
-                cellHeight: 112
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                model: root.themes
+            function focusItems() { return [gallery]; }
 
-                // Rola até o tema atual sem animação ao abrir.
+            Caption {
+                text: strings.t("style.section.theme")
+                status: root.pendingTheme !== "" ? strings.t("style.applying") : root.currentTheme
+                statusStrong: root.pendingTheme === "" && root.currentTheme !== ""
+            }
+
+            // Item focável da galeria: setas movem o cursor, ↵ aplica.
+            Item {
+                id: gallery
+                y: root.metrics.caption + root.metrics.captionGap
+                width: root.metrics.content
+                height: 188
+                activeFocusOnTab: true
+                Accessible.role: Accessible.List
+                Accessible.name: strings.t("style.gallery")
+
+                readonly property int columns: 4
+                readonly property int thumbH: 72
+                readonly property int cellH: thumbH + 18          // prévia + nome
+                readonly property int pitchY: cellH + root.metrics.gap
+                property bool userMoved: false
+
+                // Galeria aberta no tema atual, sem animação.
                 function revealCurrent() {
-                    if (root.currentThemeIndex >= 0 && count > root.currentThemeIndex)
-                        positionViewAtIndex(root.currentThemeIndex, GridView.Contain);
+                    if (!gallery.userMoved || root.galleryCursor < 0)
+                        root.galleryCursor = root.currentThemeIndex;
+                    gallery.ensureVisible(root.currentThemeIndex >= 0 ? root.currentThemeIndex : 0, false);
+                }
+                function ensureVisible(i, animate) {
+                    if (i < 0 || themeView.count === 0) return;
+                    const top = Math.floor(i / gallery.columns) * gallery.pitchY;
+                    const maxY = Math.max(0, themeView.contentHeight - themeView.height);
+                    let y = themeView.contentY;
+                    if (top < y) y = top;
+                    else if (top + gallery.cellH > y + themeView.height) y = top + gallery.cellH - themeView.height;
+                    y = Math.max(0, Math.min(maxY, y));
+                    scrollAnim.stop();
+                    if (animate && Commons.Style.duration(200) > 0) {
+                        scrollAnim.to = y;
+                        scrollAnim.start();
+                    } else {
+                        themeView.contentY = y;
+                    }
+                }
+                // ←→ andam de um em um (passando de linha); ↑↓ de uma linha.
+                function moveCursor(d) {
+                    const n = root.themes.length;
+                    if (n === 0) return false;
+                    const from = root.galleryCursor < 0 ? Math.max(0, root.currentThemeIndex) : root.galleryCursor;
+                    const to = from + d;
+                    if (to < 0 || to >= n) return false;
+                    root.galleryCursor = to;
+                    gallery.userMoved = true;
+                    gallery.ensureVisible(to, true);
+                    return true;
+                }
+                function handleArrow(key) {
+                    if (key === Qt.Key_Left) return gallery.moveCursor(root.rtl ? 1 : -1) || true;
+                    if (key === Qt.Key_Right) return gallery.moveCursor(root.rtl ? -1 : 1) || true;
+                    if (key === Qt.Key_Up) return gallery.moveCursor(-gallery.columns);
+                    if (key === Qt.Key_Down) {
+                        const n = root.themes.length;
+                        const cur = root.galleryCursor < 0 ? 0 : root.galleryCursor;
+                        const lastRow = Math.floor((n - 1) / gallery.columns);
+                        if (Math.floor(cur / gallery.columns) >= lastRow) return false;
+                        // Linha de baixo incompleta: vai para o último tema.
+                        root.galleryCursor = Math.min(n - 1, cur + gallery.columns);
+                        gallery.userMoved = true;
+                        gallery.ensureVisible(root.galleryCursor, true);
+                        return true;
+                    }
+                    return false;
+                }
+                function activate() {
+                    const t = root.themes[root.galleryCursor];
+                    if (!t) return false;
+                    const cell = themeView.itemAtIndex(root.galleryCursor);
+                    if (cell) cell.pulse();
+                    root.setTheme(t.name);
+                    return true;
                 }
 
-                delegate: Item {
-                    id: cell
-                    required property var modelData
-                    required property int index
-                    readonly property bool isCurrent: modelData.name === root.currentTheme
-                    width: grid.cellWidth
-                    height: grid.cellHeight
+                onActiveFocusChanged: if (activeFocus && root.galleryCursor < 0) root.galleryCursor = Math.max(0, root.currentThemeIndex)
 
-                    Item {
-                        id: tile
-                        anchors.fill: parent
-                        anchors.margins: 4
-                        scale: cellTap.pressed ? 0.97 : 1
-                        Behavior on scale { NumberAnimation { duration: Commons.Style.duration(120); easing.type: Easing.OutCubic } }
+                GridView {
+                    id: themeView
+                    // A última coluna leva um vão de 8 px para fora (dentro do pad).
+                    width: root.metrics.content + root.metrics.gap
+                    height: parent.height
+                    cellWidth: root.metrics.col + root.metrics.gap
+                    cellHeight: gallery.pitchY
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    // Sem o vão depois da última linha.
+                    bottomMargin: -root.metrics.gap
+                    model: root.themes
+                    reuseItems: true
 
-                        ContinuousRect {
-                            anchors.fill: parent
-                            radius: 14
-                            color: cell.isCurrent ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : root.surface
-                            borderWidth: 1.5
-                            borderColor: cell.isCurrent ? root.accent : "transparent"
-                            Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                            Behavior on borderColor { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                        }
-                        ContinuousRect {
-                            anchors.fill: parent
-                            radius: 14
-                            color: root.hoverTint
-                            opacity: cellHover.hovered ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-                        }
+                    NumberAnimation {
+                        id: scrollAnim
+                        target: themeView
+                        property: "contentY"
+                        duration: Commons.Style.duration(200)
+                        easing.type: Easing.Bezier
+                        easing.bezierCurve: Commons.Style.easeOut
+                    }
 
-                        // Prévia recortada nos mesmos cantos contínuos do cartão:
-                        // a imagem e a máscara viram texturas e o MultiEffect recorta.
+                    delegate: Item {
+                        id: cell
+                        required property var modelData
+                        required property int index
+                        readonly property bool isCurrent: modelData.name === root.currentTheme
+                        readonly property bool isCursor: index === root.galleryCursor && gallery.activeFocus && root.keyboardMode
+                        width: root.metrics.col
+                        height: gallery.cellH
+
+                        property bool _pulsing: false
+                        function pulse() { cell._pulsing = true; cellPulse.restart(); }
+                        Timer { id: cellPulse; interval: Math.max(1, Commons.Style.duration(root.metrics.msPress)); onTriggered: cell._pulsing = false }
+
                         Item {
-                            id: thumb
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.margins: 6
-                            height: 66
+                            id: body
+                            anchors.fill: parent
+                            scale: cellTap.pressed || cell._pulsing ? root.metrics.pressScale : 1
+                            Behavior on scale { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut } }
 
-                            ContinuousRect {
-                                anchors.fill: parent
-                                radius: 10
-                                color: root.surfaceStrong
-                            }
-                            Icon {
-                                anchors.centerIn: parent
-                                visible: preview.status !== Image.Ready
-                                name: "palette"
-                                size: 20
-                                color: root.dim
-                            }
-
+                            // Prévia recortada nos cantos contínuos: imagem e máscara
+                            // viram texturas e o MultiEffect recorta.
                             Item {
-                                id: thumbSource
-                                anchors.fill: parent
-                                visible: false
-                                layer.enabled: preview.status === Image.Ready
-                                Image {
-                                    id: preview
-                                    anchors.fill: parent
-                                    source: cell.modelData.preview !== "" ? "file://" + cell.modelData.preview.split("/").map(encodeURIComponent).join("/") : ""
-                                    sourceSize.width: 256
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    cache: true
-                                }
-                            }
-                            ContinuousRect {
-                                id: thumbMask
-                                anchors.fill: parent
-                                radius: 10
-                                visible: false
-                                // Sempre ligada: um Shape numa camada ligada depois não repinta.
-                                layer.enabled: true
-                                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 1)
-                            }
-                            MultiEffect {
-                                anchors.fill: parent
-                                visible: preview.status === Image.Ready
-                                source: thumbSource
-                                maskEnabled: true
-                                maskSource: thumbMask
-                                maskThresholdMin: 0.5
-                                maskSpreadAtMin: 1.0
-                                opacity: preview.status === Image.Ready ? 1 : 0
-                                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
-                            }
+                                id: thumb
+                                width: parent.width
+                                height: gallery.thumbH
 
-                            // Selo do tema atual
-                            ContinuousRect {
-                                anchors.top: parent.top
-                                anchors.right: parent.right
-                                anchors.margins: 5
-                                width: 18
-                                height: 18
-                                radius: height / 2
-                                color: root.accent
-                                opacity: cell.isCurrent ? 1 : 0
-                                scale: cell.isCurrent ? 1 : 0.97
-                                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                                Behavior on scale { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
+                                ContinuousRect {
+                                    anchors.fill: parent
+                                    radius: root.metrics.rowRadius
+                                    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
+                                }
                                 Icon {
                                     anchors.centerIn: parent
-                                    name: "check"
-                                    size: 14
-                                    weight: 600
-                                    color: root.bg
+                                    visible: preview.status !== Image.Ready
+                                    name: "palette"
+                                    size: 20
+                                    color: root.muted
+                                }
+                                Item {
+                                    id: thumbSource
+                                    anchors.fill: parent
+                                    visible: false
+                                    layer.enabled: preview.status === Image.Ready
+                                    Image {
+                                        id: preview
+                                        anchors.fill: parent
+                                        source: cell.modelData.preview !== "" ? "file://" + cell.modelData.preview.split("/").map(encodeURIComponent).join("/") : ""
+                                        sourceSize.width: 256
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        cache: true
+                                    }
+                                }
+                                ContinuousRect {
+                                    id: thumbMask
+                                    anchors.fill: parent
+                                    radius: root.metrics.rowRadius
+                                    visible: false
+                                    // Sempre ligada: um Shape numa camada ligada depois não repinta.
+                                    layer.enabled: true
+                                    color: root.fg
+                                }
+                                MultiEffect {
+                                    anchors.fill: parent
+                                    visible: preview.status === Image.Ready
+                                    source: thumbSource
+                                    maskEnabled: true
+                                    maskSource: thumbMask
+                                    maskThresholdMin: 0.5
+                                    maskSpreadAtMin: 1.0
+                                    opacity: preview.status === Image.Ready ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msFadeIn); easing.type: Easing.OutCubic } }
+                                }
+                                // Véu de hover.
+                                ContinuousRect {
+                                    anchors.fill: parent
+                                    radius: root.metrics.rowRadius
+                                    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
+                                    opacity: cellHover.hovered ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                                }
+                                // Tema atual: contorno em accent por dentro.
+                                ContinuousRect {
+                                    anchors.fill: parent
+                                    radius: root.metrics.rowRadius
+                                    color: "transparent"
+                                    borderWidth: 2
+                                    borderColor: root.accent
+                                    opacity: cell.isCurrent ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                                }
+                                // Selo do tema atual.
+                                ContinuousRect {
+                                    anchors.top: parent.top
+                                    anchors.right: parent.right
+                                    anchors.margins: 6
+                                    width: 18
+                                    height: 18
+                                    radius: height / 2
+                                    color: root.accent
+                                    opacity: cell.isCurrent ? 1 : 0
+                                    scale: cell.isCurrent ? 1 : root.metrics.pressScale
+                                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                                    Icon {
+                                        anchors.centerIn: parent
+                                        name: "check"
+                                        size: 14
+                                        weight: 600
+                                        color: root.bg
+                                    }
+                                }
+                                // Cursor do teclado: anel de 2 px por fora, raio + 2.
+                                ContinuousRect {
+                                    anchors.fill: parent
+                                    anchors.margins: -(root.metrics.ring + 1)
+                                    radius: root.metrics.rowRadius + root.metrics.ring + 1
+                                    color: "transparent"
+                                    borderWidth: root.metrics.ring
+                                    borderColor: root.accent
+                                    opacity: cell.isCursor ? 1 : 0
+                                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.OutCubic } }
                                 }
                             }
+
+                            Text {
+                                anchors.top: thumb.bottom
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                height: 18
+                                verticalAlignment: Text.AlignBottom
+                                horizontalAlignment: Text.AlignHCenter
+                                text: cell.modelData.name
+                                textFormat: Text.PlainText
+                                font.pixelSize: root.metrics.tileSublabel
+                                font.weight: cell.isCurrent ? Font.DemiBold : Font.Normal
+                                elide: Text.ElideRight
+                                color: cell.isCurrent ? root.accent : (cell.isCursor || cellHover.hovered ? root.fg : root.muted)
+                                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                            }
                         }
 
-                        Text {
-                            anchors.top: thumb.bottom
-                            anchors.topMargin: 7
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.leftMargin: 8
-                            anchors.rightMargin: 8
-                            horizontalAlignment: Text.AlignHCenter
-                            text: cell.modelData.name
-                            textFormat: Text.PlainText
-                            font.pixelSize: 12
-                            font.weight: cell.isCurrent ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideRight
-                            color: cell.isCurrent ? root.accent : root.fg
-                        }
-                    }
-
-                    HoverHandler { id: cellHover; cursorShape: Qt.PointingHandCursor }
-                    TapHandler { id: cellTap; onTapped: root.setTheme(cell.modelData.name) }
-                }
-            }
-
-            // Indicador de rolagem
-            ContinuousRect {
-                visible: grid.contentHeight > grid.height + 1
-                anchors.right: parent.right
-                anchors.rightMargin: -7
-                y: grid.visibleArea.yPosition * grid.height
-                width: 3
-                height: Math.max(20, grid.visibleArea.heightRatio * grid.height)
-                radius: width / 2
-                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.25)
-            }
-
-            Text {
-                anchors.centerIn: parent
-                visible: root.themes.length === 0
-                text: root.themesLoaded ? strings.t("style.themesEmpty") : strings.t("style.themesLoading")
-                font.pixelSize: 13
-                color: root.dim
-            }
-        }
-
-        // ---------- Plano de fundo ----------
-        Card {
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                SectionTitle { text: strings.t("style.background") }
-                SectionValue { text: root.background }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 8
-                Chip {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    icon: "skip_next"
-                    label: strings.t("style.backgroundNext")
-                    onClicked: root.run(["omarchy", "theme", "bg", "next"])
-                }
-                Chip {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    icon: "wallpaper"
-                    label: strings.t("style.backgroundPick")
-                    onClicked: root.runAfterClose(["omarchy", "theme", "bg-switcher"])
-                }
-                Chip {
-                    Layout.fillWidth: true
-                    Layout.preferredWidth: 1
-                    icon: "grid_view"
-                    label: strings.t("style.themeSwitcher")
-                    onClicked: root.runAfterClose(["omarchy", "theme", "switcher"])
-                }
-            }
-
-            // Cores do wallpaper: gera e aplica um tema a partir da imagem atual.
-            Item {
-                id: paletteButton
-                Layout.fillWidth: true
-                implicitHeight: 52
-                readonly property bool usable: !root.wallpaperIsVideo && !root.paletteBusy
-                opacity: root.wallpaperIsVideo ? 0.5 : 1
-                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
-                scale: paletteTap.pressed && paletteButton.usable ? 0.98 : 1
-                Behavior on scale { NumberAnimation { duration: Commons.Style.duration(120); easing.type: Easing.OutCubic } }
-
-                ContinuousRect {
-                    anchors.fill: parent
-                    radius: 16
-                    color: root.paletteBusy ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : root.surface
-                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                }
-                ContinuousRect {
-                    anchors.fill: parent
-                    radius: 16
-                    color: root.hoverTint
-                    opacity: paletteHover.hovered && paletteButton.usable ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-                }
-
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.leftMargin: 12
-                    anchors.rightMargin: 14
-                    spacing: 12
-
-                    Item {
-                        Layout.preferredWidth: 30
-                        Layout.preferredHeight: 30
-                        ContinuousRect {
-                            anchors.fill: parent
-                            radius: height / 2
-                            color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18)
-                        }
-                        Icon {
-                            anchors.centerIn: parent
-                            name: "auto_awesome"
-                            size: 18
-                            filled: true
-                            color: root.accent
-                            opacity: root.paletteBusy ? 0 : 1
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-                        }
-                        // Indicador de trabalho enquanto o tema é gerado.
-                        Icon {
-                            anchors.centerIn: parent
-                            name: "progress_activity"
-                            size: 18
-                            color: root.accent
-                            opacity: root.paletteBusy ? 1 : 0
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
-                            // Sem animações no sistema, o ícone fica parado.
-                            RotationAnimator on rotation {
-                                running: root.paletteBusy && Commons.Style.duration(900) > 0
-                                from: 0
-                                to: 360
-                                loops: Animation.Infinite
-                                duration: Commons.Style.duration(900)
+                        HoverHandler { id: cellHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            id: cellTap
+                            onTapped: {
+                                root.galleryCursor = cell.index;
+                                root.setTheme(cell.modelData.name);
                             }
                         }
                     }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 1
-                        Text {
-                            Layout.fillWidth: true
-                            text: strings.t("style.wallpaperColors")
-                            font.pixelSize: 13
-                            font.weight: Font.DemiBold
-                            elide: Text.ElideRight
-                            color: root.fg
-                        }
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.wallpaperIsVideo ? strings.t("style.wallpaperColorsVideo")
-                                : root.paletteBusy ? strings.t("style.wallpaperColorsBusy")
-                                : root.paletteFailed ? strings.t("style.wallpaperColorsFailed")
-                                : strings.t("style.wallpaperColorsHint")
-                            font.pixelSize: 11
-                            elide: Text.ElideRight
-                            color: root.paletteBusy ? root.accent
-                                : root.paletteFailed ? root.danger
-                                : root.dim
-                        }
-                    }
                 }
 
-                HoverHandler {
-                    id: paletteHover
-                    cursorShape: paletteButton.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                // Indicador de rolagem, no vão à direita (dentro do pad).
+                ContinuousRect {
+                    visible: themeView.contentHeight > themeView.height + 1
+                    x: parent.width + 6
+                    y: themeView.visibleArea.yPosition * themeView.height
+                    width: 3
+                    height: Math.max(20, themeView.visibleArea.heightRatio * themeView.height)
+                    radius: width / 2
+                    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaPill)
                 }
-                TapHandler {
-                    id: paletteTap
-                    enabled: paletteButton.usable
-                    onTapped: root.generateFromWallpaper()
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: root.themes.length === 0
+                    text: root.themesLoaded ? strings.t("style.themesEmpty") : strings.t("style.themesLoading")
+                    textFormat: Text.PlainText
+                    font.pixelSize: 13
+                    color: root.muted
                 }
             }
         }
 
-        // ---------- Fonte ----------
-        Card {
-            RowLayout {
-                Layout.fillWidth: true
-                spacing: 12
-                SectionTitle { text: strings.t("style.font") }
-                SectionValue { text: root.currentFont; color: root.accent }
+        // ----- Fundo: Q W E R -----
+        GridRow {
+            caption: strings.t("style.section.background")
+            captionStatus: root.backgroundStatus
+            captionStatusAlert: root.paletteFailed && !root.paletteBusy
+
+            Tile {
+                icon: "skip_next"
+                label: strings.t("style.backgroundNext")
+                onActivated: root.run(["omarchy", "theme", "bg", "next"])
             }
-            Flickable {
-                id: fontStrip
-                Layout.fillWidth: true
-                Layout.preferredHeight: 32
-                contentWidth: fontRow.implicitWidth
-                contentHeight: height
-                flickableDirection: Flickable.HorizontalFlick
-                boundsBehavior: Flickable.StopAtBounds
-                clip: true
-
-                // Traz a fonte atual para a área visível.
-                function revealCurrent() {
-                    const i = root.fonts.indexOf(root.currentFont);
-                    const item = i >= 0 ? fontRepeater.itemAt(i) : null;
-                    if (!item) return;
-                    const maxX = Math.max(0, contentWidth - width);
-                    if (item.x < contentX) contentX = item.x;
-                    else if (item.x + item.width > contentX + width)
-                        contentX = Math.min(maxX, item.x + item.width - width);
-                }
-
-                Row {
-                    id: fontRow
-                    spacing: 6
-                    onPositioningComplete: fontStrip.revealCurrent()
-                    Repeater {
-                        id: fontRepeater
-                        model: root.fonts
-                        delegate: Chip {
-                            required property string modelData
-                            icon: "font_download"
-                            label: modelData
-                            labelFont: modelData
-                            selected: modelData === root.currentFont
-                            onClicked: root.setFont(modelData)
-                        }
-                    }
-                }
-
-                // Roda do mouse rola a faixa na horizontal.
-                WheelHandler {
-                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                    onWheel: (event) => {
-                        const delta = event.angleDelta.y !== 0 ? event.angleDelta.y : event.angleDelta.x;
-                        const maxX = Math.max(0, fontStrip.contentWidth - fontStrip.width);
-                        fontStrip.contentX = Math.max(0, Math.min(maxX, fontStrip.contentX - delta / 2));
-                    }
-                }
+            Tile {
+                icon: "wallpaper"
+                label: strings.t("style.backgroundPick")
+                closesIsland: true
+                onActivated: root.runAfterClose(["omarchy", "theme", "bg-switcher"])
+            }
+            Tile {
+                icon: "auto_awesome"
+                label: strings.t("style.wallpaperColorsShort")
+                busy: root.paletteBusy
+                available: !root.wallpaperIsVideo
+                unavailableText: strings.t("style.wallpaperVideoShort")
+                onActivated: root.generateFromWallpaper()
+            }
+            Tile {
+                icon: "grid_view"
+                label: strings.t("style.allThemes")
+                closesIsland: true
+                onActivated: root.runAfterClose(["omarchy", "theme", "switcher"])
             }
         }
 
-        // ---------- Janelas ----------
-        Card {
-            SectionTitle { text: strings.t("style.windows") }
-            OptionLabel {
-                Layout.topMargin: 2
-                icon: "rounded_corner"
+        // ----- Janelas e fonte: Cantos (S D F) com a legenda -----
+        Item {
+            id: cornersBlock
+            width: root.metrics.content
+            height: root.metrics.caption + root.metrics.captionGap + root.metrics.slim
+
+            // O PanelGrid numera esta linha como se fosse a própria LabeledRow.
+            property int autoKeyRow: -1
+            readonly property bool keyable: true
+            function focusItems() { return cornersRow.focusItems(); }
+
+            Caption { text: strings.t("style.section.windows") }
+
+            LabeledRow {
+                id: cornersRow
+                y: root.metrics.caption + root.metrics.captionGap
+                variant: "segmented"
+                keyRow: cornersBlock.autoKeyRow
                 label: strings.t("style.corners")
-            }
-            Segmented {
+                value: currentIndex >= 0 ? options[currentIndex].label : ""
                 current: root.corners
                 options: [
                     { value: "theme", label: strings.t("style.corners.theme") },
                     { value: "sharp", label: strings.t("style.corners.sharp") },
                     { value: "rounded", label: strings.t("style.corners.rounded") }
                 ]
-                onPicked: (value) => root.setCorners(value)
+                metrics: root.metrics
+                strings: strings
+                keyboardMode: root.keyboardMode
+                fg: root.fg
+                bg: root.bg
+                accent: root.accent
+                danger: root.danger
+                muted: root.muted
+                onPicked: value => root.setCorners(value)
             }
-            OptionLabel {
-                Layout.topMargin: 4
-                icon: "opacity"
-                label: strings.t("style.transparency")
-            }
-            Segmented {
-                current: root.transparency
-                options: [
-                    { value: "opaque", label: strings.t("style.transparency.opaque") },
-                    { value: "transparent", label: strings.t("style.transparency.transparent") },
-                    { value: "glassy", label: strings.t("style.transparency.glassy") }
-                ]
-                onPicked: (value) => root.setTransparency(value)
-            }
+        }
+
+        // ----- Transparência: X C V -----
+        LabeledRow {
+            variant: "segmented"
+            label: strings.t("style.transparency")
+            value: currentIndex >= 0 ? options[currentIndex].label : ""
+            current: root.transparency
+            options: [
+                { value: "opaque", label: strings.t("style.transparency.opaque") },
+                { value: "transparent", label: strings.t("style.transparency.transparent") },
+                { value: "glassy", label: strings.t("style.transparency.glassy") }
+            ]
+            onPicked: value => root.setTransparency(value)
+        }
+
+        // ----- Fonte: ‹ chips › ([ ]) -----
+        LabeledRow {
+            id: fontRow
+            variant: "chips"
+            label: strings.t("style.font")
+            value: root.currentFont
+            current: root.currentFont
+            options: root.fonts.map(f => ({ value: f, label: f, font: f }))
+            onPicked: value => root.setFont(value)
         }
     }
 }
