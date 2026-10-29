@@ -33,7 +33,6 @@ Item {
   readonly property color hoverTint: Qt.rgba(fg.r, fg.g, fg.b, 0.12)
   readonly property color dim: Qt.rgba(fg.r, fg.g, fg.b, 0.6)
   readonly property color faint: Qt.rgba(fg.r, fg.g, fg.b, 0.28)
-  readonly property string iconFont: "JetBrainsMono Nerd Font"
   readonly property var loc: Qt.locale(Commons.I18n.formatLocale)
   readonly property bool rtl: Commons.I18n.rightToLeft
 
@@ -145,11 +144,10 @@ Item {
         ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
       }
     }
-    Text {
+    Icon {
       anchors.centerIn: parent
-      text: arrow.icon
-      font.family: root.iconFont
-      font.pixelSize: 13
+      name: arrow.icon
+      size: 20
       color: arrowHover.hovered ? root.accent : root.fg
       Behavior on color {
         ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
@@ -171,8 +169,8 @@ Item {
       spacing: 8
 
       ArrowChip {
-        // nf-fa-chevron_left / nf-fa-chevron_right (trocam em idiomas RTL)
-        icon: root.rtl ? "\uF054" : "\uF053"
+        // Setas trocam de lado em idiomas RTL.
+        icon: root.rtl ? "chevron_right" : "chevron_left"
         onClicked: root.shiftMonth(-1)
       }
 
@@ -220,7 +218,7 @@ Item {
       }
 
       ArrowChip {
-        icon: root.rtl ? "\uF053" : "\uF054"
+        icon: root.rtl ? "chevron_left" : "chevron_right"
         onClicked: root.shiftMonth(1)
       }
     }

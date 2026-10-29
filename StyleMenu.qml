@@ -28,7 +28,6 @@ Item {
     readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
     readonly property color surfaceStrong: Qt.rgba(fg.r, fg.g, fg.b, 0.12)
     readonly property color hoverTint: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-    readonly property string iconFont: "JetBrainsMono Nerd Font"
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
@@ -41,6 +40,9 @@ Item {
     property string transparency: "" // opaque | transparent | glassy
     property string background: ""
     property bool themesLoaded: false
+    // Arquivo real do plano de fundo atual (o link de estado resolvido).
+    property string wallpaperPath: ""
+    readonly property bool wallpaperIsVideo: /\.(mp4|webm|mkv|mov|avi)$/i.test(wallpaperPath)
 
     // Tema escolhido aqui que ainda não foi gravado pelo sistema.
     property string pendingTheme: ""
@@ -71,6 +73,7 @@ Item {
         cornersProc.running = true;
         transparencyProc.running = true;
         backgroundProc.running = true;
+        wallpaperProc.running = true;
     }
 
     // Confere o estado real pouco depois de uma ação.
@@ -113,6 +116,27 @@ Item {
         if (mode === root.transparency) return;
         root.transparency = mode;
         root.run(["omarchy", "hyprland", "window", "transparency", mode]);
+    }
+
+    // ---------- Tema a partir do plano de fundo ----------
+    // Relê o arquivo do plano de fundo na hora do toque e, se for imagem,
+    // gera e aplica um tema com as cores dele. A ilha fica aberta: o shell
+    // se recolore sozinho quando o tema novo entra.
+    property bool paletteQueued: false
+    property bool paletteFailed: false
+    readonly property bool paletteBusy: paletteQueued || paletteProc.running
+
+    function generateFromWallpaper() {
+        if (root.paletteBusy || root.wallpaperIsVideo) return;
+        root.paletteFailed = false;
+        root.paletteQueued = true;
+        wallpaperProc.running = true;
+    }
+
+    Timer {
+        id: paletteFailTimer
+        interval: 4000
+        onTriggered: root.paletteFailed = false
     }
 
     function lines(text) {
@@ -213,6 +237,37 @@ Item {
         }
     }
 
+    Process {
+        id: wallpaperProc
+        command: ["sh", "-c", "readlink -f \"$HOME/.local/state/omarchy/current/background\""]
+        stdout: StdioCollector {
+            id: wallpaperOut
+            onStreamFinished: {
+                root.wallpaperPath = wallpaperOut.text.trim();
+                if (!root.paletteQueued) return;
+                if (root.wallpaperPath === "" || root.wallpaperIsVideo) {
+                    root.paletteQueued = false;
+                    return;
+                }
+                paletteProc.command = ["aether", "--generate", root.wallpaperPath];
+                paletteProc.running = true;
+                root.paletteQueued = false;
+            }
+        }
+    }
+    Process {
+        id: paletteProc
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0) {
+                root.paletteFailed = true;
+                paletteFailTimer.restart();
+            }
+            // O tema novo entra na lista e vira o atual.
+            root.refresh();
+            recheck.restart();
+        }
+    }
+
     // ---------- Componentes internos ----------
     // Chip em cápsula: selecionado fica na cor de destaque.
     component Chip: Item {
@@ -250,12 +305,12 @@ Item {
             anchors.centerIn: parent
             width: Math.min(implicitWidth, chip.width - 16)
             spacing: 7
-            Text {
+            Icon {
                 visible: chip.icon !== ""
                 anchors.verticalCenter: parent.verticalCenter
-                text: chip.icon
-                font.family: root.iconFont
-                font.pixelSize: 13
+                name: chip.icon
+                size: 16
+                filled: chip.selected
                 color: chip.ink
             }
             Text {
@@ -393,11 +448,10 @@ Item {
         property string icon: ""
         property string label: ""
         spacing: 8
-        Text {
+        Icon {
             anchors.verticalCenter: parent.verticalCenter
-            text: optLabel.icon
-            font.family: root.iconFont
-            font.pixelSize: 13
+            name: optLabel.icon
+            size: 16
             color: root.dim
         }
         Text {
@@ -419,15 +473,15 @@ Item {
             Layout.fillWidth: true
             spacing: 8
             Chip {
-                icon: "\uF053" // nf-fa-chevron_left
+                icon: "chevron_left"
                 label: strings.t("style.back")
                 onClicked: root.navigate("control")
             }
             Item { Layout.fillWidth: true }
-            Text {
-                text: "\uF1FC" // nf-fa-paint_brush
-                font.family: root.iconFont
-                font.pixelSize: 15
+            Icon {
+                name: "palette"
+                size: 19
+                filled: true
                 color: root.accent
             }
             Text {
@@ -447,8 +501,9 @@ Item {
             spacing: 12
             SectionTitle { text: strings.t("style.theme") }
             SectionValue {
-                text: root.pendingTheme !== "" ? strings.t("style.applying") : root.currentTheme
-                color: root.pendingTheme !== "" ? root.dim : root.accent
+                readonly property bool applying: root.pendingTheme !== "" || root.paletteBusy
+                text: applying ? strings.t("style.applying") : root.currentTheme
+                color: applying ? root.dim : root.accent
             }
         }
 
@@ -520,12 +575,11 @@ Item {
                                 radius: 10
                                 color: root.surfaceStrong
                             }
-                            Text {
+                            Icon {
                                 anchors.centerIn: parent
                                 visible: preview.status !== Image.Ready
-                                text: "\uF1FC" // nf-fa-paint_brush
-                                font.family: root.iconFont
-                                font.pixelSize: 16
+                                name: "palette"
+                                size: 20
                                 color: root.dim
                             }
 
@@ -578,11 +632,11 @@ Item {
                                 scale: cell.isCurrent ? 1 : 0.97
                                 Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                                 Behavior on scale { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                                Text {
+                                Icon {
                                     anchors.centerIn: parent
-                                    text: "\uF00C" // nf-fa-check
-                                    font.family: root.iconFont
-                                    font.pixelSize: 10
+                                    name: "check"
+                                    size: 14
+                                    weight: 600
                                     color: root.bg
                                 }
                             }
@@ -645,23 +699,127 @@ Item {
                 Chip {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
-                    icon: "\uF04E" // nf-fa-forward
+                    icon: "skip_next"
                     label: strings.t("style.backgroundNext")
                     onClicked: root.run(["omarchy", "theme", "bg", "next"])
                 }
                 Chip {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
-                    icon: "\uF03E" // nf-fa-image
+                    icon: "wallpaper"
                     label: strings.t("style.backgroundPick")
                     onClicked: root.runAfterClose(["omarchy", "theme", "bg-switcher"])
                 }
                 Chip {
                     Layout.fillWidth: true
                     Layout.preferredWidth: 1
-                    icon: "\uF009" // nf-fa-th_large
+                    icon: "grid_view"
                     label: strings.t("style.themeSwitcher")
                     onClicked: root.runAfterClose(["omarchy", "theme", "switcher"])
+                }
+            }
+
+            // Cores do wallpaper: gera e aplica um tema a partir da imagem atual.
+            Item {
+                id: paletteButton
+                Layout.fillWidth: true
+                implicitHeight: 52
+                readonly property bool usable: !root.wallpaperIsVideo && !root.paletteBusy
+                opacity: root.wallpaperIsVideo ? 0.5 : 1
+                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
+                scale: paletteTap.pressed && paletteButton.usable ? 0.98 : 1
+                Behavior on scale { NumberAnimation { duration: Commons.Style.duration(120); easing.type: Easing.OutCubic } }
+
+                ContinuousRect {
+                    anchors.fill: parent
+                    radius: 16
+                    color: root.paletteBusy ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14) : root.surface
+                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
+                }
+                ContinuousRect {
+                    anchors.fill: parent
+                    radius: 16
+                    color: root.hoverTint
+                    opacity: paletteHover.hovered && paletteButton.usable ? 1 : 0
+                    Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 14
+                    spacing: 12
+
+                    Item {
+                        Layout.preferredWidth: 30
+                        Layout.preferredHeight: 30
+                        ContinuousRect {
+                            anchors.fill: parent
+                            radius: height / 2
+                            color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.18)
+                        }
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "auto_awesome"
+                            size: 18
+                            filled: true
+                            color: root.accent
+                            opacity: root.paletteBusy ? 0 : 1
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
+                        }
+                        // Indicador de trabalho enquanto o tema é gerado.
+                        Icon {
+                            anchors.centerIn: parent
+                            name: "progress_activity"
+                            size: 18
+                            color: root.accent
+                            opacity: root.paletteBusy ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(150); easing.type: Easing.OutCubic } }
+                            // Sem animações no sistema, o ícone fica parado.
+                            RotationAnimator on rotation {
+                                running: root.paletteBusy && Commons.Style.duration(900) > 0
+                                from: 0
+                                to: 360
+                                loops: Animation.Infinite
+                                duration: Commons.Style.duration(900)
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 1
+                        Text {
+                            Layout.fillWidth: true
+                            text: strings.t("style.wallpaperColors")
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                            color: root.fg
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.wallpaperIsVideo ? strings.t("style.wallpaperColorsVideo")
+                                : root.paletteBusy ? strings.t("style.wallpaperColorsBusy")
+                                : root.paletteFailed ? strings.t("style.wallpaperColorsFailed")
+                                : strings.t("style.wallpaperColorsHint")
+                            font.pixelSize: 11
+                            elide: Text.ElideRight
+                            color: root.paletteBusy ? root.accent
+                                : root.paletteFailed ? root.danger
+                                : root.dim
+                        }
+                    }
+                }
+
+                HoverHandler {
+                    id: paletteHover
+                    cursorShape: paletteButton.usable ? Qt.PointingHandCursor : Qt.ArrowCursor
+                }
+                TapHandler {
+                    id: paletteTap
+                    enabled: paletteButton.usable
+                    onTapped: root.generateFromWallpaper()
                 }
             }
         }
@@ -704,7 +862,7 @@ Item {
                         model: root.fonts
                         delegate: Chip {
                             required property string modelData
-                            icon: "\uF031" // nf-fa-font
+                            icon: "font_download"
                             label: modelData
                             labelFont: modelData
                             selected: modelData === root.currentFont
@@ -730,7 +888,7 @@ Item {
             SectionTitle { text: strings.t("style.windows") }
             OptionLabel {
                 Layout.topMargin: 2
-                icon: "\uF096" // nf-fa-square_o
+                icon: "rounded_corner"
                 label: strings.t("style.corners")
             }
             Segmented {
@@ -744,7 +902,7 @@ Item {
             }
             OptionLabel {
                 Layout.topMargin: 4
-                icon: "\uF043" // nf-fa-tint
+                icon: "opacity"
                 label: strings.t("style.transparency")
             }
             Segmented {

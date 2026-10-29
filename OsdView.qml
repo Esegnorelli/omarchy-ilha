@@ -43,57 +43,71 @@ Item {
         return isNaN(parsed) ? 1200 : Math.max(0, parsed)
     }
 
+    // Nome Material Symbols para cada chave de ícone do OSD do Omarchy.
+    function volumeFor(pct) {
+        if (pct === 0)
+            return "volume_off"
+        if (pct <= 33)
+            return "volume_mute"
+        if (pct <= 66)
+            return "volume_down"
+        return "volume_up"
+    }
+
+    function brightnessFor(pct) {
+        if (pct < 0)
+            return "brightness_medium"
+        if (pct <= 33)
+            return "brightness_low"
+        if (pct <= 66)
+            return "brightness_medium"
+        return "brightness_high"
+    }
+
     function glyphFor(name, pct) {
         switch (name) {
         case "volume-muted": case "volume-mute": case "muted": case "mute":
-            return "\uDB81\uDD81"      // nf-md-volume_off (U+F0581)
+            return "volume_off"
         case "volume-low":
-            return "\uDB81\uDD7F"      // nf-md-volume_low (U+F057F)
+            return "volume_mute"
         case "volume-medium":
-            return "\uDB81\uDD80"      // nf-md-volume_medium (U+F0580)
+            return "volume_down"
         case "volume-high": case "volume":
-            return "\uDB81\uDD7E"      // nf-md-volume_high (U+F057E)
+            return "volume_up"
         case "microphone-muted": case "microphone-off": case "mic-muted": case "mic-off":
-            return "\uDB80\uDF6D"      // nf-md-microphone_off (U+F036D)
+            return "mic_off"
         case "microphone": case "mic":
-            return "\uDB80\uDF6C"      // nf-md-microphone (U+F036C)
+            return "mic"
         case "keyboard":
-            return "\uDB80\uDF0C"      // nf-md-keyboard (U+F030C)
+            return "keyboard"
         case "brightness": case "display":
-            return "\uDB80\uDF79"      // nf-md-monitor (U+F0379)
+            return brightnessFor(pct)
         case "touchpad":
-            return "\uDB81\uDFF8"      // nf-md-laptop (U+F07F8)
+            return "touchpad_mouse"
         case "touch": case "touchscreen":
-            return "\uDB81\uDF41"      // nf-md-gesture_tap (U+F0741)
+            return "touch_app"
         case "reboot": case "restart":
-            return "\uDB81\uDF09"      // nf-md-restart (U+F0709)
+            return "restart_alt"
         case "shutdown": case "power": case "poweroff":
-            return "\uDB81\uDC25"      // nf-md-power (U+F0425)
+            return "power_settings_new"
         case "logout": case "sign-out": case "leave":
-            return "\uDB80\uDF43"      // nf-md-logout (U+F0343)
+            return "logout"
         case "media": case "player": case "media-source": case "player-source":
-            return "\uDB81\uDF5A"      // nf-md-music (U+F075A)
+            return "music_note"
         case "media-play": case "player-play":
-            return "\uDB81\uDC0A"      // nf-md-play (U+F040A)
+            return "play_arrow"
         case "media-pause": case "player-pause":
-            return "\uDB80\uDFE4"      // nf-md-pause (U+F03E4)
+            return "pause"
         case "media-next": case "player-next":
-            return "\uDB81\uDCAD"      // nf-md-skip_next (U+F04AD)
+            return "skip_next"
         case "media-previous": case "player-previous":
-            return "\uDB81\uDCAE"      // nf-md-skip_previous (U+F04AE)
+            return "skip_previous"
         }
-        // Um glifo literal curto passa como está (o OSD original aceita).
-        if (name.length > 0 && name.length <= 2)
-            return String(payload.icon)
-        if (pct < 0)
-            return ""
-        if (pct === 0)
-            return "\uDB81\uDD81"      // nf-md-volume_off (U+F0581)
-        if (pct <= 33)
-            return "\uDB81\uDD7F"      // nf-md-volume_low (U+F057F)
-        if (pct <= 66)
-            return "\uDB81\uDD80"      // nf-md-volume_medium (U+F0580)
-        return "\uDB81\uDD7E"          // nf-md-volume_high (U+F057E)
+        // Chave desconhecida: com progresso vira volume pelo valor; só
+        // mensagem ganha um "info".
+        if (pct >= 0)
+            return volumeFor(pct)
+        return name.length > 0 ? "info" : ""
     }
 
     readonly property string glyph: glyphFor(iconKey, percent)
@@ -106,17 +120,15 @@ Item {
         anchors.centerIn: parent
         spacing: 12
 
-        Text {
+        Icon {
             id: iconText
             anchors.verticalCenter: parent.verticalCenter
             visible: root.glyph !== ""
-            width: 22
-            horizontalAlignment: Text.AlignHCenter
-            text: root.glyph
+            width: 24
+            name: root.glyph
+            size: 22
+            filled: !root.isMuted
             color: root.isMuted ? Commons.Color.muted : root.fg
-            font.family: "JetBrainsMono Nerd Font"
-            font.pixelSize: 18
-            textFormat: Text.PlainText
 
             Behavior on color {
                 ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }

@@ -1,18 +1,19 @@
 import QtQuick
 import qs.Commons as Commons
 
-// Botão redondo com um ícone Nerd Font. No hover ganha um fundo suave em
+// Botão redondo com um ícone Material Symbols (nome em "icon"). No hover ganha um fundo suave em
 // cápsula contínua; ao tocar cede um pouco.
 Item {
     id: button
 
+    // Nome do ícone Material Symbols, por exemplo "tune".
     property string icon: ""
     property color fg: Commons.Color.bar.text
     property color accent: Commons.Color.accent
     // Destaca o botão (por exemplo, o estado aberto agora).
     property bool highlighted: false
     property int size: 30
-    property int iconSize: 15
+    property int iconSize: 19
     // Nome para leitores de tela; quem usa passa um texto traduzido.
     property string label: ""
 
@@ -39,14 +40,13 @@ Item {
         }
     }
 
-    Text {
+    Icon {
         anchors.centerIn: parent
-        text: button.icon
+        name: button.icon
+        size: button.iconSize
+        filled: button.highlighted
         color: button.highlighted ? button.accent : button.fg
         opacity: hoverHandler.hovered || button.highlighted ? 1 : 0.82
-        font.family: "JetBrainsMono Nerd Font"
-        font.pixelSize: button.iconSize
-        textFormat: Text.PlainText
 
         Behavior on opacity {
             NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }

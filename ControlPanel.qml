@@ -9,8 +9,8 @@ import Quickshell.Services.UPower
 import qs.Commons as Commons
 
 // Central de controle: data/hora, Wi-Fi, Bluetooth, microfone, alternâncias
-// do Omarchy (luz noturna, não perturbe, manter acordado, animações), volume,
-// bateria (só em notebook) e atalhos para outros estados da ilha.
+// do Omarchy (luz noturna, não perturbe, manter acordado, animações, modo
+// jogo), volume, bateria (só em notebook) e atalhos para outros estados da ilha.
 //
 // Luz noturna, Não perturbe e Manter acordado usam os proxies do host
 // (shell.firstPartyServiceFor) quando `shell` existe; sem ele, caem nos
@@ -41,7 +41,6 @@ Item {
     readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
     readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.13)
     readonly property color dim: Commons.Color.muted
-    readonly property string iconFont: "JetBrainsMono Nerd Font"
 
     Commons.Translations {
         id: strings
@@ -230,11 +229,172 @@ Item {
         root.runToggle(["omarchy", "toggle", "animations"]);
     }
 
-    onActiveChanged: {
-        if (active) refreshToggles();
-        else rereadTimer.stop();
+    // ---------- Modo jogo ----------
+    // Ligar: salva animações, espaçamento e transparência atuais em
+    // game-mode.json e desliga o que estiver ligado. Desligar: lê o arquivo,
+    // devolve só o que foi mudado e apaga o arquivo. Ligado = o arquivo existe.
+    readonly property string stateDir: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/esegnorelli.ilha"
+    readonly property string gameModeFile: stateDir + "/game-mode.json"
+    property bool gameModeOn: false
+    property bool gameBusy: false
+
+    // Estado lido antes de ligar.
+    property bool _gmAnim: true
+    property bool _gmGaps: true
+
+    // Fila de comandos executados um por vez (cada um recarrega o Hyprland).
+    property var _gmQueue: []
+    property bool _gmStepIsSave: false
+
+    Process {
+        id: gmExistsProc
+        command: ["test", "-f", root.gameModeFile]
+        onExited: (exitCode, exitStatus) => root.gameModeOn = exitCode === 0
     }
-    Component.onCompleted: if (active) refreshToggles()
+    Process {
+        id: gmAnimProc
+        // Código 0 = animações desligadas.
+        command: ["omarchy-hyprland-toggle-enabled", "no-animations"]
+        onExited: (exitCode, exitStatus) => {
+            root._gmAnim = exitCode !== 0;
+            gmGapsProc.running = true;
+        }
+    }
+    Process {
+        id: gmGapsProc
+        // Código 0 = espaçamento desligado.
+        command: ["omarchy-hyprland-toggle-enabled", "window-no-gaps"]
+        onExited: (exitCode, exitStatus) => {
+            root._gmGaps = exitCode !== 0;
+            gmTransProc.running = true;
+        }
+    }
+    Process {
+        id: gmTransProc
+        command: ["omarchy", "hyprland", "window", "transparency"]
+        stdout: StdioCollector {
+            onStreamFinished: root._gmEnable(text.trim())
+        }
+    }
+    Process {
+        id: gmReadProc
+        command: ["cat", root.gameModeFile]
+        stdout: StdioCollector {
+            onStreamFinished: root._gmDisable(text)
+        }
+    }
+    Process {
+        id: gmStepProc
+        onExited: (exitCode, exitStatus) => {
+            // Sem o arquivo salvo não há como desfazer: não muda mais nada.
+            if (exitCode !== 0 && root._gmStepIsSave) {
+                root._gmQueue = [];
+                root.gameModeOn = false;
+            }
+            Qt.callLater(root._gmNext);
+        }
+    }
+    // Garante que a alternância não fica presa se algum passo não terminar.
+    Timer {
+        id: gmWatchdog
+        interval: 30000
+        onTriggered: {
+            root._gmQueue = [];
+            root._gmFinish();
+        }
+    }
+    Timer {
+        id: gmRecheckTimer
+        interval: 400
+        onTriggered: {
+            gmExistsProc.running = true;
+            root.refreshToggles();
+        }
+    }
+
+    function _isMode(m) {
+        return m === "opaque" || m === "transparent" || m === "glassy";
+    }
+
+    function toggleGameMode() {
+        if (root.gameBusy) return;
+        root.gameBusy = true;
+        // Cobre também as leituras: se uma não terminar, o bloco não fica preso.
+        gmWatchdog.restart();
+        if (root.gameModeOn) gmReadProc.running = true;
+        else gmAnimProc.running = true;
+    }
+
+    // Passos para ligar, a partir do estado lido (sem executar nada).
+    function gameModeOnSteps(anim, gaps, mode) {
+        if (!root._isMode(mode)) return [];
+        // JSON montado só com booleanos e um valor conhecido.
+        const json = JSON.stringify({ animations: anim === true, gaps: gaps === true, transparency: mode });
+        const steps = [["sh", "-c", "mkdir -p \"$1\" && printf '%s' \"$2\" > \"$1/game-mode.json\"", "sh", root.stateDir, json]];
+        if (anim) steps.push(["omarchy", "toggle", "animations", "off"]);
+        if (gaps) steps.push(["omarchy-hyprland-toggle", "window-no-gaps", "on"]);
+        if (mode !== "opaque") steps.push(["omarchy", "hyprland", "window", "transparency", "opaque"]);
+        return steps;
+    }
+
+    // Passos para desligar, a partir do conteúdo de game-mode.json.
+    function gameModeOffSteps(text) {
+        let saved = null;
+        try { saved = JSON.parse(text); } catch (e) {}
+        const steps = [];
+        if (saved && typeof saved === "object") {
+            if (saved.animations === true) steps.push(["omarchy", "toggle", "animations", "on"]);
+            if (saved.gaps === true) steps.push(["omarchy-hyprland-toggle", "window-no-gaps", "off"]);
+            if (root._isMode(saved.transparency) && saved.transparency !== "opaque")
+                steps.push(["omarchy", "hyprland", "window", "transparency", saved.transparency]);
+        }
+        steps.push(["rm", "-f", root.gameModeFile]);
+        return steps;
+    }
+
+    function _gmEnable(mode) {
+        const steps = root.gameModeOnSteps(root._gmAnim, root._gmGaps, mode);
+        if (steps.length === 0) { root._gmFinish(); return; }
+        root.gameModeOn = true;
+        root._gmRun(steps);
+    }
+
+    function _gmDisable(text) {
+        root.gameModeOn = false;
+        root._gmRun(root.gameModeOffSteps(text));
+    }
+
+    function _gmRun(steps) {
+        root._gmQueue = steps;
+        gmWatchdog.restart();
+        root._gmNext();
+    }
+
+    function _gmNext() {
+        if (root._gmQueue.length === 0) { root._gmFinish(); return; }
+        const q = root._gmQueue.slice();
+        const cmd = q.shift();
+        root._gmStepIsSave = cmd[0] === "sh"; // único passo via sh: gravar o arquivo
+        gmStepProc.command = cmd;
+        root._gmQueue = q;
+        gmStepProc.running = true;
+    }
+
+    function _gmFinish() {
+        gmWatchdog.stop();
+        root.gameBusy = false;
+        gmRecheckTimer.restart();
+    }
+
+    onActiveChanged: {
+        if (active) {
+            refreshToggles();
+            if (!gameBusy) gmExistsProc.running = true;
+        } else {
+            rereadTimer.stop();
+        }
+    }
+    Component.onCompleted: if (active) { refreshToggles(); gmExistsProc.running = true; }
 
     // ---------- Componentes internos ----------
     component Tile: ContinuousRect {
@@ -272,13 +432,12 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
 
-            Text {
+            Icon {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 22
-                horizontalAlignment: Text.AlignHCenter
-                text: tile.icon
-                font.family: root.iconFont
-                font.pixelSize: 18
+                name: tile.icon
+                size: 22
+                filled: tile.on
                 color: tile.ink
             }
             Column {
@@ -332,11 +491,11 @@ Item {
             id: chipRow
             anchors.centerIn: parent
             spacing: 6
-            Text {
+            Icon {
                 anchors.verticalCenter: parent.verticalCenter
-                text: chip.icon
-                font.family: root.iconFont
-                font.pixelSize: 13
+                name: chip.icon
+                size: 17
+                filled: chipHover.hovered
                 color: chipHover.hovered ? root.accent : root.fg
                 Behavior on color {
                     ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
@@ -390,7 +549,7 @@ Item {
             Tile {
                 visible: root.hasWifi
                 on: root.wifiOn
-                icon: "\uF1EB" // nf-fa-wifi
+                icon: root.wifiOn ? "wifi" : "wifi_off"
                 label: strings.t("control.wifi")
                 sublabel: !root.wifiOn ? strings.t("control.off")
                           : (root.wifiSsid !== "" ? root.wifiSsid : strings.t("control.noConnection"))
@@ -399,7 +558,7 @@ Item {
             Tile {
                 visible: root.hasBluetooth
                 on: root.btOn
-                icon: "\uF293" // nf-fa-bluetooth
+                icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
                 label: strings.t("control.bluetooth")
                 sublabel: !root.btOn ? strings.t("control.off")
                           : (root.btConnected > 0
@@ -410,7 +569,7 @@ Item {
             Tile {
                 visible: root.hasMic
                 on: !root.micMuted
-                icon: root.micMuted ? "\uF131" /* nf-fa-microphone_slash */ : "\uF130" /* nf-fa-microphone */
+                icon: root.micMuted ? "mic_off" : "mic"
                 label: strings.t("control.microphone")
                 sublabel: root.micMuted ? strings.t("control.micMuted") : strings.t("control.micActive")
                 onClicked: root.toggleMic()
@@ -427,7 +586,7 @@ Item {
             Tile {
                 tileHeight: 56
                 on: root.nightOn
-                icon: "\uF186" // nf-fa-moon_o
+                icon: "dark_mode"
                 label: strings.t("control.nightlight")
                 sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
                 onClicked: root.toggleNight()
@@ -435,7 +594,7 @@ Item {
             Tile {
                 tileHeight: 56
                 on: root.dndOn
-                icon: "\uF1F6" // nf-fa-bell_slash
+                icon: "notifications_off"
                 label: strings.t("control.dnd")
                 sublabel: root.dndOn ? strings.t("control.dndOn") : strings.t("control.off")
                 onClicked: root.toggleDnd()
@@ -443,7 +602,7 @@ Item {
             Tile {
                 tileHeight: 56
                 on: root.stayAwake
-                icon: "\uF0F4" // nf-fa-coffee
+                icon: "coffee"
                 label: strings.t("control.stayAwake")
                 sublabel: root.stayAwake ? strings.t("control.stayAwakeOn") : strings.t("control.off")
                 onClicked: root.toggleStayAwake()
@@ -451,10 +610,20 @@ Item {
             Tile {
                 tileHeight: 56
                 on: root.animationsOn
-                icon: "\uF0D0" // nf-fa-magic
+                icon: "animation"
                 label: strings.t("control.animations")
                 sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
                 onClicked: root.toggleAnimations()
+            }
+            Tile {
+                Layout.columnSpan: 2
+                tileHeight: 56
+                on: root.gameModeOn
+                icon: "sports_esports"
+                label: strings.t("control.gameMode")
+                sublabel: root.gameBusy ? strings.t("control.applying")
+                          : root.gameModeOn ? strings.t("control.gameModeOn") : strings.t("control.off")
+                onClicked: root.toggleGameMode()
             }
         }
 
@@ -481,13 +650,13 @@ Item {
                     Behavior on color {
                         ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
                     }
-                    Text {
+                    Icon {
                         anchors.centerIn: parent
-                        text: root.sinkMuted || root.volume === 0 ? "\uF026" // nf-fa-volume_off
-                              : root.volume < 0.5 ? "\uF027" // nf-fa-volume_down
-                              : "\uF028" // nf-fa-volume_up
-                        font.family: root.iconFont
-                        font.pixelSize: 16
+                        name: root.sinkMuted || root.volume === 0 ? "volume_off"
+                              : root.volume < 0.5 ? "volume_down"
+                              : "volume_up"
+                        size: 20
+                        filled: !root.sinkMuted
                         color: root.sinkMuted ? root.dim : root.fg
                     }
                     HoverHandler { id: muteHover; cursorShape: Qt.PointingHandCursor }
@@ -579,15 +748,15 @@ Item {
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
                 spacing: 10
-                Text {
-                    text: root.charging ? "\uF0E7" // nf-fa-bolt
-                          : root.batteryLevel > 0.85 ? "\uF240" // nf-fa-battery_full
-                          : root.batteryLevel > 0.6 ? "\uF241" // nf-fa-battery_three_quarters
-                          : root.batteryLevel > 0.35 ? "\uF242" // nf-fa-battery_half
-                          : root.batteryLevel > 0.1 ? "\uF243" // nf-fa-battery_quarter
-                          : "\uF244" // nf-fa-battery_empty
-                    font.family: root.iconFont
-                    font.pixelSize: 16
+                Icon {
+                    name: root.charging ? "battery_charging_full"
+                          : root.batteryLevel > 0.85 ? "battery_full"
+                          : root.batteryLevel > 0.6 ? "battery_5_bar"
+                          : root.batteryLevel > 0.35 ? "battery_3_bar"
+                          : root.batteryLevel > 0.1 ? "battery_2_bar"
+                          : "battery_alert"
+                    size: 20
+                    filled: true
                     color: root.batteryLevel <= 0.1 && !root.charging ? root.danger : root.fg
                 }
                 Text {
@@ -611,22 +780,22 @@ Item {
             spacing: 6
 
             NavChip {
-                icon: "\uF030" // nf-fa-camera
+                icon: "photo_camera"
                 label: strings.t("control.navCapture")
                 onClicked: root.navigate("capture")
             }
             NavChip {
-                icon: "\uF1FC" // nf-fa-paint_brush
+                icon: "palette"
                 label: strings.t("control.navStyle")
                 onClicked: root.navigate("style")
             }
             NavChip {
-                icon: "\uF0AD" // nf-fa-wrench
+                icon: "build"
                 label: strings.t("control.navTools")
                 onClicked: root.navigate("tools")
             }
             NavChip {
-                icon: "\uF011" // nf-fa-power_off
+                icon: "power_settings_new"
                 label: strings.t("control.navPower")
                 onClicked: root.navigate("power")
             }

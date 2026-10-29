@@ -36,7 +36,6 @@ Item {
     readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
     readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
     readonly property color dim: Commons.Color.muted
-    readonly property string iconFont: "JetBrainsMono Nerd Font"
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
@@ -122,11 +121,11 @@ Item {
                 anchors.centerIn: parent
                 width: parent.width - 12
                 spacing: 6
-                Text {
+                Icon {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: btn.icon
-                    font.family: root.iconFont
-                    font.pixelSize: 18
+                    name: btn.icon
+                    size: 22
+                    filled: btnHover.hovered
                     color: btnHover.hovered ? root.accent : root.fg
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                 }
@@ -149,6 +148,7 @@ Item {
     component ToggleChip: Item {
         id: chip
         property string icon: ""
+        property string iconOff: ""
         property string label: ""
         property bool on: false
         signal toggled()
@@ -179,11 +179,11 @@ Item {
             Row {
                 anchors.centerIn: parent
                 spacing: 8
-                Text {
+                Icon {
                     anchors.verticalCenter: parent.verticalCenter
-                    text: chip.icon
-                    font.family: root.iconFont
-                    font.pixelSize: 14
+                    name: !chip.on && chip.iconOff !== "" ? chip.iconOff : chip.icon
+                    size: 18
+                    filled: chip.on
                     color: chip.ink
                 }
                 Text {
@@ -228,11 +228,10 @@ Item {
                     id: backRow
                     anchors.centerIn: parent
                     spacing: 6
-                    Text {
+                    Icon {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\uF053" // nf-fa-chevron_left
-                        font.family: root.iconFont
-                        font.pixelSize: 11
+                        name: "chevron_left"
+                        size: 18
                         color: backHover.hovered ? root.accent : root.fg
                         Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                     }
@@ -266,22 +265,22 @@ Item {
             Layout.fillWidth: true
             spacing: 10
             CaptureButton {
-                icon: "\uF125" // nf-fa-crop
+                icon: "screenshot_region"
                 label: strings.t("capture.region")
                 onClicked: root.screenshot("region")
             }
             CaptureButton {
-                icon: "\uF2D0" // nf-fa-window_maximize
+                icon: "select_window"
                 label: strings.t("capture.window")
                 onClicked: root.screenshot("windows")
             }
             CaptureButton {
-                icon: "\uF108" // nf-fa-desktop
+                icon: "desktop_windows"
                 label: strings.t("capture.fullscreen")
                 onClicked: root.screenshot("fullscreen")
             }
             CaptureButton {
-                icon: "\uF07D" // nf-fa-arrows_v
+                icon: "swipe_vertical"
                 label: strings.t("capture.scroll")
                 onClicked: root.screenshot("scroll")
             }
@@ -315,11 +314,11 @@ Item {
                 Row {
                     anchors.centerIn: parent
                     spacing: 10
-                    Text {
+                    Icon {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\uF04D" // nf-fa-stop
-                        font.family: root.iconFont
-                        font.pixelSize: 15
+                        name: "stop_circle"
+                        size: 20
+                        filled: true
                         color: root.bg
                     }
                     Text {
@@ -342,12 +341,12 @@ Item {
             Layout.fillWidth: true
             spacing: 10
             CaptureButton {
-                icon: "\uF03D" // nf-fa-video_camera
+                icon: "videocam"
                 label: strings.t("capture.recordRegion")
                 onClicked: root.startRecording(false)
             }
             CaptureButton {
-                icon: "\uF108" // nf-fa-desktop
+                icon: "screen_record"
                 label: strings.t("capture.recordScreen")
                 onClicked: root.startRecording(true)
             }
@@ -358,13 +357,15 @@ Item {
             Layout.fillWidth: true
             spacing: 10
             ToggleChip {
-                icon: "\uF028" // nf-fa-volume_up
+                icon: "volume_up"
+                iconOff: "volume_off"
                 label: strings.t("capture.desktopAudio")
                 on: root.withDesktopAudio
                 onToggled: root.withDesktopAudio = !root.withDesktopAudio
             }
             ToggleChip {
-                icon: "\uF130" // nf-fa-microphone
+                icon: "mic"
+                iconOff: "mic_off"
                 label: strings.t("capture.microphone")
                 on: root.withMicrophone
                 onToggled: root.withMicrophone = !root.withMicrophone
@@ -378,17 +379,17 @@ Item {
             Layout.fillWidth: true
             spacing: 10
             CaptureButton {
-                icon: "\uF031" // nf-fa-font
+                icon: "text_fields"
                 label: strings.t("capture.ocr")
                 onClicked: root.runAfterClose(["omarchy", "capture", "text"])
             }
             CaptureButton {
-                icon: "\uF029" // nf-fa-qrcode
+                icon: "qr_code_scanner"
                 label: strings.t("capture.qr")
                 onClicked: root.runAfterClose(["omarchy", "capture", "qr"])
             }
             CaptureButton {
-                icon: "\uF1FB" // nf-fa-eyedropper
+                icon: "colorize"
                 label: strings.t("capture.picker")
                 onClicked: root.runAfterClose(["hyprpicker", "-a"])
             }

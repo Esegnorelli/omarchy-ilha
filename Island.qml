@@ -750,12 +750,12 @@ Item {
 
                             Repeater {
                                 model: [
-                                    { icon: "\uDB80\uDC3B", target: "launcher", key: "island.apps" },     // nf-md-apps (U+F003B)
-                                    { icon: "\uF1DE", target: "control", key: "island.control" },         // nf-fa-sliders (U+F1DE)
-                                    { icon: "\uDB80\uDD00", target: "capture", key: "island.capture" },   // nf-md-camera (U+F0100)
-                                    { icon: "\uF1FC", target: "style", key: "island.style" },             // nf-fa-paint_brush (U+F1FC)
-                                    { icon: "\uF0AD", target: "tools", key: "island.tools" },             // nf-fa-wrench (U+F0AD)
-                                    { icon: "\uF011", target: "power", key: "island.power" }              // nf-fa-power_off (U+F011)
+                                    { icon: "apps", target: "launcher", key: "island.apps" },
+                                    { icon: "tune", target: "control", key: "island.control" },
+                                    { icon: "photo_camera", target: "capture", key: "island.capture" },
+                                    { icon: "palette", target: "style", key: "island.style" },
+                                    { icon: "build", target: "tools", key: "island.tools" },
+                                    { icon: "power_settings_new", target: "power", key: "island.power" }
                                 ]
 
                                 IconButton {

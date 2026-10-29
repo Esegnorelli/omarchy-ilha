@@ -329,19 +329,19 @@ Item {
     readonly property var items: {
         const list = []
         if (recording)
-            list.push({ key: "recording", icon: "\uDB83\uDEC2", tint: danger, count: 0 })       // nf-md-record_circle (U+F0EC2)
+            list.push({ key: "recording", icon: "radio_button_checked", tint: danger, count: 0 })
         if (dnd)
-            list.push({ key: "dnd", icon: "\uDB80\uDC9B", tint: fg, count: 0 })                 // nf-md-bell_off (U+F009B)
+            list.push({ key: "dnd", icon: "notifications_off", tint: fg, count: 0 })
         if (nightlight)
-            list.push({ key: "nightlight", icon: "\uDB81\uDD0E", tint: fg, count: 0 })          // nf-md-weather_night (U+F050E)
+            list.push({ key: "nightlight", icon: "dark_mode", tint: fg, count: 0 })
         if (stayAwake)
-            list.push({ key: "stayAwake", icon: "\uEF59", tint: fg, count: 0 })                 // nf-cod-coffee (U+EF59)
+            list.push({ key: "stayAwake", icon: "coffee", tint: fg, count: 0 })
         if (reminderCount > 0)
-            list.push({ key: "reminders", icon: "\uDB82\uDC8C", tint: fg, count: reminderCount })   // nf-md-alarm (U+F088C)
+            list.push({ key: "reminders", icon: "alarm", tint: fg, count: reminderCount })
         if (updateAvailable)
-            list.push({ key: "updates", icon: "\uF021", tint: accent, count: 0 })               // nf-fa-refresh (U+F021)
+            list.push({ key: "updates", icon: "system_update", tint: accent, count: 0 })
         if (notificationCount > 0)
-            list.push({ key: "notifications", icon: "\uDB80\uDC9A", tint: fg, count: notificationCount })  // nf-md-bell (U+F009A)
+            list.push({ key: "notifications", icon: "notifications", tint: fg, count: notificationCount })
         return list
     }
 
@@ -408,13 +408,12 @@ Item {
                     anchors.centerIn: parent
                     spacing: 4
 
-                    Text {
+                    Icon {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: chip.modelData.icon
+                        name: chip.modelData.icon
                         color: chip.modelData.tint
-                        font.family: "JetBrainsMono Nerd Font"
-                        font.pixelSize: 14
-                        textFormat: Text.PlainText
+                        size: 18
+                        filled: true
                     }
 
                     Text {

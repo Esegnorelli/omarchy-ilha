@@ -29,7 +29,6 @@ Item {
     readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
     readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
     readonly property color dim: Commons.Color.muted
-    readonly property string iconFont: "JetBrainsMono Nerd Font"
 
     // Lado dos quadrados e espaço entre eles: três por linha.
     readonly property int tileSpacing: 14
@@ -141,11 +140,11 @@ Item {
                 width: parent.width - 16
                 spacing: 10
 
-                Text {
+                Icon {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: pb.icon
-                    font.family: root.iconFont
-                    font.pixelSize: 28
+                    name: pb.icon
+                    size: 34
+                    filled: pb.isArmed
                     color: pb.ink
                 }
                 Text {
@@ -190,11 +189,10 @@ Item {
                     id: backRow
                     anchors.centerIn: parent
                     spacing: 6
-                    Text {
+                    Icon {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "\uF053" // nf-fa-chevron_left
-                        font.family: root.iconFont
-                        font.pixelSize: 11
+                        name: "chevron_left"
+                        size: 18
                         color: backHover.hovered ? root.accent : root.fg
                         Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                     }
@@ -227,21 +225,21 @@ Item {
 
             PowerButton {
                 key: "lock"
-                icon: "\uF023" // nf-fa-lock
+                icon: "lock"
                 label: strings.t("power.lock")
                 onClicked: root.runClosed(["omarchy", "system", "lock"])
             }
             PowerButton {
                 key: "suspend"
                 visible: root.suspendAvailable
-                icon: "\uDB81\uDCB2" // nf-md-sleep (U+F04B2)
+                icon: "bedtime"
                 label: strings.t("power.suspend")
                 onClicked: root.runClosed(["systemctl", "suspend"])
             }
             PowerButton {
                 key: "hibernate"
                 visible: root.hibernateAvailable
-                icon: "\uDB82\uDD01" // nf-md-power_sleep (U+F0901)
+                icon: "mode_standby" // hibernar
                 label: strings.t("power.hibernate")
                 onClicked: root.runClosed(["systemctl", "hibernate"])
             }
@@ -254,19 +252,19 @@ Item {
 
             PowerButton {
                 key: "logout"
-                icon: "\uDB80\uDF43" // nf-md-logout (U+F0343)
+                icon: "logout"
                 label: strings.t("power.logout")
                 onClicked: root.confirmOrRun("logout", ["omarchy", "system", "logout"])
             }
             PowerButton {
                 key: "reboot"
-                icon: "\uDB81\uDF09" // nf-md-restart (U+F0709)
+                icon: "restart_alt"
                 label: strings.t("power.reboot")
                 onClicked: root.confirmOrRun("reboot", ["omarchy", "system", "reboot"])
             }
             PowerButton {
                 key: "shutdown"
-                icon: "\uDB81\uDC25" // nf-md-power (U+F0425)
+                icon: "power_settings_new"
                 label: strings.t("power.shutdown")
                 onClicked: root.confirmOrRun("shutdown", ["omarchy", "system", "shutdown"])
             }

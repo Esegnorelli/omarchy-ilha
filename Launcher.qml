@@ -32,7 +32,6 @@ Item {
   readonly property int rowGap: 2
   readonly property int searchHeight: 46
   readonly property int spacing: 12
-  readonly property string iconFont: "JetBrainsMono Nerd Font"
 
   readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
   readonly property color hoverTint: Qt.rgba(fg.r, fg.g, fg.b, 0.06)
@@ -130,14 +129,13 @@ Item {
       ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }
     }
 
-    Text {
+    Icon {
       id: searchIcon
       anchors.left: parent.left
       anchors.leftMargin: 16
       anchors.verticalCenter: parent.verticalCenter
-      text: "\uF002" // nf-fa-search
-      font.family: root.iconFont
-      font.pixelSize: 15
+      name: "search"
+      size: 20
       color: root.accent
     }
 
@@ -258,12 +256,13 @@ Item {
             asynchronous: true
             visible: status === Image.Ready
           }
-          Text {
+          // Reserva quando o app não tem ícone.
+          Icon {
             anchors.centerIn: parent
             visible: img.status !== Image.Ready
-            text: "\uF2D0" // nf-fa-window_maximize (ícone reserva de app)
-            font.family: root.iconFont
-            font.pixelSize: 16
+            name: "apps"
+            size: 20
+            filled: row.selected
             color: row.selected ? root.accent : root.fg
           }
         }

@@ -1,5 +1,7 @@
 # Ilha
 
+> Ser prático sem perder a beleza — computadores podem ser divertidos.
+
 Barra do Omarchy em forma de notch: fica escondida no topo da tela e aparece quando o mouse chega na borda de cima. Tudo do sistema fica num lugar só.
 
 ## Como funciona

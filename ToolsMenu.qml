@@ -35,7 +35,6 @@ Item {
     readonly property color surface: Qt.rgba(fg.r, fg.g, fg.b, 0.07)
     readonly property color surfaceHover: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
     readonly property color dim: Commons.Color.muted
-    readonly property string iconFont: "JetBrainsMono Nerd Font"
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
@@ -329,11 +328,11 @@ Item {
                 anchors.centerIn: parent
                 width: parent.width - 12
                 spacing: 6
-                Text {
+                Icon {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: tool.icon
-                    font.family: root.iconFont
-                    font.pixelSize: 17
+                    name: tool.icon
+                    size: 22
+                    filled: toolHover.hovered
                     color: toolHover.hovered ? root.accent : root.fg
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                 }
@@ -388,12 +387,11 @@ Item {
                 id: chipRow
                 anchors.centerIn: parent
                 spacing: 7
-                Text {
+                Icon {
                     visible: chip.icon !== ""
                     anchors.verticalCenter: parent.verticalCenter
-                    text: chip.icon
-                    font.family: root.iconFont
-                    font.pixelSize: 13
+                    name: chip.icon
+                    size: 18
                     color: chip.ink
                 }
                 Text {
@@ -441,11 +439,11 @@ Item {
         radius: 11
         color: lit ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.16) : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.06)
 
-        Text {
+        Icon {
             anchors.centerIn: parent
-            text: parent.glyph
-            font.family: root.iconFont
-            font.pixelSize: 16
+            name: parent.glyph
+            size: 20
+            filled: parent.lit
             color: parent.lit ? root.accent : root.dim
         }
     }
@@ -462,7 +460,7 @@ Item {
             spacing: 10
 
             Chip {
-                icon: "\uF053" // nf-fa-chevron_left
+                icon: "chevron_left"
                 label: strings.t("tools.back")
                 onClicked: root.navigate("control")
             }
@@ -487,9 +485,9 @@ Item {
 
                 CardIcon {
                     lit: root.netKind !== "disconnected"
-                    glyph: root.netKind === "ethernet" ? "\uDB80\uDE00" // nf-md-ethernet
-                           : root.netKind === "wifi" ? "\uDB81\uDDA9" // nf-md-wifi
-                           : "\uDB81\uDDAA" // nf-md-wifi_off
+                    glyph: root.netKind === "ethernet" ? "lan"
+                           : root.netKind === "wifi" ? "wifi"
+                           : "wifi_off"
                 }
                 Column {
                     Layout.fillWidth: true
@@ -530,12 +528,12 @@ Item {
                 spacing: 8
                 Chip {
                     visible: root.netKind === "wifi"
-                    icon: "\uF029" // nf-fa-qrcode
+                    icon: "qr_code_2"
                     label: strings.t("tools.net.wifiQr")
                     onClicked: root.openWifiQr()
                 }
                 Chip {
-                    icon: "\uDB81\uDCC5" // nf-md-speedometer
+                    icon: "speed"
                     label: strings.t("tools.net.speedTest")
                     onClicked: root.openSpeedTest()
                 }
@@ -550,32 +548,32 @@ Item {
             columnSpacing: 10
 
             ToolButton {
-                icon: "\uF0EA" // nf-fa-clipboard
+                icon: "content_paste"
                 label: strings.t("tools.clipboard")
                 onClicked: root.launch(["omarchy", "menu", "clipboard"])
             }
             ToolButton {
-                icon: "\uF118" // nf-fa-smile_o
+                icon: "mood"
                 label: strings.t("tools.emoji")
                 onClicked: root.launch(["omarchy", "menu", "emoji"])
             }
             ToolButton {
-                icon: "\uF11C" // nf-fa-keyboard_o
+                icon: "keyboard"
                 label: strings.t("tools.keybindings")
                 onClicked: root.launch(["omarchy", "menu", "keybindings"])
             }
             ToolButton {
-                icon: "\uF05A" // nf-fa-info_circle
+                icon: "info"
                 label: strings.t("tools.about")
                 onClicked: root.launch(["omarchy", "launch", "about"])
             }
             ToolButton {
-                icon: "\uF0AC" // nf-fa-globe
+                icon: "public"
                 label: strings.t("tools.timezone")
                 onClicked: root.launch(["omarchy", "menu", "timezone"])
             }
             ToolButton {
-                icon: "\uF0C9" // nf-fa-bars
+                icon: "menu"
                 label: strings.t("tools.omarchyMenu")
                 // "summon" sempre abre o menu principal (rota raiz), sem alternar.
                 onClicked: root.launch(["omarchy", "menu", "summon"])
@@ -592,9 +590,9 @@ Item {
 
                 CardIcon {
                     lit: root.hasUpdates
-                    glyph: root.hasUpdates ? "\uF021" // nf-fa-refresh
-                           : root.updatesChecking ? "\uF017" // nf-fa-clock_o
-                           : "\uF058" // nf-fa-check_circle
+                    glyph: root.hasUpdates ? "system_update"
+                           : root.updatesChecking ? "schedule"
+                           : "check_circle"
                 }
                 Column {
                     Layout.fillWidth: true
@@ -654,7 +652,7 @@ Item {
 
                 CardIcon {
                     lit: root.reminderCount > 0
-                    glyph: "\uF0F3" // nf-fa-bell
+                    glyph: "alarm"
                 }
                 Text {
                     Layout.fillWidth: true
@@ -670,7 +668,7 @@ Item {
                 Chip {
                     visible: root.reminderCount > 0
                     warn: root.clearArmed
-                    icon: "\uF1F8" // nf-fa-trash
+                    icon: "delete"
                     label: root.clearArmed ? strings.t("tools.reminders.confirmClear") : strings.t("tools.reminders.clear")
                     onClicked: root.clearReminders()
                 }
