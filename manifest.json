@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "esegnorelli.ilha",
+  "name": "Ilha",
+  "version": "0.1.0",
+  "author": "esegnorelli",
+  "description": "Barra em forma de ilha que muda de forma",
+  "kinds": ["bar"],
+  "entryPoints": {
+    "bar": "Island.qml"
+  }
+}
