@@ -7,17 +7,18 @@ import qs.Commons as Commons
 import "TileArm.js" as TileArm
 
 // Ilha: plugin de barra (kind "bar") que substitui a barra do Omarchy por uma
-// pílula só, no topo, que muda de forma.
+// pílula só, solta do topo, que muda de forma.
 //
-// Em repouso não aparece nada (só uma bolinha de 8 px se houver indicador
-// ligado). Uma faixa invisível de 3 px nos 600 px do centro da borda de cima
-// revela a pílula: a bolinha desce, estica até virar a pílula e o conteúdo
-// entra. Os painéis (Apps, Controle, Captura, Estilo, Ferramentas, Tempo,
-// Energia) e o OSD são estados da mesma pílula.
+// Em repouso é uma cápsula com a hora, a alguns pixels da borda. Uma faixa
+// invisível de 3 px nos 600 px do centro da borda de cima (ou o ponteiro na
+// própria cápsula) abre a linha de estado: workspaces, hora e no máximo
+// dois avisos, sem vão. Um painel abre sozinho no lugar da pílula. Os seis
+// destinos não aparecem juntos.
 //
-// Layout (spec §3.3): largura fixa de 568 em hover e em todo painel (o OSD
-// tem a sua). Coluna = Strip (46, relógio no centro exato da tela) + estado
-// ativo + PanelFooter. Clicar num ícone abre o painel e liga o "modo menu":
+// Hover: a pílula mede essa linha. Painel: largura da grade (568).
+// O OSD tem a sua. Coluna =
+// estado ativo + PanelFooter. Clicar na hora ou num indicador abre um
+// painel e liga o "modo menu":
 // repousar 150 ms noutro ícone troca de painel, descer o ponteiro cancela,
 // clicar no ícone ativo volta à faixa e sair com o ponteiro não fecha.
 //
@@ -43,12 +44,14 @@ Item {
 
     // ---- Estado publicado para o host e para as notificações ----
     property bool barHidden: false
-    // Altura de repouso informada: a faixa de ativação e a folga da bolinha.
+    // Altura de repouso informada: a faixa de ativação e a folga da pílula.
     // Precisa ser maior que zero, senão as notificações usam o tamanho padrão.
-    // Em repouso a ilha fica sempre visível: um notch compacto só com o relógio.
-    readonly property int restHeight: 30
-    readonly property int restWidth: 104
-    readonly property int barSize: restHeight
+    // Em repouso a ilha fica sempre visível: uma cápsula só com o relógio,
+    // solta da borda (floatGap). barSize chega até a base dessa cápsula.
+    readonly property int floatGap: 10
+    readonly property int restHeight: 34
+    readonly property int restWidth: 96
+    readonly property int barSize: floatGap + restHeight
     readonly property var screenBarSizes: {
         const sizes = ({})
         const screens = Quickshell.screens
@@ -56,7 +59,9 @@ Item {
             sizes[screens[i].name] = island.barHidden ? 0 : island.barSize
         return sizes
     }
-    readonly property string fontFamily: Commons.Style.fontFamily
+    // A fonte escolhida no Estilo pinta na hora. Vazio segue o alias do sistema.
+    property string face: ""
+    readonly property string fontFamily: face !== "" ? face : Commons.Style.fontFamily
     readonly property string position: "top"
 
     function barSizeFor(screenName) {
@@ -65,10 +70,208 @@ Item {
     }
 
     // ---- Cores do tema (o host repassa as mesmas aos estados) ----
-    readonly property color fg: Commons.Color.bar.text
-    readonly property color bg: Commons.Color.bar.background
+    // A paleta de base, não a superfície da barra. As duas coincidem, mas a
+    // superfície só é regravada quando o plano de fundo revela. A paleta
+    // entra no instante em que o tema é escolhido.
+    readonly property color fg: Commons.Color.foreground
+    readonly property color bg: Commons.Color.background
     readonly property color accent: Commons.Color.accent
     readonly property color danger: Commons.Color.urgent
+
+    // Cantos e vidro, os mesmos modos do Estilo. O clique pinta na hora;
+    // o arquivo do toggle confirma, inclusive quando a troca vem de fora.
+    property bool cornerSharp: false
+    property bool cornerRounded: false
+    property bool glassOpaque: false
+    property bool glassGlassy: true
+    readonly property string cornerMode: cornerSharp ? "sharp" : cornerRounded ? "rounded" : "theme"
+    readonly property string glassMode: glassOpaque ? "opaque" : glassGlassy ? "glassy" : "transparent"
+
+    // Opaco fecha. Vidro é o fosco de hoje. Transparente fica logo acima do
+    // ignore_alpha 0.3, senão o blur abre um buraco. Painel um pouco mais
+    // fechado, para o texto continuar legível.
+    readonly property real alphaRest: glassOpaque ? 1 : glassGlassy ? 0.4 : 0.34
+    readonly property real alphaBody: glassOpaque ? 1 : glassGlassy ? 0.58 : 0.42
+    readonly property color fillRest: Qt.rgba(bg.r, bg.g, bg.b, alphaRest)
+    readonly property color fillBody: Qt.rgba(bg.r, bg.g, bg.b, alphaBody)
+    readonly property real rimAlphaRest: glassOpaque ? 0.22 : glassGlassy ? 0.34 : 0.5
+    readonly property real rimAlphaBody: glassOpaque ? 0.12 : glassGlassy ? 0.16 : 0.28
+    readonly property color rimRest: Qt.rgba(fg.r, fg.g, fg.b, rimAlphaRest)
+    readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, rimAlphaBody)
+
+    // Reto: quina viva. Arredondado: cápsula (ou o cartão de 28 no painel).
+    // Tema: o raio que o Hyprland está usando.
+    function shellRadius(h, panel) {
+        if (cornerSharp)
+            return 0
+        if (cornerRounded)
+            return panel ? Math.min(h / 2, 28) : h / 2
+        return Math.max(0, Math.min(h / 2, Commons.Style.cornerRadius))
+    }
+
+    function showCorners(mode) {
+        cornerSharp = mode === "sharp"
+        cornerRounded = mode === "rounded"
+    }
+    function showGlass(mode) {
+        glassOpaque = mode === "opaque"
+        glassGlassy = mode === "glassy"
+    }
+    function showFace(name) {
+        face = String(name || "")
+    }
+
+    // Tema escolhido na ilha e ainda não gravado em theme.name. Enquanto
+    // estiver à frente, uma gravação do tema anterior não pinta por cima.
+    property string aheadSlug: ""
+    property int previewToken: 0
+    property int appliedToken: 0
+    readonly property string home: Quickshell.env("HOME")
+    readonly property string themesRoot: {
+        const fromHost = island.omarchyPath
+        const fromEnv = Quickshell.env("OMARCHY_PATH")
+        const base = (fromHost && String(fromHost).length > 0) ? String(fromHost)
+            : (fromEnv && String(fromEnv).length > 0) ? String(fromEnv)
+            : "/usr/share/omarchy"
+        return base + "/themes"
+    }
+
+    function slugify(name) {
+        return String(name || "").toLowerCase().replace(/ /g, "-").replace(/[^a-z0-9._-]/g, "")
+    }
+
+    // Lê o colors.toml do tema (o do usuário, senão o do sistema) e aplica
+    // só a paleta. O `omarchy theme set` segue no menu e cuida do resto.
+    function previewTheme(name) {
+        const slug = slugify(name)
+        if (slug === "")
+            return
+        aheadSlug = slug
+        previewToken += 1
+        previewRead.token = previewToken
+        previewRead.slug = slug
+        previewRead.userFirst = true
+        previewRead.command = ["cat", home + "/.config/omarchy/themes/" + slug + "/colors.toml"]
+        previewRead.running = true
+    }
+
+    function settleTheme() {
+        aheadSlug = ""
+    }
+
+    function noteSystemTheme(raw) {
+        const slug = String(raw || "").trim()
+        if (!themeNameFile.ready) {
+            themeNameFile.ready = true
+            return
+        }
+        if (aheadSlug !== "" && slug !== aheadSlug)
+            return
+        aheadSlug = ""
+        if (slug === "")
+            return
+        appliedToken += 1
+        const file = home + "/.local/state/omarchy/current/theme/colors.toml"
+        appliedRead.token = appliedToken
+        appliedRead.command = ["cat", file]
+        appliedRead.running = true
+    }
+
+    // Prévia: pasta do usuário primeiro. O estoque cobre o que não foi
+    // sobreposto. Um clique mais novo invalida a leitura anterior.
+    Process {
+        id: previewRead
+        property int token: 0
+        property string slug: ""
+        property bool userFirst: true
+        stdout: StdioCollector {
+            id: previewOut
+            waitForEnd: true
+            onStreamFinished: {
+                if (previewRead.token !== island.previewToken)
+                    return
+                const raw = String(previewOut.text || "")
+                if (raw.indexOf("=") < 0) {
+                    if (!previewRead.userFirst)
+                        return
+                    previewRead.userFirst = false
+                    Qt.callLater(() => {
+                        if (previewRead.token !== island.previewToken)
+                            return
+                        previewRead.command = ["cat", island.themesRoot + "/" + previewRead.slug + "/colors.toml"]
+                        previewRead.running = true
+                    })
+                    return
+                }
+                Commons.Color.loadColors(raw)
+            }
+        }
+    }
+
+    Process {
+        id: appliedRead
+        property int token: 0
+        stdout: StdioCollector {
+            id: appliedOut
+            waitForEnd: true
+            onStreamFinished: {
+                if (appliedRead.token !== island.appliedToken)
+                    return
+                const raw = String(appliedOut.text || "")
+                if (raw.indexOf("=") >= 0)
+                    Commons.Color.loadColors(raw)
+            }
+        }
+    }
+
+    FileView {
+        id: themeNameFile
+        property bool ready: false
+        path: island.home + "/.local/state/omarchy/current/theme.name"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: island.noteSystemTheme(text())
+    }
+
+    // Os toggles são pequenos. A leitura inicial bloqueia para a primeira
+    // pintura já sair no modo certo.
+    FileView {
+        path: island.home + "/.local/state/omarchy/toggles/hypr/corners-sharp.lua"
+        watchChanges: true
+        blockLoading: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: island.cornerSharp = true
+        onLoadFailed: island.cornerSharp = false
+    }
+    FileView {
+        path: island.home + "/.local/state/omarchy/toggles/hypr/corners-rounded.lua"
+        watchChanges: true
+        blockLoading: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: island.cornerRounded = true
+        onLoadFailed: island.cornerRounded = false
+    }
+    FileView {
+        path: island.home + "/.local/state/omarchy/toggles/hypr/window-opaque.lua"
+        watchChanges: true
+        blockLoading: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: island.glassOpaque = true
+        onLoadFailed: island.glassOpaque = false
+    }
+    FileView {
+        path: island.home + "/.local/state/omarchy/toggles/hypr/window-glassy.lua"
+        watchChanges: true
+        blockLoading: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: island.glassGlassy = true
+        onLoadFailed: island.glassGlassy = false
+    }
 
     // Para testes fora do shell: onde fica a flag bar-off e se checa
     // atualizações (faz git fetch).
@@ -81,7 +284,9 @@ Item {
     readonly property var translations: strings
 
     // Medidas da grade, repassadas aos estados (StateSlot.wire).
-    property Metrics metrics: Metrics {}
+    property Metrics metrics: Metrics {
+        corners: island.cornerMode
+    }
 
     // ---- Teclado ----
     // Modo teclado: anel de foco, letras cheias e dígitos na faixa.
@@ -188,11 +393,13 @@ Item {
     }
 
     // Ctrl+Tab (+1) / Ctrl+Shift+Tab (-1), na ordem da faixa, com volta.
-    function cycle(step) {
+    // A roda manda o monitor dela; o teclado continua no painel que está aberto.
+    function cycle(step, screenName) {
         const n = categoryOrder.length
         const at = categoryOrder.indexOf(view)
         const from = at < 0 ? categoryOrder.indexOf(lastView) : at
-        show(categoryOrder[((from + step) % n + n) % n], panelScreen)
+        const screen = screenName !== undefined && String(screenName) !== "" ? String(screenName) : panelScreen
+        show(categoryOrder[((from + step) % n + n) % n], screen)
     }
 
     // "Q", "shift+Q", "⇧Q", "enter", "pgdn"… → evento sintético para handleKey.
@@ -365,6 +572,10 @@ Item {
         id: indicatorSource
         visible: false
         shell: island.shell
+        fg: island.fg
+        accent: island.accent
+        danger: island.danger
+        muted: Commons.Color.muted
         checkUpdates: island.checkUpdates
         onBecameActive: what => {
             if (what !== "notifications")
@@ -510,6 +721,7 @@ Item {
             // OnDemand: com Exclusive o compositor derruba o HyprlandFocusGrab.
             WlrLayershell.keyboardFocus: win.isTarget && island.view !== "" ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             color: "transparent"
+            surfaceFormat.opaque: false
 
             // Grande o bastante para o maior estado; a máscara limita o mouse.
             implicitWidth: 760
@@ -543,17 +755,19 @@ Item {
                 }
             }
             readonly property bool isPanel: island.views.indexOf(mode) >= 0
-            // A faixa fica em hover e em todo painel, sempre no mesmo lugar.
+            // A linha fica no hover e no topo do painel: a roda anda os painéis
+            // sem passar por cima das listas de dentro.
             readonly property bool hasStrip: mode === "hover" || isPanel
-            // Largura constante (568) em hover e painéis; o OSD tem a sua.
+            readonly property int contentTop: isPanel ? Math.ceil(strip.implicitHeight + 8) : metrics.pad
             readonly property real targetWidth: mode === "rest" ? 12
                 : mode === "osd" ? (modeItem ? modeItem.implicitWidth + 32 : 12)
+                : mode === "hover" ? Math.max(64, strip.implicitWidth)
                 : metrics.width
-            // faixa 46 (+ 8 + estado + 8 + rodapé 20 + 12 nos painéis).
+            // Hover: a cápsula do elemento da vez. Painel: o cartão, sem a faixa.
             readonly property real targetHeight: mode === "rest" ? 12
                 : mode === "osd" ? (modeItem ? modeItem.implicitHeight + 16 : 12)
-                : mode === "hover" ? metrics.strip
-                : Math.min(metrics.chrome + (modeItem ? modeItem.implicitHeight : 0), win.height - 16)
+                : mode === "hover" ? strip.implicitHeight
+                : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + metrics.gap + metrics.footer + metrics.padBottom, win.height - 16)
 
             // ---- Coreografia ----
             // 0: repouso (sumida ou bolinha); 1: bolinha de 12 px no lugar;
@@ -564,10 +778,10 @@ Item {
             readonly property bool animate: Commons.Style.duration(1) > 0
             readonly property bool shrinking: phase < 2 || !revealed
             readonly property bool contentOn: phase === 2 && revealed && contentLatched
-            // A faixa só depende da largura (constante entre hover e painéis):
-            // trocar de painel não a faz piscar.
+            // A faixa aparece quando a pílula já chegou perto do tamanho do hover.
+            // A altura do hover é a da linha (34), menor que a faixa de menu.
             readonly property bool stripOn: phase === 2 && revealed && hasStrip
-                && pill.width >= (targetWidth + 2 * flare) * 0.8 && pill.height >= metrics.strip * 0.8
+                && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8
 
             function checkLatch() {
                 if (phase === 2 && revealed && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8)
@@ -583,7 +797,7 @@ Item {
             onRevealedChanged: {
                 stepTimer.stop()
                 if (revealed) {
-                    // O notch compacto do relógio se estica direto até o estado.
+                    // A cápsula do relógio se estica direto até o estado.
                     phase = 2
                     Qt.callLater(checkLatch)
                 } else {
@@ -758,15 +972,18 @@ Item {
             }
 
             // ---- Entrada: faixa de ativação + a pílula ----
-            // Curva côncava de cada lado do notch, onde ele encontra a tela.
-            readonly property real flare: 10
             readonly property int stripWidth: 600
             readonly property int stripHeight: 3
             // A área de entrada segue o tamanho final do estado, não a pílula
             // animada: trocar a máscara a cada quadro faz o compositor mandar
-            // saída/entrada do ponteiro e o hover piscar.
-            readonly property int inputWidth: revealed ? Math.ceil(targetWidth + 2 * flare) : hoverAllowed ? island.restWidth + 2 * flare : 0
-            readonly property int inputHeight: revealed ? Math.ceil(targetHeight) : hoverAllowed ? island.restHeight : 0
+            // saída/entrada do ponteiro e o hover piscar. A altura inclui o
+            // vão até a borda, senão o ponteiro cai no wallpaper no meio do caminho.
+            // No hover a máscara fica na largura do maior elemento, senão a
+            // pílula encolhe e o ponteiro cai no wallpaper no meio da troca.
+            readonly property int inputWidth: revealed
+                ? Math.ceil(mode === "hover" ? Math.max(targetWidth, strip.hoverSpan) : targetWidth)
+                : hoverAllowed ? island.restWidth : 0
+            readonly property int inputHeight: revealed ? Math.ceil(island.floatGap + targetHeight) : hoverAllowed ? island.floatGap + island.restHeight : 0
 
             mask: Region {
                 Region {
@@ -852,16 +1069,15 @@ Item {
                 Item {
                     id: pill
 
-                    // Em repouso: notch compacto só com o relógio (e a marquinha).
+                    // Em repouso: cápsula só com o relógio (e a marquinha).
                     readonly property bool atRest: win.phase !== 2
                     readonly property bool asDot: false
 
                     anchors.horizontalCenter: parent.horizontalCenter
-                    // Largura do corpo + as duas curvas côncavas do topo.
-                    width: (win.phase === 2 ? win.targetWidth : island.restWidth) + 2 * win.flare
+                    width: win.phase === 2 ? win.targetWidth : island.restWidth
                     height: win.phase === 2 ? win.targetHeight : island.restHeight
-                    // Sempre colado na borda de cima; só some com a barra escondida.
-                    y: 0
+                    // Solta da borda. O vão entra na máscara para o hover não piscar.
+                    y: island.floatGap
                     opacity: win.hoverAllowed ? 1 : 0
                     clip: true
                     // Respiro preso à borda de cima: o centro (e o relógio) não sai do lugar.
@@ -875,7 +1091,7 @@ Item {
                         enabled: win.animate
                         SpringAnimation {
                             spring: win.shrinking ? 12 : 6
-                            damping: win.shrinking ? 0.9 : 0.5
+                            damping: 1
                             epsilon: 0.25
                         }
                     }
@@ -884,7 +1100,7 @@ Item {
                         enabled: win.animate
                         SpringAnimation {
                             spring: win.shrinking ? 12 : 6
-                            damping: win.shrinking ? 0.9 : 0.5
+                            damping: 1
                             epsilon: 0.25
                         }
                     }
@@ -903,13 +1119,22 @@ Item {
                         }
                     }
 
-                    NotchShape {
+                    // Cápsula enquanto é baixa; cartão de canto contínuo quando abre um painel.
+                    // Cor do tema por cima do blur: cápsula mais aberta, painel mais fechado.
+                    ContinuousRect {
                         anchors.fill: parent
-                        radius: Math.min(height / 2, 24)
-                        flare: Math.min(win.flare, height)
-                        color: island.bg
+                        radius: island.shellRadius(height, win.isPanel)
+                        color: win.isPanel ? island.fillBody : island.fillRest
+                        borderWidth: 1
+                        borderColor: win.isPanel ? island.rimBody : island.rimRest
 
+                        Behavior on radius {
+                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                        }
                         Behavior on color {
+                            ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                        }
+                        Behavior on borderColor {
                             ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
                         }
                     }
@@ -931,9 +1156,10 @@ Item {
                             anchors.centerIn: parent
                             text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
                             textFormat: Text.PlainText
-                            font.family: Commons.Style.fontFamily
-                            font.pixelSize: 13
+                            font.family: island.fontFamily
+                            font.pixelSize: 15
                             font.weight: Font.DemiBold
+                            font.features: ({ "tnum": 1 })
                             color: island.fg
                         }
 
@@ -952,7 +1178,7 @@ Item {
                         }
                     }
 
-                    // ---- Faixa: workspaces · app · indicadores | relógio | 6 ícones ----
+                    // ---- Faixa: workspaces · hora · até dois avisos ----
                     Strip {
                         id: strip
 
@@ -974,6 +1200,7 @@ Item {
                         bg: island.bg
                         accent: island.accent
                         danger: island.danger
+                        fontFamily: island.fontFamily
                         metrics: win.metrics
 
                         opacity: win.stripOn ? 1 : 0
@@ -998,6 +1225,12 @@ Item {
                             island.keyboardMode = false
                             island.show(target, win.screenName)
                         }
+                        onPanelWheel: step => {
+                            if (island.view === "")
+                                island.show("calendar", win.screenName)
+                            else
+                                island.cycle(step, win.screenName)
+                        }
                     }
 
                     // ---- Estados (painéis e OSD) ----
@@ -1016,7 +1249,7 @@ Item {
                         readonly property bool shown: win.isPanel && win.contentOn && win.footerSlot !== null
 
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: win.metrics.strip + win.metrics.padTop
+                        y: win.contentTop
                             + (win.footerSlot ? win.footerSlot.implicitHeight : 0) + win.metrics.gap
                         status: win.footerSlot ? win.footerSlot.footerStatus : ""
                         hints: win.footerSlot ? win.footerSlot.footerHints : ""
@@ -1033,7 +1266,7 @@ Item {
                     }
                 }
 
-                // ---- Dica da faixa ("Captura · 3"), por baixo do notch ----
+                // ---- Dica da faixa ("Captura · 3"), por baixo da pílula ----
                 Item {
                     id: tip
                     readonly property bool shown: strip.tooltipShown && win.stripOn && strip.tooltipX >= 0
@@ -1061,10 +1294,10 @@ Item {
 
                     ContinuousRect {
                         anchors.fill: parent
-                        radius: height / 2
-                        color: island.bg
+                        radius: island.shellRadius(height, false)
+                        color: island.fillBody
                         borderWidth: 1
-                        borderColor: Qt.rgba(island.fg.r, island.fg.g, island.fg.b, 0.12)
+                        borderColor: island.rimRest
                     }
 
                     Text {
@@ -1072,6 +1305,7 @@ Item {
                         anchors.centerIn: parent
                         text: tip.text
                         color: island.fg
+                        font.family: island.fontFamily
                         font.pixelSize: 12
                         textFormat: Text.PlainText
                     }
@@ -1117,9 +1351,9 @@ Item {
         readonly property bool footerAlert: !!(item && item.footerAlert)
 
         anchors.horizontalCenter: parent.horizontalCenter
-        // Painéis começam abaixo da faixa; o OSD fica centrado na pílula.
+        // O painel é o cartão inteiro. O OSD fica centrado na pílula.
         y: name === "osd" ? Math.round((parent.height - height) / 2)
-            : slot.hostIsland.metrics.strip + slot.hostIsland.metrics.padTop
+            : slot.hostWindow.contentTop
         implicitWidth: loader.item ? loader.item.implicitWidth : 0
         implicitHeight: loader.item ? loader.item.implicitHeight : 0
         width: implicitWidth
@@ -1164,6 +1398,16 @@ Item {
             bindIfPresent(target, "bg", () => slot.hostIsland.bg)
             bindIfPresent(target, "accent", () => slot.hostIsland.accent)
             bindIfPresent(target, "danger", () => slot.hostIsland.danger)
+            if (target.themePreview)
+                target.themePreview.connect(name => slot.hostIsland.previewTheme(name))
+            if (target.themeSettled)
+                target.themeSettled.connect(() => slot.hostIsland.settleTheme())
+            if (target.lookCorners)
+                target.lookCorners.connect(mode => slot.hostIsland.showCorners(mode))
+            if (target.lookGlass)
+                target.lookGlass.connect(mode => slot.hostIsland.showGlass(mode))
+            if (target.lookFont)
+                target.lookFont.connect(name => slot.hostIsland.showFace(name))
             bindIfPresent(target, "shell", () => slot.hostIsland.shell)
             bindIfPresent(target, "metrics", () => slot.hostIsland.metrics)
             bindIfPresent(target, "keyboardMode", () => slot.hostIsland.keyboardMode)

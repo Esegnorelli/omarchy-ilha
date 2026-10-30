@@ -2,9 +2,10 @@
   "schemaVersion": 1,
   "id": "esegnorelli.ilha",
   "name": "Ilha",
-  "version": "0.1.0",
-  "author": "esegnorelli",
-  "description": "Barra em forma de ilha que muda de forma",
+  "version": "1.0.0",
+  "author": "Evandro Segnorelli",
+  "license": "MIT",
+  "description": "Floating island bar: a clock at rest, one status line on hover, and one panel at a time. Theme, corners, and glass update live.",
   "kinds": ["bar"],
   "entryPoints": {
     "bar": "Island.qml"

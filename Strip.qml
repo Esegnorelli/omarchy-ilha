@@ -1,18 +1,16 @@
 import QtQuick
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 import qs.Commons as Commons
 
-// Faixa fixa do topo da ilha (spec §3.3): aparece no modo hover e em cima de
-// todo painel, sempre no mesmo lugar. Três zonas de largura fixa:
+// Faixa do topo da ilha. No hover (o caminho vivo) é uma linha só, sem vão:
+// workspaces à esquerda, a hora no meio, no máximo dois avisos à direita.
+// O workspace ativo é uma cápsula na cor do tema; os outros são pontos.
 //
-//   zoneL 216  workspaces →  nome do app focado  ← indicadores (+N)
-//   zoneC 104  relógio, no centro exato da tela (tocar = Tempo)
-//   zoneR 216  6 vagas de 36: Apps, Controle, Captura, Estilo, Ferramentas, Energia
-//
-// O nome do app ocupa o espaço que sobra entre workspaces e indicadores, para
-// a faixa nunca ter campo vazio sem mexer nos ícones.
+// As três zonas de largura fixa só existem no caminho de menus, que está
+// fechado. Elas não desenham os seis destinos juntos.
 //
 // API pública:
 //   screenName: string        monitor desta faixa (workspaces e app focado)
@@ -48,16 +46,27 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     signal categoryClicked(string target)
     signal categoryDwelled(string target)
     signal workspaceClicked()
     signal indicatorNavigate(string target)
+    // Roda na linha: +1 próximo painel, -1 o anterior.
+    signal panelWheel(int step)
 
-    implicitWidth: metrics.content
-    implicitHeight: metrics.strip
-    width: implicitWidth
+    // A faixa de hover não é um menu. Os seis destinos não aparecem nela.
+    readonly property bool menus: false
+
+    implicitWidth: menus ? metrics.content : Math.ceil(stateRow.implicitWidth + 28)
+    implicitHeight: menus ? metrics.strip : 34
+    // A máscara de hover usa a largura final, para a pílula encolher sem o
+    // ponteiro cair no papel de parede.
+    readonly property real hoverSpan: implicitWidth
+    // No painel a linha ocupa a faixa de cima inteira, para a roda pegar
+    // mesmo com o ponteiro um pouco ao lado do relógio.
+    width: activeView !== "" ? parent.width : implicitWidth
     height: implicitHeight
 
     function tr(key) { return strip.strings ? strip.strings.t(key) : key }
@@ -99,6 +108,8 @@ Item {
 
     // Alvo sob um ponto da faixa ("" fora do relógio e dos ícones).
     function targetAt(x, y) {
+        if (!menus)
+            return ""
         if (x >= metrics.zoneL && x < zoneRX)
             return "calendar"
         if (x >= zoneRX && x < zoneRX + metrics.zoneR) {
@@ -141,6 +152,20 @@ Item {
         volumeFlash.restart()
     }
 
+    // Uma volta da roda troca um painel. O resto do gesto fica para a próxima.
+    property real panelWheelAccum: 0
+
+    function wheelPanels(delta) {
+        panelWheelAccum += delta
+        if (panelWheelAccum >= 120) {
+            panelWheelAccum = 0
+            panelWheel(-1)
+        } else if (panelWheelAccum <= -120) {
+            panelWheelAccum = 0
+            panelWheel(1)
+        }
+    }
+
     // ---- Dicas ("Nome · dígito") ----
     property string hoverTarget: ""
     property bool tipReady: false
@@ -160,7 +185,8 @@ Item {
 
     readonly property bool volumeShown: volumeFlash.running && sinkReady
     readonly property bool tooltipShown: volumeShown || (tipReady && hoverTarget !== "" && !menuMode)
-    readonly property real tooltipX: volumeShown ? centerOf("control") : centerOf(hoverTarget)
+    readonly property real tooltipX: !menus ? width / 2
+        : volumeShown ? centerOf("control") : centerOf(hoverTarget)
     readonly property string tooltipText: {
         if (volumeShown) {
             const pct = Math.round(sink.audio.volume * 100)
@@ -260,6 +286,8 @@ Item {
     // ================= zoneL =================
     Item {
         id: zoneL
+        visible: strip.menus
+        enabled: strip.menus
         x: 0
         width: strip.metrics.zoneL
         height: parent.height
@@ -281,26 +309,27 @@ Item {
                     readonly property bool current: modelData.active
 
                     anchors.verticalCenter: parent.verticalCenter
-                    width: current ? 18 : 8
+                    width: 12
                     height: 22
 
                     Accessible.role: Accessible.Button
                     Accessible.name: String(modelData.name)
 
-                    Behavior on width {
-                        NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                    }
-
-                    ContinuousRect {
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: parent.width
-                        height: 8
-                        radius: height / 2
+                    // Ponto, nunca uma pílula larga: um workspace só não pode
+                    // parecer um interruptor ao lado do nome do app.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: wsDot.current ? 7 : 5
+                        height: width
+                        radius: width / 2
                         color: wsDot.current ? strip.accent
-                            : Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, wsHover.hovered ? 0.6 : 0.35)
+                            : Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, wsHover.hovered ? 0.55 : 0.28)
 
                         Behavior on color {
                             ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                        }
+                        Behavior on width {
+                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
                         }
                     }
 
@@ -345,8 +374,9 @@ Item {
             width: Math.max(0, endX - startX)
             visible: width >= 24 && text !== ""
             text: strip.appLabel
-            color: strip.muted
-            font.pixelSize: 12
+            color: strip.fg
+            opacity: 0.88
+            font.pixelSize: 13
             font.weight: Font.Medium
             elide: Text.ElideRight
             maximumLineCount: 1
@@ -397,11 +427,13 @@ Item {
     // ================= zoneC: relógio =================
     Item {
         id: clockBox
+        visible: strip.menus
+        enabled: strip.menus
         readonly property bool active: strip.activeView === "calendar"
         x: strip.metrics.zoneL + (strip.metrics.zoneC - width) / 2
         anchors.verticalCenter: parent.verticalCenter
         width: strip.metrics.zoneC - 8
-        height: 38
+        height: 42
 
         Accessible.role: Accessible.Button
         Accessible.name: strip.tr("island.time")
@@ -423,13 +455,13 @@ Item {
 
         Column {
             anchors.centerIn: parent
-            spacing: -1
+            spacing: 0
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
                 color: clockBox.active ? strip.accent : strip.fg
-                font.pixelSize: 15
+                font.pixelSize: 18
                 font.weight: Font.DemiBold
                 font.features: ({ "tnum": 1 })
                 textFormat: Text.PlainText
@@ -443,7 +475,8 @@ Item {
                 anchors.horizontalCenter: parent.horizontalCenter
                 text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "ddd, d MMM")
                 color: strip.muted
-                font.pixelSize: 11
+                font.pixelSize: 10
+                font.letterSpacing: 0.2
                 textFormat: Text.PlainText
             }
         }
@@ -485,6 +518,8 @@ Item {
     // ================= zoneR: 6 vagas fixas =================
     Row {
         id: zoneR
+        visible: strip.menus
+        enabled: strip.menus
         x: strip.zoneRX
         width: strip.metrics.zoneR
         height: parent.height
@@ -504,7 +539,7 @@ Item {
                 IconButton {
                     anchors.centerIn: parent
                     size: strip.metrics.iconSlot
-                    iconSize: 20
+                    iconSize: 18
                     icon: slotItem.modelData.icon
                     label: strip.nameOf(slotItem.modelData.target)
                     highlighted: slotItem.active
@@ -524,6 +559,260 @@ Item {
                 }
             }
         }
+    }
+
+    // Hover: a linha do vídeo de outubro. Uma pílula, três grupos colados.
+    // O ativo cresce numa cápsula com halo; ocupado é ponto claro; vazio é
+    // ponto quieto. A hora abre o Tempo. No máximo dois avisos, só o ícone.
+    // Bloco de workspaces deste monitor (1–10, 11–20, …), o mesmo arquivo
+    // que a barra do Omarchy lê.
+    property var workspaceBlocks: ({})
+
+    function readBlocks(text) {
+        const next = {}
+        const lines = String(text || "").split("\n")
+        for (let i = 0; i < lines.length; i++) {
+            const fields = lines[i].split("\t")
+            if (fields.length >= 2 && fields[1] !== "")
+                next[fields[1]] = parseInt(fields[0], 10)
+        }
+        workspaceBlocks = next
+    }
+
+    FileView {
+        path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/omarchy/monitor-workspaces"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: strip.readBlocks(text())
+        onLoadFailed: strip.readBlocks("")
+    }
+
+    readonly property int workspaceBlock: {
+        const known = workspaceBlocks[screenName]
+        if (known !== undefined && !isNaN(known))
+            return known
+        const mon = monitorObj
+        const active = mon && mon.activeWorkspace ? mon.activeWorkspace.id : 1
+        return active > 0 ? Math.floor((active - 1) / 10) : 0
+    }
+
+    // Os cinco primeiros do monitor, e mais um se já existir além deles.
+    readonly property int spaceCount: {
+        const base = workspaceBlock * 10
+        let n = 5
+        const src = Hyprland.workspaces.values
+        for (let i = 0; i < src.length; i++) {
+            const id = src[i].id
+            if (id <= base || id > base + 10)
+                continue
+            if (src[i].monitor && String(src[i].monitor.name) !== screenName)
+                continue
+            n = Math.max(n, id - base)
+        }
+        return n
+    }
+
+    function workspaceById(id) {
+        const src = Hyprland.workspaces.values
+        for (let i = 0; i < src.length; i++)
+            if (src[i].id === id)
+                return src[i]
+        return null
+    }
+
+    function focusSpace(id) {
+        const slot = (id - 1) % 10 + 1
+        const name = String(screenName || "").replace(/["\\]/g, "")
+        Quickshell.execDetached(["hyprctl", "dispatch",
+            "o.workspaces.focus(" + slot + ", \"" + name + "\")"])
+        workspaceClicked()
+    }
+    readonly property var statusMarks: {
+        const src = indicatorSource
+        const list = src && src.items ? src.items : []
+        const out = []
+        const n = Math.min(2, list.length)
+        for (let i = 0; i < n; i++)
+            out.push(list[i])
+        return out
+    }
+
+    function activateMark(key) {
+        if (!indicatorSource)
+            return
+        if (key === "reminders" || key === "updates" || key === "notifications")
+            indicatorNavigate(indicatorSource.ownerOf(key))
+        else
+            indicatorSource.activate(key)
+    }
+
+    Row {
+        id: stateRow
+        visible: !strip.menus
+        anchors.centerIn: parent
+        spacing: 12
+
+        Row {
+            id: spaceRow
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 1
+
+            Repeater {
+                model: strip.spaceCount
+
+                Item {
+                    id: wsDot
+                    required property int index
+                    readonly property int wsId: strip.workspaceBlock * 10 + index + 1
+                    readonly property int slot: (wsId - 1) % 10 + 1
+                    readonly property var ws: strip.workspaceById(wsId)
+                    readonly property bool current: {
+                        const mon = strip.monitorObj
+                        return mon && mon.activeWorkspace && mon.activeWorkspace.id === wsId
+                    }
+                    readonly property bool occupied: ws && ws.toplevels
+                        && ws.toplevels.values.length > 0
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 14
+                    height: 22
+
+                    Accessible.role: Accessible.Button
+                    Accessible.name: String(slot)
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 18
+                        radius: 8
+                        color: strip.accent
+                        opacity: wsDot.current ? 0.28 : 0
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: String(wsDot.slot)
+                        textFormat: Text.PlainText
+                        font.family: strip.fontFamily
+                        font.pixelSize: 13
+                        font.weight: wsDot.current ? Font.DemiBold : Font.Medium
+                        font.features: ({ "tnum": 1 })
+                        color: wsDot.current ? strip.accent
+                            : Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, wsDot.occupied ? 0.9 : 0.38)
+
+                        Behavior on color {
+                            ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+
+                    TapHandler {
+                        onTapped: strip.focusSpace(wsDot.wsId)
+                    }
+                }
+            }
+        }
+
+        Text {
+            id: stateClock
+            anchors.verticalCenter: parent.verticalCenter
+            text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
+            textFormat: Text.PlainText
+            color: strip.fg
+            font.family: strip.fontFamily
+            font.pixelSize: 15
+            font.weight: Font.DemiBold
+            font.features: ({ "tnum": 1 })
+
+            Accessible.role: Accessible.Button
+            Accessible.name: strip.tr("island.time")
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: strip.categoryClicked("calendar") }
+        }
+
+        // Aparência: sempre aqui. A cor é a do tema; o toque abre o Estilo.
+        Item {
+            id: lookSlot
+            anchors.verticalCenter: parent.verticalCenter
+            width: 18
+            height: 18
+
+            Accessible.role: Accessible.Button
+            Accessible.name: strip.tr("island.style")
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 18
+                height: 18
+                radius: 9
+                color: strip.accent
+                opacity: strip.activeView === "style" ? 0.28 : 0
+
+                Behavior on opacity {
+                    NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                }
+            }
+
+            Icon {
+                anchors.centerIn: parent
+                name: "palette"
+                size: 15
+                filled: strip.activeView === "style"
+                color: strip.accent
+            }
+
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            TapHandler { onTapped: strip.categoryClicked("style") }
+        }
+
+        Row {
+            id: statusRow
+            visible: strip.statusMarks.length > 0
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+
+            Repeater {
+                model: strip.statusMarks
+
+                Item {
+                    id: markSlot
+                    required property var modelData
+                    readonly property string markKey: modelData.key
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 16
+                    height: 16
+
+                    Accessible.role: Accessible.Button
+                    Accessible.name: strip.tr("indicators.face." + markKey)
+
+                    Icon {
+                        anchors.centerIn: parent
+                        name: markSlot.modelData.icon
+                        size: 15
+                        filled: true
+                        color: markSlot.modelData.tint
+                    }
+
+                    HoverHandler { cursorShape: Qt.PointingHandCursor }
+                    TapHandler { onTapped: strip.activateMark(markSlot.markKey) }
+                }
+            }
+        }
+    }
+
+    // Roda na linha troca o painel. As listas de dentro ficam de fora daqui.
+    WheelHandler {
+        enabled: !strip.menus
+        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+        onWheel: event => strip.wheelPanels(event.angleDelta.y)
     }
 
     // ================= Cursor do painel ativo =================
@@ -552,7 +841,7 @@ Item {
         y: strip.height - height
         x: strip.caretX - width / 2
         color: strip.accent
-        opacity: strip.activeCenter >= 0 ? 1 : 0
+        opacity: strip.menus && strip.activeCenter >= 0 ? 1 : 0
 
         Behavior on x {
             enabled: strip.caretGlide && Commons.Style.duration(1) > 0

@@ -34,6 +34,12 @@ Item {
 
     signal closeRequested()
     signal navigate(string target)
+    // A ilha pinta a paleta na hora. O comando do sistema vem depois.
+    signal themePreview(string name)
+    signal themeSettled()
+    signal lookCorners(string mode)
+    signal lookGlass(string mode)
+    signal lookFont(string name)
 
     implicitWidth: metrics.content
     implicitHeight: grid.implicitHeight
@@ -145,26 +151,41 @@ Item {
         Quickshell.execDetached(["sh", "-c", "sleep \"$0\"; exec \"$@\"", wait].concat(cmd));
     }
 
+    // Vários toques seguidos viram um tema só no sistema. A pílula não espera.
+    Timer {
+        id: themeApply
+        interval: 280
+        onTriggered: {
+            if (root.pendingTheme === "")
+                return
+            root.run(["omarchy", "theme", "set", root.pendingTheme])
+        }
+    }
+
     function setTheme(name) {
         if (name === root.currentTheme) return;
         root.currentTheme = name;
         root.pendingTheme = name;
         root.pendingChecks = 0;
-        root.run(["omarchy", "theme", "set", name]);
+        root.themePreview(name);
+        themeApply.restart();
     }
     function setFont(name) {
         if (name === root.currentFont) return;
         root.currentFont = name;
+        root.lookFont(name);
         root.run(["omarchy", "font", "set", name]);
     }
     function setCorners(mode) {
         if (mode === root.corners) return;
         root.corners = mode;
+        root.lookCorners(mode);
         root.run(["omarchy", "hyprland", "corners", mode]);
     }
     function setTransparency(mode) {
         if (mode === root.transparency) return;
         root.transparency = mode;
+        root.lookGlass(mode);
         root.run(["omarchy", "hyprland", "window", "transparency", mode]);
     }
 
@@ -229,13 +250,20 @@ Item {
                 const t = themeCurrentOut.text.trim();
                 // Aplicar um tema leva alguns segundos: enquanto o sistema ainda
                 // mostra o anterior, mantém a escolha e confere de novo.
-                if (root.pendingTheme !== "" && t !== root.pendingTheme && root.pendingChecks < 6) {
+                if (root.pendingTheme !== "" && t !== root.pendingTheme && root.pendingChecks < 10) {
                     root.pendingChecks++;
                     if (root.active) recheck.restart();
                     return;
                 }
+                const wanted = root.pendingTheme;
                 root.pendingTheme = "";
                 if (t !== "" && t !== "Unknown") root.currentTheme = t;
+                if (wanted !== "") {
+                    // O sistema ficou no tema anterior: devolve a paleta junto.
+                    if (t !== wanted && t !== "" && t !== "Unknown")
+                        root.themePreview(t);
+                    root.themeSettled();
+                }
                 Qt.callLater(gallery.revealCurrent);
             }
         }

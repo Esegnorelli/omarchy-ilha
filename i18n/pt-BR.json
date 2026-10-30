@@ -101,6 +101,13 @@
   "hint.time": "Q–D · PgUp/PgDn mês · Home hoje",
   "hint.toggle": "Q–F alternar · −/= volume · M mudo",
   "indicators.dnd": "Não perturbe ligado. Toque para desligar",
+  "indicators.face.dnd": "Silêncio",
+  "indicators.face.nightlight": "Noite",
+  "indicators.face.notifications": "Avisos",
+  "indicators.face.recording": "Gravando",
+  "indicators.face.reminders": "Lembrete",
+  "indicators.face.stayAwake": "Acordado",
+  "indicators.face.updates": "Atualização",
   "indicators.more": {
     "one": "Mais %1 indicador",
     "other": "Mais %1 indicadores"

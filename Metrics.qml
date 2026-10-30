@@ -1,4 +1,5 @@
 import QtQuick
+import qs.Commons as Commons
 
 // Medidas da ilha (spec §3.1). Uma instância no Island, repassada aos estados
 // pela propriedade "metrics"; os blocos (Tile, GridRow, PanelGrid, LabeledRow,
@@ -7,7 +8,7 @@ import QtQuick
 //
 // API pública (somente leitura):
 //   col, gap, content, pad, width         grade de 4 colunas: 4·128 + 3·8 = 536; ilha 568
-//   strip, zoneL, zoneC, zoneR, iconSlot   faixa fixa do topo (216 | 104 | 216, 6 × 36)
+//   strip, zoneL, zoneC, zoneR, iconSlot   faixa fixa do topo (216 | 104 | 216, 6 × 36), 50 px
 //   tile, compact, slim, info              alturas: tile 72, botão compacto 32, LabeledRow 44, InfoRow 56
 //   caption, captionGap, footer            legenda 16 + 4; rodapé 20
 //   tileRadius, rowRadius                  14 e 12 (pílula = altura / 2)
@@ -26,7 +27,7 @@ QtObject {
     readonly property int width: content + 2 * pad             // 568
 
     // ---------- Faixa ----------
-    readonly property int strip: 46
+    readonly property int strip: 50
     readonly property int zoneL: 216
     readonly property int zoneC: 104
     readonly property int zoneR: 216
@@ -52,13 +53,19 @@ QtObject {
     readonly property int badge: 14
     readonly property int ring: 2
 
-    readonly property int tileRadius: 14
-    readonly property int rowRadius: 12
+    // Cantos do Estilo. Arredondado guarda o desenho da grade. Reto fecha
+    // os botões. Tema acompanha o raio das janelas.
+    property string corners: "rounded"
+    readonly property int themeCorner: Commons.Style.cornerRadius
+    readonly property int tileRadius: corners === "sharp" ? 2
+        : corners === "theme" ? Math.max(2, Math.min(14, themeCorner > 0 ? themeCorner : 2)) : 14
+    readonly property int rowRadius: corners === "sharp" ? 2
+        : corners === "theme" ? Math.max(2, Math.min(12, themeCorner > 0 ? themeCorner : 2)) : 12
 
     // ---------- Chrome do painel ----------
     readonly property int padTop: 8
     readonly property int padBottom: 12
-    // faixa 46 + 8 + linhas + 8 + rodapé 20 + 12 = 94 + linhas
+    // faixa 50 + 8 + linhas + 8 + rodapé 20 + 12 = 98 + linhas
     readonly property int chrome: strip + padTop + gap + footer + padBottom
     readonly property int panelMax: 700
 

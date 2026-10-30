@@ -63,7 +63,7 @@ Item {
         size: button.iconSize
         filled: button.highlighted
         color: button.highlighted ? button.accent : button.fg
-        opacity: hoverHandler.hovered || button.highlighted ? 1 : 0.82
+        opacity: hoverHandler.hovered || button.highlighted ? 1 : 0.55
 
         Behavior on color {
             ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }

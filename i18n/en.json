@@ -101,6 +101,13 @@
   "hint.time": "Q–D · PgUp/PgDn month · Home today",
   "hint.toggle": "Q–F toggle · −/= volume · M mute",
   "indicators.dnd": "Do not disturb is on. Tap to turn it off",
+  "indicators.face.dnd": "Quiet",
+  "indicators.face.nightlight": "Night",
+  "indicators.face.notifications": "Alerts",
+  "indicators.face.recording": "Recording",
+  "indicators.face.reminders": "Reminder",
+  "indicators.face.stayAwake": "Awake",
+  "indicators.face.updates": "Update",
   "indicators.more": {
     "one": "%1 more indicator",
     "other": "%1 more indicators"
