@@ -175,6 +175,12 @@ Item {
     // ---- Repouso (dwell): só em menuMode; descer o ponteiro cancela ----
     property string dwellTarget: ""
     property real lastY: -1
+    // O repouso só vale depois de o ponteiro se mexer de verdade: um cursor
+    // parado sobre a faixa (o painel abriu por tecla ou IPC embaixo dele)
+    // não troca de painel sozinho.
+    property real anchorX: -1
+    property real anchorY: -1
+    property bool pointerMoved: false
 
     Timer {
         id: dwellTimer
@@ -195,6 +201,8 @@ Item {
                 strip.hoverTarget = ""
                 strip.dwellTarget = ""
                 strip.lastY = -1
+                strip.anchorX = -1
+                strip.pointerMoved = false
             }
         }
         onPointChanged: {
@@ -210,8 +218,20 @@ Item {
                 else
                     tipTimer.stop()
             }
+            if (strip.anchorX < 0) {
+                strip.anchorX = p.x
+                strip.anchorY = p.y
+            } else if (!strip.pointerMoved
+                       && Math.abs(p.x - strip.anchorX) + Math.abs(p.y - strip.anchorY) > 3) {
+                strip.pointerMoved = true
+            }
             const down = strip.lastY >= 0 && p.y > strip.lastY + 0.5
             strip.lastY = p.y
+            if (!strip.pointerMoved) {
+                strip.dwellTarget = t
+                dwellTimer.stop()
+                return
+            }
             if (t !== strip.dwellTarget) {
                 strip.dwellTarget = t
                 if (strip.menuMode && t !== "" && t !== strip.activeView && !down)
@@ -228,7 +248,14 @@ Item {
     }
 
     onMenuModeChanged: if (!menuMode) dwellTimer.stop()
-    onActiveViewChanged: dwellTimer.stop()
+    onActiveViewChanged: {
+        dwellTimer.stop()
+        // Painel trocado por tecla/IPC: exige movimento novo antes do repouso.
+        if (keyboardMode) {
+            anchorX = -1
+            pointerMoved = false
+        }
+    }
 
     // ================= zoneL =================
     Item {
@@ -481,28 +508,11 @@ Item {
                     icon: slotItem.modelData.icon
                     label: strip.nameOf(slotItem.modelData.target)
                     highlighted: slotItem.active
+                    caption: strip.showDigits ? slotItem.modelData.digit : ""
+                    muted: strip.muted
                     fg: strip.fg
                     accent: strip.accent
                     onTapped: strip.categoryClicked(slotItem.modelData.target)
-                }
-
-                KeyBadge {
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.topMargin: 3
-                    anchors.rightMargin: -1
-                    letter: slotItem.modelData.digit
-                    keyboardMode: true
-                    strong: slotItem.active
-                    fg: strip.fg
-                    bg: strip.bg
-                    accent: strip.accent
-                    muted: strip.muted
-                    metrics: strip.metrics
-                    opacity: strip.showDigits ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-                    }
                 }
 
                 // Rolar sobre o Controle ajusta o volume.

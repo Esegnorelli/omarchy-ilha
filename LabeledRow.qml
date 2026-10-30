@@ -47,6 +47,10 @@ Item {
     readonly property bool keyable: variant === "segmented"
 
     signal picked(string value)
+    // Chips com stepPreview: setas e [ ] só marcam a opção (previewed);
+    // Enter ou o clique aplicam (picked).
+    property bool stepPreview: false
+    signal previewed(string value)
     signal moved(real value)
     signal labelTapped()
 
@@ -72,7 +76,9 @@ Item {
         if (lrow.options.length === 0) return;
         const i = lrow.currentIndex < 0 ? (d > 0 ? 0 : lrow.options.length - 1)
                                         : Math.max(0, Math.min(lrow.options.length - 1, lrow.currentIndex + d));
-        if (i !== lrow.currentIndex) lrow.picked(lrow.options[i].value);
+        if (i === lrow.currentIndex) return;
+        if (lrow.stepPreview && lrow.variant === "chips") lrow.previewed(lrow.options[i].value);
+        else lrow.picked(lrow.options[i].value);
     }
 
     function focusItems() {
@@ -292,9 +298,12 @@ Item {
         Accessible.role: Accessible.List
         Accessible.name: lrow.label
 
-        function activate() { return false; }
-        // Cada passo aplica a opção (ex.: font set): segurar a seta não
-        // dispara uma rajada.
+        function activate() {
+            if (!lrow.stepPreview || lrow.currentIndex < 0) return false;
+            lrow.picked(lrow.options[lrow.currentIndex].value);
+            return true;
+        }
+        // Segurar a seta não dispara uma rajada.
         function handleArrow(key, event) {
             if (key !== Qt.Key_Left && key !== Qt.Key_Right) return false;
             if (event && event.isAutoRepeat) return true;
@@ -335,9 +344,30 @@ Item {
             model: lrow.variant === "chips" ? lrow.options : []
             currentIndex: lrow.currentIndex
             highlightFollowsCurrentItem: true
-            highlightRangeMode: ListView.ApplyRange
-            preferredHighlightBegin: 32
-            preferredHighlightEnd: width - 32
+            // A opção escolhida desliza para o meio; as vizinhas somem
+            // suavemente nas bordas (chipFade) em vez de cortar seco.
+            function recenter(animated) {
+                const it = itemAtIndex(currentIndex);
+                if (!it || width <= 0) return;
+                const max = Math.max(0, contentWidth - width);
+                const to = Math.max(0, Math.min(max, it.x + it.width / 2 - width / 2)) + originX;
+                if (animated && Commons.Style.duration(1) > 0) {
+                    centerAnim.to = to;
+                    centerAnim.restart();
+                } else {
+                    contentX = to;
+                }
+            }
+            onCurrentIndexChanged: Qt.callLater(recenter, true)
+            onWidthChanged: Qt.callLater(recenter, false)
+            onCountChanged: Qt.callLater(recenter, false)
+            Component.onCompleted: Qt.callLater(recenter, false)
+            NumberAnimation on contentX {
+                id: centerAnim
+                running: false
+                duration: Commons.Style.duration(220)
+                easing.type: Easing.OutCubic
+            }
             highlightMoveDuration: Commons.Style.duration(220)
             highlightResizeDuration: Commons.Style.duration(220)
             highlight: ContinuousRect {
@@ -375,6 +405,34 @@ Item {
                 Behavior on scale { NumberAnimation { duration: Commons.Style.duration(lrow.metrics.msPress); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut } }
                 HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
                 TapHandler { id: chipTap; onTapped: lrow.picked(chip.modelData.value) }
+            }
+        }
+
+        // Esmaecimento nas bordas: degradê da cor do fundo por cima dos chips.
+        Item {
+            id: chipFade
+            anchors.fill: chipList
+            readonly property real edge: 22
+            Rectangle {
+                width: chipFade.edge
+                height: parent.height
+                visible: chipList.contentX - chipList.originX > 1
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: lrow.bg }
+                    GradientStop { position: 1; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
+                }
+            }
+            Rectangle {
+                x: parent.width - width
+                width: chipFade.edge
+                height: parent.height
+                visible: chipList.contentX - chipList.originX < chipList.contentWidth - chipList.width - 1
+                gradient: Gradient {
+                    orientation: Gradient.Horizontal
+                    GradientStop { position: 0; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
+                    GradientStop { position: 1; color: lrow.bg }
+                }
             }
         }
 

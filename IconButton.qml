@@ -20,6 +20,10 @@ Item {
     property int iconSize: 20
     // Nome para leitores de tela; quem usa passa um texto traduzido.
     property string label: ""
+    // Legenda pequena embaixo do ícone (o dígito da categoria); "" esconde.
+    // Com legenda, o ícone sobe para dar lugar a ela dentro da pílula.
+    property string caption: ""
+    property color muted: Commons.Color.muted
 
     readonly property bool hovered: hoverHandler.hovered
     readonly property bool pressed: tapHandler.pressed
@@ -51,6 +55,10 @@ Item {
 
     Icon {
         anchors.centerIn: parent
+        anchors.verticalCenterOffset: button.caption !== "" ? -5 : 0
+        Behavior on anchors.verticalCenterOffset {
+            NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+        }
         name: button.icon
         size: button.iconSize
         filled: button.highlighted
@@ -60,6 +68,22 @@ Item {
         Behavior on color {
             ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
         }
+        Behavior on opacity {
+            NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+        }
+    }
+
+    Text {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 2
+        text: button.caption
+        textFormat: Text.PlainText
+        font.family: "monospace"
+        font.pixelSize: 9
+        font.weight: Font.DemiBold
+        color: button.highlighted ? button.accent : button.muted
+        opacity: button.caption !== "" ? 1 : 0
         Behavior on opacity {
             NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
         }

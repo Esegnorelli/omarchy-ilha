@@ -47,8 +47,10 @@ Item {
     function handleKey(event) {
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (!mods && (event.key === Qt.Key_BracketLeft || event.key === Qt.Key_BracketRight)) {
-            // Cada passo aplica a fonte: segurar a tecla não dispara uma rajada.
+            // [ ] só escolhem a fonte e levam o foco até ela; Enter aplica.
             if (!event.isAutoRepeat) {
+                const box = fontRow.focusItems()[0];
+                if (box) box.forceActiveFocus(Qt.TabFocusReason);
                 if (event.key === Qt.Key_BracketLeft) fontRow.prev();
                 else fontRow.next();
             }
@@ -75,6 +77,8 @@ Item {
     property string currentTheme: ""
     property var fonts: []
     property string currentFont: ""
+    // Fonte marcada nos chips e ainda não aplicada.
+    property string pendingFont: ""
     property string corners: ""      // theme | sharp | rounded
     property string transparency: "" // opaque | transparent | glassy
     property string background: ""
@@ -94,6 +98,7 @@ Item {
     }
 
     onActiveChanged: {
+        if (!active) pendingFont = "";
         if (active) {
             refresh();
             root.galleryCursor = root.currentThemeIndex;
@@ -241,7 +246,10 @@ Item {
         stdout: StdioCollector {
             id: fontListOut
             onStreamFinished: {
-                root.fonts = root.lines(fontListOut.text);
+                // Fontes de ícones (Material Symbols, emoji…) não servem de
+                // fonte do sistema: deixariam o terminal ilegível.
+                root.fonts = root.lines(fontListOut.text)
+                    .filter(f => !/symbols|icons?\b|emoji|awesome|codicon/i.test(f));
             }
         }
     }
@@ -744,9 +752,14 @@ Item {
             variant: "chips"
             label: strings.t("style.font")
             value: root.currentFont
-            current: root.currentFont
+            current: root.pendingFont !== "" ? root.pendingFont : root.currentFont
+            stepPreview: true
             options: root.fonts.map(f => ({ value: f, label: f, font: f }))
-            onPicked: value => root.setFont(value)
+            onPreviewed: value => root.pendingFont = value
+            onPicked: value => {
+                root.pendingFont = "";
+                root.setFont(value);
+            }
         }
     }
 }

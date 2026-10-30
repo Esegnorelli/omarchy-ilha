@@ -39,10 +39,12 @@ Todos os painéis usam a mesma grade de 4 colunas, com a mesma largura do notch 
 ## Memória muscular
 
 - **Mesmo lugar, sempre:** cada categoria tem posição e dígito fixos; o ícone ativo ganha uma pílula e um traço que desliza até ele.
-- **Mouse:** clicar num ícone abre o painel; com um painel aberto, parar 150 ms sobre outro ícone troca de painel; clicar no ícone ativo volta para a faixa. Rolar sobre Controle muda o volume.
+- **Mouse:** clicar num ícone abre o painel; com um painel aberto, parar 150 ms sobre outro ícone troca de painel (só depois de o mouse se mexer: um cursor parado em cima não troca nada sozinho); clicar no ícone ativo volta para a faixa. Rolar sobre Controle muda o volume.
 - **Teclado:** as teclas seguem a posição na grade — `Q W E R` na primeira linha, `A S D F` na segunda, `Z X C V` na terceira. A letra aparece no canto de cada botão.
   - `0`–`6` (ou `Alt`+dígito) trocam de categoria; `Ctrl+Tab` / `Ctrl+Shift+Tab` andam em ordem.
   - Setas movem o foco, `Enter`/`Espaço` ativam.
+  - No Estilo, `[` `]` só escolhem a fonte; `Enter` ou o clique aplicam. Fontes de ícones ficam fora da lista.
+  - Com o teclado em uso, os dígitos aparecem embaixo de cada ícone.
   - `Esc` desfaz em etapas: cancela uma confirmação, limpa a busca e então fecha.
 - **Confirmações** (reiniciar, desligar, sair): o botão fica vermelho com "Confirmar?" por 4 s; um segundo toque rápido demais (menos de 350 ms) é ignorado.
 
