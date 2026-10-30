@@ -7,7 +7,8 @@ import qs.Commons as Commons
 
 // Faixa do topo da ilha. No hover (o caminho vivo) é uma linha só, sem vão:
 // workspaces à esquerda, a hora no meio, no máximo dois avisos à direita.
-// O workspace ativo é uma cápsula na cor do tema; os outros são pontos.
+// Os workspaces são os números 1–5. O ativo traz a marca do layout:
+// quadrado mosaico, círculo lado a lado, triângulo flutuante.
 //
 // As três zonas de largura fixa só existem no caminho de menus, que está
 // fechado. Elas não desenham os seis destinos juntos.
@@ -53,6 +54,7 @@ Item {
     signal categoryDwelled(string target)
     signal workspaceClicked()
     signal indicatorNavigate(string target)
+    signal noticeRequested()
     // Roda na linha: +1 próximo painel, -1 o anterior.
     signal panelWheel(int step)
 
@@ -628,6 +630,110 @@ Item {
             "o.workspaces.focus(" + slot + ", \"" + name + "\")"])
         workspaceClicked()
     }
+
+    // Layout do workspace ativo: dwindle (mosaico), scrolling (rolagem)
+    // ou floating. O clique no número ativo percorre os três, como Super + L.
+    property string spaceMode: ""
+    property int spaceModeTick: 0
+    property var modeCache: ({})
+    property int modeWs: -1
+    property int modeGen: 0
+    property int modeProcGen: 0
+    property bool modeStale: false
+    property bool modeKnown: false
+
+    function layoutName(mode) {
+        if (mode === "scrolling") return tr("island.layout.scrolling")
+        if (mode === "floating") return tr("island.layout.floating")
+        if (mode === "dwindle") return tr("island.layout.dwindle")
+        return ""
+    }
+    function showSpaceMode() {
+        const mon = monitorObj
+        const id = mon && mon.activeWorkspace ? mon.activeWorkspace.id : -1
+        if (id < 1) return
+        const cached = modeCache[String(id)]
+        if (cached) {
+            spaceMode = cached
+            modeKnown = true
+            return
+        }
+        readSpaceMode()
+    }
+    function refreshSpaceModes() {
+        modeGen++
+        modeCache = ({})
+        readSpaceMode()
+    }
+    function readSpaceMode() {
+        if (modeProc.running) {
+            modeStale = true
+            return
+        }
+        const mon = monitorObj
+        const id = mon && mon.activeWorkspace ? mon.activeWorkspace.id : -1
+        if (id < 1) return
+        modeWs = id
+        modeProcGen = modeGen
+        modeProc.command = ["omarchy-hyprland-workspace-layout-current", String(id)]
+        modeProc.running = true
+    }
+    function rememberMode(id, mode) {
+        const next = Object.assign({}, modeCache)
+        next[String(id)] = mode
+        modeCache = next
+        const mon = monitorObj
+        const active = mon && mon.activeWorkspace ? mon.activeWorkspace.id : -1
+        if (active === id) {
+            spaceMode = mode
+            modeKnown = true
+        }
+    }
+    function cycleSpace() {
+        const mon = monitorObj
+        const name = String(screenName || "").replace(/["\\]/g, "")
+        modeGen++
+        if (modeKnown) {
+            const order = ["dwindle", "scrolling", "floating"]
+            const at = order.indexOf(spaceMode)
+            const next = order[(at < 0 ? 0 : at + 1) % order.length]
+            const id = mon && mon.activeWorkspace ? mon.activeWorkspace.id : -1
+            if (id > 0) rememberMode(id, next)
+            else spaceMode = next
+        }
+        if (mon && !mon.focused && name !== "") {
+            Quickshell.execDetached(["sh", "-c",
+                "hyprctl dispatch 'hl.dsp.focus({ monitor = \"" + name + "\" })' >/dev/null && exec omarchy-hyprland-workspace-layout-toggle"])
+        } else {
+            Quickshell.execDetached(["omarchy-hyprland-workspace-layout-toggle"])
+        }
+    }
+
+    onSpaceModeTickChanged: if (spaceModeTick > 0) refreshSpaceModes()
+    onMonitorObjChanged: showSpaceMode()
+
+    Connections {
+        target: strip.monitorObj
+        ignoreUnknownSignals: true
+        function onActiveWorkspaceChanged() { strip.showSpaceMode() }
+    }
+
+    Process {
+        id: modeProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const mode = text.trim()
+                if (strip.modeProcGen !== strip.modeGen) return
+                if (mode !== "dwindle" && mode !== "scrolling" && mode !== "floating") return
+                strip.rememberMode(strip.modeWs, mode)
+            }
+        }
+        onExited: {
+            if (!strip.modeStale) return
+            strip.modeStale = false
+            Qt.callLater(strip.readSpaceMode)
+        }
+    }
     readonly property var statusMarks: {
         const src = indicatorSource
         const list = src && src.items ? src.items : []
@@ -641,7 +747,11 @@ Item {
     function activateMark(key) {
         if (!indicatorSource)
             return
-        if (key === "reminders" || key === "updates" || key === "notifications")
+        if (key === "notifications") {
+            noticeRequested()
+            return
+        }
+        if (key === "reminders" || key === "updates")
             indicatorNavigate(indicatorSource.ownerOf(key))
         else
             indicatorSource.activate(key)
@@ -679,18 +789,62 @@ Item {
                     height: 22
 
                     Accessible.role: Accessible.Button
-                    Accessible.name: String(slot)
+                    Accessible.name: wsDot.current && strip.layoutName(strip.spaceMode) !== ""
+                        ? String(slot) + ", " + strip.layoutName(strip.spaceMode)
+                        : String(slot)
 
-                    Rectangle {
+                    // Marca do layout só no número ativo. Quadrado, círculo e
+                    // triângulo são o modo, então o círculo não segue o canto.
+                    Item {
                         anchors.centerIn: parent
                         width: 16
-                        height: 18
-                        radius: 8
-                        color: strip.accent
-                        opacity: wsDot.current ? 0.28 : 0
+                        height: 16
+                        visible: wsDot.current
 
-                        Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+                            radius: 2
+                            color: strip.accent
+                            opacity: strip.spaceMode === "dwindle" ? 0.45 : 0
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
+                        }
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 14
+                            radius: 7
+                            color: strip.accent
+                            opacity: strip.spaceMode === "scrolling" ? 0.45 : 0
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
+                        }
+                        Canvas {
+                            id: modeTri
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 12
+                            opacity: strip.spaceMode === "floating" ? 0.9 : 0
+                            visible: opacity > 0.01
+                            onPaint: {
+                                const ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                ctx.fillStyle = strip.accent
+                                ctx.beginPath()
+                                ctx.moveTo(width / 2, 1)
+                                ctx.lineTo(width - 1, height - 1)
+                                ctx.lineTo(1, height - 1)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
+                            onWidthChanged: requestPaint()
+                            onHeightChanged: requestPaint()
+                            Component.onCompleted: requestPaint()
+                            Connections {
+                                target: strip
+                                function onAccentChanged() { modeTri.requestPaint() }
+                            }
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
                         }
                     }
 
@@ -713,7 +867,10 @@ Item {
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
 
                     TapHandler {
-                        onTapped: strip.focusSpace(wsDot.wsId)
+                        onTapped: {
+                            if (wsDot.current) strip.cycleSpace()
+                            else strip.focusSpace(wsDot.wsId)
+                        }
                     }
                 }
             }
@@ -751,7 +908,7 @@ Item {
                 anchors.centerIn: parent
                 width: 18
                 height: 18
-                radius: 9
+                radius: strip.metrics.fit(9)
                 color: strip.accent
                 opacity: strip.activeView === "style" ? 0.28 : 0
 
@@ -831,7 +988,10 @@ Item {
         caretX = c
     }
     onActiveCenterChanged: placeCaret()
-    Component.onCompleted: placeCaret()
+    Component.onCompleted: {
+        showSpaceMode()
+        placeCaret()
+    }
 
     ContinuousRect {
         id: caret

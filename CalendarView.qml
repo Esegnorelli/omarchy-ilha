@@ -1,15 +1,10 @@
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs.Commons as Commons
 
-// Tempo (spec §3.4, view id "calendar"): mês inteiro na largura da grade,
-// lembretes rápidos e fuso horário.
+// Tempo (spec §3.4, view id "calendar"): só o mês, na largura da grade.
 //
 //   bloco 242   ‹ Mês de ano ›  (32) · iniciais (18) · 6 × 32 linhas de 7 × 76
-//   LEMBRETES   legenda com "2 ativos · próximo 18:40"
-//   Q W E R     +5 min · +15 min · +30 min · +1 h
-//   A S D(F)    Ver lembretes · Limpar (confirma) · Fuso horário (fecha antes)
 //
 // Contrato de estado: active, shell, fg/bg/accent/danger, metrics,
 // keyboardMode, footerStatus, footerHints, handleKey(event) → bool,
@@ -58,14 +53,6 @@ Item {
     }
     function handleEscape() { return grid.handleEscape(); }
     function focusFirst() { prevButton.forceActiveFocus(Qt.TabFocusReason); return true; }
-
-    // ---------- Execução ----------
-    // Abre outra interface: recolhe a ilha antes (runAfterClose, 350 ms).
-    function runAfterClose(cmd) {
-        root.closeRequested();
-        const wait = (root.metrics.msCloseFirst / 1000).toFixed(2);
-        Quickshell.execDetached(["sh", "-c", "sleep \"$0\"; exec \"$@\"", wait].concat(cmd));
-    }
 
     // ---------- Data de hoje (só atualiza enquanto visível) ----------
     SystemClock {
@@ -146,115 +133,16 @@ Item {
         return out;
     }
 
-    // ---------- Lembretes ----------
-    property var reminders: []
-    readonly property int reminderCount: reminders.length
-
-    // Hora em que o próximo lembrete toca ("18:40"), ou vazio.
-    readonly property string nextReminderAt: {
-        let best = null;
-        for (const r of root.reminders) {
-            const s = Number(r.remainingSeconds);
-            if (!isFinite(s)) continue;
-            if (best === null || s < Number(best.remainingSeconds)) best = r;
-        }
-        return best && best.atTime ? String(best.atTime) : "";
-    }
-
-    readonly property string remindersStatus: {
-        if (root.reminderCount === 0) return strings.t("calendar.remindersNone");
-        const count = strings.tn("calendar.remindersActive", root.reminderCount)
-                          .arg(Commons.I18n.formatNumber(root.reminderCount));
-        return root.nextReminderAt === "" ? count
-             : count + " · " + strings.t("calendar.remindersNext").arg(root.nextReminderAt);
-    }
-
-    Process {
-        id: remindersProc
-        command: ["omarchy", "reminder", "show", "-j"]
-        stdout: StdioCollector {
-            waitForEnd: true
-            onStreamFinished: {
-                try {
-                    const data = JSON.parse(text);
-                    root.reminders = Array.isArray(data.reminders) ? data.reminders : [];
-                } catch (e) {
-                    root.reminders = [];
-                }
-            }
-        }
-    }
-    function refreshReminders() {
-        if (!remindersProc.running) remindersProc.running = true;
-    }
-
-    // Releitura logo depois de criar ou limpar lembretes.
-    Timer {
-        id: reminderReread
-        interval: 600
-        onTriggered: root.refreshReminders()
-    }
-    // Mantém o "próximo" atualizado enquanto o painel está aberto.
-    Timer {
-        interval: 30000
-        repeat: true
-        running: root.active && root.reminderCount > 0
-        onTriggered: root.refreshReminders()
-    }
-
-    // Ignora o mesmo toque repetido enquanto a releitura anterior não
-    // terminou, para um toque duplo não criar dois lembretes iguais.
-    // Outro botão (Q e logo W) vale: são dois lembretes pedidos.
-    property int lastReminderMinutes: 0
-    function addReminder(minutes) {
-        if (reminderReread.running && minutes === root.lastReminderMinutes) return;
-        root.lastReminderMinutes = minutes;
-        Quickshell.execDetached(["omarchy", "reminder", String(minutes), strings.t("calendar.reminderDefault")]);
-        reminderReread.restart();
-    }
-    function clearReminders() {
-        if (reminderReread.running) return;
-        Quickshell.execDetached(["omarchy", "reminder", "clear"]);
-        reminderReread.restart();
-    }
-    function showReminders() {
-        Quickshell.execDetached(["omarchy-reminder", "show"]);
-    }
-
-    // Hora em que um lembrete de N minutos tocaria, para a sublinha.
-    function atTime(minutes) {
-        const d = new Date(clock.date.getTime() + minutes * 60000);
-        return strings.t("calendar.reminderAt").arg(d.toLocaleTimeString(root.loc, Locale.ShortFormat));
-    }
-
-    // ---------- Fuso horário ----------
-    property string timezone: ""
-    Process {
-        id: timezoneProc
-        command: ["timedatectl", "show", "-p", "Timezone", "--value"]
-        stdout: StdioCollector {
-            waitForEnd: true
-            onStreamFinished: root.timezone = text.trim()
-        }
-    }
-
     onActiveChanged: {
         if (active) {
             goToday();
-            refreshReminders();
-            if (!timezoneProc.running) timezoneProc.running = true;
             Qt.callLater(root.focusFirst);
-        } else {
-            clearTile.disarm();
         }
     }
     Component.onCompleted: {
         goToday();
-        if (active) {
-            refreshReminders();
-            timezoneProc.running = true;
+        if (active)
             Qt.callLater(root.focusFirst);
-        }
     }
 
     // ---------- Componentes internos ----------
@@ -508,69 +396,6 @@ Item {
                         easing.type: Easing.OutCubic
                     }
                 }
-            }
-        }
-
-        // ----- Lembretes: Q W E R -----
-        GridRow {
-            caption: strings.t("calendar.reminders")
-            captionStatus: root.remindersStatus
-
-            Tile {
-                icon: "alarm_add"
-                label: strings.t("calendar.reminderIn5")
-                sublabel: root.atTime(5)
-                onActivated: root.addReminder(5)
-            }
-            Tile {
-                icon: "alarm_add"
-                label: strings.t("calendar.reminderIn15")
-                sublabel: root.atTime(15)
-                onActivated: root.addReminder(15)
-            }
-            Tile {
-                icon: "alarm_add"
-                label: strings.t("calendar.reminderIn30")
-                sublabel: root.atTime(30)
-                onActivated: root.addReminder(30)
-            }
-            Tile {
-                icon: "alarm_add"
-                label: strings.t("calendar.reminderIn60")
-                sublabel: root.atTime(60)
-                onActivated: root.addReminder(60)
-            }
-        }
-
-        // ----- A S D(F) -----
-        GridRow {
-            Tile {
-                icon: "notifications"
-                label: strings.t("calendar.remindersShow")
-                sublabel: root.reminderCount > 0
-                          ? strings.tn("calendar.remindersActive", root.reminderCount).arg(Commons.I18n.formatNumber(root.reminderCount))
-                          : ""
-                available: root.reminderCount > 0
-                unavailableText: strings.t("calendar.remindersEmptyShort")
-                onActivated: root.showReminders()
-            }
-            Tile {
-                id: clearTile
-                icon: "delete_sweep"
-                kind: "confirm"
-                label: strings.t("calendar.remindersClear")
-                sublabel: strings.t("calendar.remindersClearHint")
-                available: root.reminderCount > 0
-                unavailableText: strings.t("calendar.remindersEmptyShort")
-                onActivated: root.clearReminders()
-            }
-            Tile {
-                icon: "public"
-                label: strings.t("calendar.timezone")
-                sublabel: root.timezone
-                stretch: true
-                closesIsland: true
-                onActivated: root.runAfterClose(["omarchy", "menu", "timezone"])
             }
         }
     }

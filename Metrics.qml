@@ -54,13 +54,22 @@ QtObject {
     readonly property int ring: 2
 
     // Cantos do Estilo. Arredondado guarda o desenho da grade. Reto fecha
-    // os botões. Tema acompanha o raio das janelas.
+    // tudo em quina viva. Tema acompanha o raio das janelas, e um tema
+    // reto também fecha a ilha.
     property string corners: "rounded"
     readonly property int themeCorner: Commons.Style.cornerRadius
-    readonly property int tileRadius: corners === "sharp" ? 2
-        : corners === "theme" ? Math.max(2, Math.min(14, themeCorner > 0 ? themeCorner : 2)) : 14
-    readonly property int rowRadius: corners === "sharp" ? 2
-        : corners === "theme" ? Math.max(2, Math.min(12, themeCorner > 0 ? themeCorner : 2)) : 12
+    function fit(radius) {
+        const n = Math.max(0, Number(radius) || 0)
+        if (corners === "sharp")
+            return 0
+        if (corners === "rounded")
+            return n
+        if (themeCorner <= 0)
+            return 0
+        return Math.min(n, themeCorner)
+    }
+    readonly property int tileRadius: fit(14)
+    readonly property int rowRadius: fit(12)
 
     // ---------- Chrome do painel ----------
     readonly property int padTop: 8

@@ -6,9 +6,10 @@ import qs.Commons as Commons
 // Ferramentas (spec §3.4): abre uma ferramenta do Omarchy.
 //   Q Área de transferência · W Emojis · E Atalhos · R Menu do Omarchy
 //   A Notificações (histórico) · S Sobre · D Atualizações (largo, c3–c4)
+//   Z Plugins (largo): abre a lista do shell na própria ilha
 // O tile de atualizações sempre existe: "Verificando…", "Sistema em dia" ou
 // "N pendentes", e tocar roda a atualização (fecha a ilha antes).
-// Rede foi para o Controle; lembretes e fuso horário, para o Tempo.
+// Rede foi para o Controle. O Tempo é só o calendário.
 //
 // Contrato com o host: active, fg/bg/accent/danger, shell, metrics,
 // keyboardMode, closeRequested(), navigate(target), footerStatus,
@@ -247,6 +248,18 @@ Item {
                 closesIsland: true
                 // Mesmo caminho que o próprio Omarchy usa para atualizar.
                 onActivated: root.launch(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"])
+            }
+        }
+
+        // Z: a lista de plugins fica na própria ilha.
+        GridRow {
+            Tile {
+                span: 4
+                icon: "extension"
+                label: strings.t("tools.plugins")
+                sublabel: strings.t("tools.plugins.sub")
+                detail: strings.t("tools.plugins.detail")
+                onActivated: root.navigate("plugins")
             }
         }
     }

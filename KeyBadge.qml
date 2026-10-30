@@ -35,7 +35,7 @@ Item {
     // Tecla: contorno fino de cápsula contínua, mesmo tom da letra.
     ContinuousRect {
         anchors.fill: parent
-        radius: 4
+        radius: badge.metrics.fit(4)
         color: "transparent"
         borderWidth: 1
         borderColor: Qt.rgba(badge.ink.r, badge.ink.g, badge.ink.b, 0.45)

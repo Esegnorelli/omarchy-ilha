@@ -16,7 +16,8 @@ import "TileArm.js" as TileArm
 // destinos não aparecem juntos.
 //
 // Hover: a pílula mede essa linha. Painel: largura da grade (568).
-// O OSD tem a sua. Coluna =
+// O OSD tem a sua. O sino, quando clicado, mostra a notificação mais
+// recente na pílula, numa linha. Ela não aparece sozinha. Coluna =
 // estado ativo + PanelFooter. Clicar na hora ou num indicador abre um
 // painel e liga o "modo menu":
 // repousar 150 ms noutro ícone troca de painel, descer o ponteiro cancela,
@@ -63,6 +64,8 @@ Item {
     property string face: ""
     readonly property string fontFamily: face !== "" ? face : Commons.Style.fontFamily
     readonly property string position: "top"
+    // Sobe quando o layout do workspace muda (Super + L ou o clique na marca).
+    property int spaceModeTick: 0
 
     function barSizeFor(screenName) {
         const size = screenBarSizes[String(screenName || "")]
@@ -304,9 +307,9 @@ Item {
     // ---- Estados ----
     // Painel aberto: "" ou um destes.
     property string view: ""
-    readonly property var views: ["launcher", "control", "capture", "style", "tools", "calendar", "power"]
-    // Ordem da faixa: 0 = Tempo, 1–6 = Apps … Energia (dígitos e Ctrl+Tab).
-    readonly property var categoryOrder: ["calendar", "launcher", "control", "capture", "style", "tools", "power"]
+    readonly property var views: ["launcher", "control", "capture", "style", "tools", "calendar", "power", "plugins"]
+    // Ordem da faixa: 0 = Tempo, 1–6 = Apps … Energia. Plugins vem depois, só na roda.
+    readonly property var categoryOrder: ["calendar", "launcher", "control", "capture", "style", "tools", "power", "plugins"]
     // Monitor que mostra painéis, OSD e eventos (só um por vez).
     property string panelScreen: ""
 
@@ -489,6 +492,46 @@ Item {
         osdShown = false
     }
 
+    // Notificação compacta na própria pílula. Só abre no clique do sino.
+    // O volume (OSD) continua na frente.
+    property var noticePayload: ({})
+    property bool noticeShown: false
+
+    function presentNotice(row) {
+        if (!row || typeof row !== "object")
+            return
+        const app = String(row.app || "").slice(0, 48)
+        const summary = String(row.summary || "").slice(0, 140)
+        if (summary === "" && app === "")
+            return
+        noticePayload = {
+            key: String(row.key || "").slice(0, 80),
+            app: app,
+            summary: summary !== "" ? summary : app,
+            urgent: row.urgent === true || Number(row.urgency) === 2
+        }
+        if (view !== "")
+            close()
+        noticeShown = true
+        breathe()
+    }
+
+    function toggleNotice(screenName) {
+        if (noticeShown) {
+            closeNotice()
+            return
+        }
+        const row = indicatorSource.currentNotice
+        if (!row)
+            return
+        panelScreen = screenName && String(screenName) !== "" ? String(screenName) : focusedScreenName()
+        presentNotice(row)
+    }
+
+    function closeNotice() {
+        noticeShown = false
+    }
+
     // Revela a pílula sozinha por um instante (indicador novo, por exemplo).
     function revealEvent() {
         if (view === "")
@@ -547,7 +590,8 @@ Item {
             lastView: lastView,
             keyboardMode: keyboardMode,
             panelScreen: panelScreen,
-            osd: osdShown
+            osd: osdShown,
+            notice: noticeShown
         })
     }
 
@@ -582,6 +626,11 @@ Item {
                 island.revealEvent()
             island.breathe()
         }
+        onCurrentNoticeChanged: {
+            if (!indicatorSource.currentNotice && island.noticeShown)
+                island.closeNotice()
+        }
+        onNoticeRequested: island.toggleNotice("")
     }
 
     // ---- Barra escondida (omarchy toggle bar): flag bar-off ----
@@ -636,6 +685,7 @@ Item {
 
         function refresh(): void {
             Hyprland.refreshWorkspaces()
+            island.spaceModeTick++
         }
     }
 
@@ -715,6 +765,8 @@ Item {
             readonly property Metrics metrics: island.metrics
 
             anchors.top: true
+            anchors.left: true
+            anchors.right: true
             exclusionMode: ExclusionMode.Ignore
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "omarchy-bar"
@@ -723,8 +775,9 @@ Item {
             color: "transparent"
             surfaceFormat.opaque: false
 
-            // Grande o bastante para o maior estado; a máscara limita o mouse.
-            implicitWidth: 760
+            // Largura da tela: o Estilo estica os carrosséis de ponta a ponta.
+            // A máscara limita o mouse ao que está visível.
+            implicitWidth: modelData.width
             implicitHeight: Math.min(modelData.height, 820)
 
             // ---- O que esta janela mostra ----
@@ -734,6 +787,7 @@ Item {
             // segue a view; só o modo hover depende do ponteiro.
             readonly property string mode: isTarget && island.view !== "" ? island.view
                 : isTarget && island.osdShown ? "osd"
+                : isTarget && island.noticeShown ? "notice"
                 : hovered ? "hover"
                 : isTarget && island.eventShown ? "hover"
                 : "rest"
@@ -748,24 +802,27 @@ Item {
                 case "capture": return captureSlot
                 case "style": return styleSlot
                 case "tools": return toolsSlot
+                case "plugins": return pluginsSlot
                 case "calendar": return calendarSlot
                 case "power": return powerSlot
                 case "osd": return osdSlot
+                case "notice": return noticeSlot
                 default: return null
                 }
             }
+            readonly property bool faceMode: mode === "osd" || mode === "notice"
             readonly property bool isPanel: island.views.indexOf(mode) >= 0
             // A linha fica no hover e no topo do painel: a roda anda os painéis
             // sem passar por cima das listas de dentro.
             readonly property bool hasStrip: mode === "hover" || isPanel
             readonly property int contentTop: isPanel ? Math.ceil(strip.implicitHeight + 8) : metrics.pad
             readonly property real targetWidth: mode === "rest" ? 12
-                : mode === "osd" ? (modeItem ? modeItem.implicitWidth + 32 : 12)
+                : faceMode ? (modeItem ? modeItem.implicitWidth + 32 : 12)
                 : mode === "hover" ? Math.max(64, strip.implicitWidth)
                 : metrics.width
             // Hover: a cápsula do elemento da vez. Painel: o cartão, sem a faixa.
             readonly property real targetHeight: mode === "rest" ? 12
-                : mode === "osd" ? (modeItem ? modeItem.implicitHeight + 16 : 12)
+                : faceMode ? (modeItem ? modeItem.implicitHeight + 16 : 12)
                 : mode === "hover" ? strip.implicitHeight
                 : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + metrics.gap + metrics.footer + metrics.padBottom, win.height - 16)
 
@@ -1188,6 +1245,7 @@ Item {
                         anchors.horizontalCenter: parent.horizontalCenter
                         y: 0
                         screenName: win.screenName
+                        spaceModeTick: island.spaceModeTick
                         activeView: win.isTarget ? island.view : ""
                         menuMode: win.isTarget && island.view !== ""
                         keyboardMode: win.isTarget && island.view !== "" && island.keyboardMode
@@ -1225,6 +1283,7 @@ Item {
                             island.keyboardMode = false
                             island.show(target, win.screenName)
                         }
+                        onNoticeRequested: island.toggleNotice(win.screenName)
                         onPanelWheel: step => {
                             if (island.view === "")
                                 island.show("calendar", win.screenName)
@@ -1239,9 +1298,16 @@ Item {
                     StateSlot { id: captureSlot; hostWindow: win; hostIsland: island; name: "capture"; source: "CaptureMenu.qml" }
                     StateSlot { id: styleSlot; hostWindow: win; hostIsland: island; name: "style"; source: "StyleMenu.qml" }
                     StateSlot { id: toolsSlot; hostWindow: win; hostIsland: island; name: "tools"; source: "ToolsMenu.qml" }
+                    StateSlot { id: pluginsSlot; hostWindow: win; hostIsland: island; name: "plugins"; source: "PluginsMenu.qml" }
                     StateSlot { id: calendarSlot; hostWindow: win; hostIsland: island; name: "calendar"; source: "CalendarView.qml" }
                     StateSlot { id: powerSlot; hostWindow: win; hostIsland: island; name: "power"; source: "PowerMenu.qml" }
                     StateSlot { id: osdSlot; hostWindow: win; hostIsland: island; name: "osd"; source: "OsdView.qml" }
+                    StateSlot { id: noticeSlot; hostWindow: win; hostIsland: island; name: "notice"; source: "NoticeView.qml" }
+
+                    TapHandler {
+                        enabled: win.mode === "notice"
+                        onTapped: island.closeNotice()
+                    }
 
                     // ---- Rodapé: estado à esquerda, dicas à direita ----
                     PanelFooter {
@@ -1352,7 +1418,7 @@ Item {
 
         anchors.horizontalCenter: parent.horizontalCenter
         // O painel é o cartão inteiro. O OSD fica centrado na pílula.
-        y: name === "osd" ? Math.round((parent.height - height) / 2)
+        y: name === "osd" || name === "notice" ? Math.round((parent.height - height) / 2)
             : slot.hostWindow.contentTop
         implicitWidth: loader.item ? loader.item.implicitWidth : 0
         implicitHeight: loader.item ? loader.item.implicitHeight : 0
@@ -1413,12 +1479,18 @@ Item {
             bindIfPresent(target, "keyboardMode", () => slot.hostIsland.keyboardMode)
             // Testes fora do shell desligam a checagem de atualizações (git fetch).
             bindIfPresent(target, "checkUpdates", () => slot.hostIsland.checkUpdates)
+            bindIfPresent(target, "fontFamily", () => slot.hostIsland.fontFamily)
+            bindIfPresent(target, "screenSpan", () => slot.hostWindow.screen.width)
             if (slot.name === "osd")
                 bindIfPresent(target, "payload", () => slot.hostIsland.osdPayload)
+            if (slot.name === "notice")
+                bindIfPresent(target, "payload", () => slot.hostIsland.noticePayload)
             if (target.closeRequested)
                 target.closeRequested.connect(() => {
                     if (slot.name === "osd")
                         slot.hostIsland.closeOsd()
+                    else if (slot.name === "notice")
+                        slot.hostIsland.closeNotice()
                     else if (slot.hostIsland.view === slot.name)
                         slot.hostIsland.close()
                 })

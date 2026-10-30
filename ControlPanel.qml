@@ -10,6 +10,7 @@ import qs.Commons as Commons
 // Controle (spec §3.4, painel 2): ligar, ajustar, conectar.
 //   Q Microfone · W Não perturbe · E Luz noturna · R Manter acordado
 //   A Animações · S Modo jogo · D Wi-Fi* · F Bluetooth*
+//   Cada um é um ícone com o nome numa linha. Ligado pinta o cartão.
 //     (sem Wi-Fi e sem BT: Modo jogo vai até c4; só um deles: ele vai até c4)
 //   Volume: LabeledRow com slider (−/= ±5%, M mudo; tocar no rótulo = mudo)
 //   Rede: InfoRow (interface · tipo, IPv4) com C QR do Wi-Fi* e V Velocidade
@@ -607,6 +608,7 @@ Item {
 
         GridRow {
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.hasMic && !root.micMuted
                 available: root.hasMic
@@ -617,6 +619,7 @@ Item {
                 onActivated: root.toggleMic()
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.dndOn
                 icon: root.dndOn ? "notifications_off" : "notifications"
@@ -625,6 +628,7 @@ Item {
                 onActivated: root.toggleDnd()
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.nightOn
                 icon: "dark_mode"
@@ -633,6 +637,7 @@ Item {
                 onActivated: root.toggleNight()
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.stayAwake
                 icon: "coffee"
@@ -644,6 +649,7 @@ Item {
 
         GridRow {
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.animationsOn
                 icon: "animation"
@@ -652,6 +658,7 @@ Item {
                 onActivated: root.toggleAnimations()
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 on: root.gameModeOn
                 busy: root.gameBusy
@@ -662,6 +669,7 @@ Item {
             }
             Tile {
                 visible: root.hwWifi
+                iconFace: true
                 kind: "toggle"
                 on: root.wifiOn
                 icon: root.wifiOn ? "wifi" : "wifi_off"
@@ -672,6 +680,7 @@ Item {
             }
             Tile {
                 visible: root.hwBluetooth
+                iconFace: true
                 kind: "toggle"
                 on: root.btOn
                 icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
@@ -686,6 +695,7 @@ Item {
             // em vez de esticar o vizinho.
             Tile {
                 visible: !root.hwWifi
+                iconFace: true
                 kind: "toggle"
                 on: root.screensaverOn
                 icon: "screenshot_monitor"
@@ -695,6 +705,7 @@ Item {
             }
             Tile {
                 visible: !root.hwBluetooth
+                iconFace: true
                 kind: "toggle"
                 on: root.suspendOn
                 icon: "bedtime"

@@ -105,7 +105,7 @@ Item {
         Accessible.role: Accessible.Button
         ContinuousRect {
             anchors.fill: parent
-            radius: height / 2
+            radius: lrow.metrics.fit(height / 2)
             color: Qt.rgba(lrow.fg.r, lrow.fg.g, lrow.fg.b, lrow.metrics.alphaHover)
             opacity: arrowHover.hovered && arrow.enabledArrow ? 1 : 0
             Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
@@ -232,13 +232,13 @@ Item {
             anchors.rightMargin: 4
             anchors.verticalCenter: parent.verticalCenter
             height: 6
-            radius: 3
+            radius: lrow.metrics.fit(3)
             color: Qt.rgba(lrow.fg.r, lrow.fg.g, lrow.fg.b, lrow.metrics.alphaHover)
 
             ContinuousRect {
                 width: Math.max(height, knob.x + knob.width / 2)
                 height: parent.height
-                radius: 3
+                radius: lrow.metrics.fit(3)
                 color: lrow.dimmed ? lrow.muted : lrow.accent
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
             }
@@ -246,7 +246,7 @@ Item {
                 id: knob
                 width: 16
                 height: 16
-                radius: 8
+                radius: lrow.metrics.fit(8)
                 anchors.verticalCenter: parent.verticalCenter
                 x: Math.max(0, Math.min(1, lrow.sliderValue)) * (track.width - width)
                 color: lrow.fg
@@ -371,7 +371,7 @@ Item {
             highlightMoveDuration: Commons.Style.duration(220)
             highlightResizeDuration: Commons.Style.duration(220)
             highlight: ContinuousRect {
-                radius: height / 2
+                radius: lrow.metrics.fit(height / 2)
                 color: lrow.accent
             }
 
@@ -385,7 +385,7 @@ Item {
 
                 ContinuousRect {
                     anchors.fill: parent
-                    radius: height / 2
+                    radius: lrow.metrics.fit(height / 2)
                     color: Qt.rgba(lrow.fg.r, lrow.fg.g, lrow.fg.b, chipHover.hovered ? lrow.metrics.alphaHover : lrow.metrics.alphaIdle)
                     opacity: chip.selected ? 0 : 1
                     Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }

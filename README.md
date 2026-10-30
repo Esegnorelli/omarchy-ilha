@@ -56,7 +56,7 @@ Move the pointer into the top-center strip (600 px) or onto the pill to open the
 
 | Place | Content | Click |
 |---|---|---|
-| Left | Workspaces 1–5 on this monitor. The active number uses the theme accent. Occupied numbers are bright. Empty numbers are quiet. | Focus that workspace |
+| Left | Workspaces 1–5 on this monitor. The active number uses the theme accent and shows the layout: a square for tiling, a circle for scrolling, a triangle for floating. Occupied numbers are bright. Empty numbers are quiet. | Click the active number to cycle those three layouts. Click another number to focus that workspace |
 | Center | Time | Open Tempo |
 | Appearance | Palette, in the accent color | Open Estilo |
 | Right | Up to two live indicators, icon only | Turn it off, or open its panel |
@@ -69,20 +69,22 @@ Every panel uses the same 4-column grid, the same width, and a fixed height, so 
 
 | Key | Panel | What is inside |
 |---|---|---|
-| 0 | Tempo | Calendar, quick reminders (+5, +15, +30 min, +1 h), the list, clear, time zone |
+| 0 | Tempo | The month. Page Up and Page Down change it. Home returns to today |
 | 1 | Apps | App search. Arrows, Enter. Esc clears, then closes |
 | 2 | Controle | Microphone, Do not disturb, night light, stay awake, animations, game mode, Wi-Fi and Bluetooth when present, volume, the current network, speed test |
 | 3 | Captura | Region, screen, window, or scrolling screenshot. Recording with system audio and microphone. OCR, QR code, color picker |
-| 4 | Estilo | Themes with a preview, wallpaper (next, pick, colors from the wallpaper, every theme), corners, transparency, font |
-| 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates |
+| 4 | Estilo | Themes are a compact strip: search, five cards, each with that theme's image and its palette, the middle one outlined. Arrows choose. Enter, or a click on the middle card, applies. Backgrounds are a carousel of that theme: search, five thumbnails, the chosen one raised and the neighbors lower and quieter. The name sits on the thumbnail. The background in use stays bright. Enter, or a click on the raised thumbnail, applies. A click on a neighbor only selects it. All themes hides the other controls. Esc clears the search, then returns. Next background, pick, colors from the wallpaper, corners, transparency, font |
+| 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins |
 | 6 | Energia | Lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
+| — | Plugins | Search the shell plugins. Enter turns one on or off. Switching the bar asks for a second press. The wheel reaches it after Energia |
 | — | OSD | Volume, brightness, and other notices sent to the island |
+| — | Notification | Click the bell on the status line. The newest one opens inside the pill: icon, app, and summary on one line. It does not appear on its own. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
 
 Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and network open Controle, the clock opens Tempo, power opens Energia.
 
 ## Mouse and keyboard
 
-- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia. Scroll down goes forward. Scroll up goes back. The line stays at the top of an open panel so the wheel still hits it.
+- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Scroll down goes forward. Scroll up goes back. The line stays at the top of an open panel so the wheel still hits it.
 - Lists and sliders keep their own wheel. Volume lives in Controle.
 - `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them.
 - Arrow keys move, Enter and Space activate.
@@ -103,7 +105,7 @@ o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 Estilo applies to the pill at the click. The system command still runs after that.
 
 - **Theme.** The pill reads that theme's `colors.toml` (your overlay, then the stock theme) and recolors immediately. `omarchy theme set` is debounced by 280 ms, so a fast series of clicks does not stack theme switches. Wallpaper, terminals, and borders follow the command. If the system theme never arrives, the pill returns to the theme that is actually current.
-- **Corners.** Rounded keeps the capsule (a panel caps the radius at 28). Sharp squares the shell and the inner controls. Theme uses the current Hyprland radius. `omarchy hyprland corners`.
+- **Corners.** Rounded keeps the capsule (a panel caps the radius at 28) and rounds the windows with it. Sharp squares the shell, the inner controls, and the windows, including terminals. Theme uses the current Hyprland radius. A no-gap desktop does not flatten a rounded choice. `omarchy hyprland corners`.
 - **Glass.** Opaque is solid. Glassy paints the theme at 0.4 on the capsule and 0.58 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.34 and 0.42, just above the point where that blur cuts a hole. The rim light follows. `omarchy hyprland window transparency`.
 - **Font.** The clicked family is used on the pill at once. `omarchy font set` still restarts the shell when it rewrites fontconfig.
 - **Motion.** The pill sizes with a critically damped spring, and fades are short. `omarchy toggle animations` off makes every change instant.
@@ -114,7 +116,7 @@ Game mode, in Controle, is a separate action. Turning it on can disable animatio
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|calendar|power|last>
+omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|last>
 omarchy-shell ilha toggle <view|last>
 omarchy-shell ilha run <view> <key>     # example: run calendar pgdn, run control q
 omarchy-shell ilha close
@@ -148,7 +150,7 @@ A replacement bar can show installed widgets, but a third-party widget that need
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Grid control and its letter |
 | `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Rows, keyboard navigation, footer |
 | `IconButton.qml`, `Icon.qml` | Button and Material Symbols icon |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Panels |
+| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Panels |
 | `i18n/` | English and Brazilian Portuguese |
 | `install.sh`, `uninstall.sh` | Optional helpers. Omarchy does not run them |
 

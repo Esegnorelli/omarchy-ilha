@@ -72,6 +72,10 @@ Item {
     property bool ownUpdateAvailable: false
     property int ownNotificationCount: 0
     property string ownNotificationApp: ""
+    // A notificação mais recente, para o clique no sino. Chegar uma nova
+    // não abre a pílula sozinha.
+    property var currentNotice: null
+    signal noticeRequested()
 
     // O que vale: o da fonte, se houver, ou o lido aqui.
     readonly property bool dnd: source ? source.dnd : ownDnd
@@ -176,18 +180,53 @@ Item {
         }
     }
 
+    // Uma linha só, sem markup. O Text que desenha isto é PlainText.
+    function oneLine(value, maxLen) {
+        let text = String(value == null ? "" : value)
+        text = text.replace(/[\u0000-\u001f\u007f]+/g, " ")
+        text = text.replace(/<[^>]{0,200}>/g, " ")
+        text = text.replace(/\s+/g, " ").trim()
+        if (text.length > maxLen)
+            text = text.slice(0, maxLen)
+        return text
+    }
+
     function readLive(raw) {
         let list = []
+        let parsedOk = false
         try {
             const parsed = JSON.parse(String(raw || "[]"))
-            if (Array.isArray(parsed))
+            if (Array.isArray(parsed)) {
                 list = parsed
+                parsedOk = true
+            }
         } catch (e) {
-            list = []
+            parsedOk = false
+        }
+        if (!parsedOk)
+            return
+        const last = list.length > 0 ? list[list.length - 1] : null
+        let row = null
+        if (last && typeof last === "object") {
+            const app = oneLine(last.app, 48)
+            const summary = oneLine(last.summary, 140)
+            const detail = oneLine(last.body, 140)
+            const headline = summary !== "" ? summary : detail
+            let key = oneLine(last.key || last.originalId || "", 80)
+            if (key === "")
+                key = app + "\n" + headline + "\n" + String(list.length)
+            if (headline !== "" || app !== "") {
+                row = {
+                    key: key,
+                    app: app,
+                    summary: headline !== "" ? headline : app,
+                    urgent: Number(last.urgency) === 2
+                }
+            }
         }
         ownNotificationCount = list.length
-        const last = list.length > 0 ? list[list.length - 1] : null
-        ownNotificationApp = last && last.app ? String(last.app).slice(0, 60) : ""
+        ownNotificationApp = row && row.app ? row.app : ""
+        currentNotice = row
     }
 
     // Ações ao tocar.
@@ -319,7 +358,8 @@ Item {
         printErrors: false
         onFileChanged: reload()
         onLoaded: root.readLive(text())
-        onLoadFailed: root.readLive("[]")
+        // A gravação atômica some com o arquivo por um instante. Isso não é
+        // uma lista vazia; a próxima leitura boa traz o conteúdo.
     }
 
     FileView {
@@ -363,6 +403,10 @@ Item {
     }
 
     function activate(key) {
+        if (!reads && source) {
+            source.activate(key)
+            return
+        }
         switch (key) {
         case "recording": stopRecording(); break
         case "dnd": allowNotifications(); break
@@ -370,7 +414,7 @@ Item {
         case "stayAwake": allowIdle(); break
         case "reminders": root.navigate("calendar"); break
         case "updates": root.navigate("tools"); break
-        case "notifications": showNotificationHistory(); break
+        case "notifications": noticeRequested(); break
         }
     }
 

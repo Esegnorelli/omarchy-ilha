@@ -56,7 +56,7 @@ O ponteiro na faixa central de cima (600 px) ou na própria pílula abre a linha
 
 | Lugar | Conteúdo | Toque |
 |---|---|---|
-| Esquerda | Workspaces 1–5 deste monitor. O ativo usa a cor do tema. Os ocupados são números claros. Os vazios são números quietos. | Foca esse workspace |
+| Esquerda | Workspaces 1–5 deste monitor. O ativo usa a cor do tema e mostra o layout: quadrado para mosaico, círculo para rolagem, triângulo para flutuante. Os ocupados são números claros. Os vazios são números quietos. | O clique no número ativo percorre esses três layouts. O clique noutro número foca esse workspace |
 | Meio | Hora | Abre o Tempo |
 | Aparência | Paleta, na cor do tema | Abre o Estilo |
 | Direita | Até dois avisos ligados, só o ícone | Desliga o aviso, ou abre o painel dele |
@@ -69,20 +69,22 @@ Todos usam a mesma grade de 4 colunas, a mesma largura e altura fixa, então a p
 
 | Tecla | Painel | Conteúdo |
 |---|---|---|
-| 0 | Tempo | Calendário, lembretes rápidos (+5, +15, +30 min, +1 h), a lista, limpar, fuso horário |
+| 0 | Tempo | O mês. Page Up e Page Down trocam o mês. Home volta para hoje |
 | 1 | Apps | Busca de aplicativos. Setas, Enter. Esc limpa e depois fecha |
 | 2 | Controle | Microfone, Não perturbe, luz noturna, manter acordado, animações, modo jogo, Wi-Fi e Bluetooth quando existem, volume, a rede atual, teste de velocidade |
 | 3 | Captura | Print de região, tela, janela ou rolagem. Gravação com som do sistema e microfone. OCR, QR code, conta-gotas |
-| 4 | Estilo | Temas com prévia, plano de fundo (próximo, escolher, cores do fundo, todos os temas), cantos, transparência, fonte |
-| 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações |
+| 4 | Estilo | Os temas são uma faixa compacta: busca, cinco cartões com a imagem do tema e a paleta, o do meio com aro. As setas escolhem. Enter, ou o clique no cartão do meio, aplica. Os fundos são um carrossel desse tema: busca, cinco miniaturas, a escolhida sobe e as vizinhas ficam mais baixas e mais quietas. O nome fica na miniatura. O fundo em uso continua claro. Enter, ou o clique na miniatura levantada, aplica. Um clique na vizinha só seleciona. Todos os temas esconde os outros controles. Esc limpa a busca e depois volta. Próximo fundo, escolher, cores do fundo, cantos, transparência, fonte |
+| 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins |
 | 6 | Energia | Bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
+| — | Plugins | Busca os plugins do shell. Enter liga ou desliga. Trocar a barra pede um segundo toque. A roda chega nele depois da Energia |
 | — | OSD | Volume, brilho e outros avisos enviados para a ilha |
+| — | Notificação | O clique no sino da linha abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Ela não aparece sozinha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
 
 Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede abrem o Controle, o relógio abre o Tempo, energia abre a Energia.
 
 ## Mouse e teclado
 
-- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia. Para baixo avança. Para cima volta. A linha continua no topo do painel aberto para a roda seguir nela.
+- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Para baixo avança. Para cima volta. A linha continua no topo do painel aberto para a roda seguir nela.
 - Listas e controles deslizantes guardam a própria roda. O volume fica no Controle.
 - `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem.
 - Setas movem o foco. Enter e Espaço ativam.
@@ -103,7 +105,7 @@ o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 O Estilo chega na pílula no clique. O comando do sistema continua depois.
 
 - **Tema.** A pílula lê o `colors.toml` daquele tema (a sua camada, depois o tema de fábrica) e recolore na hora. O `omarchy theme set` espera 280 ms, então uma sequência rápida de cliques não empilha trocas. Papel de parede, terminais e bordas seguem o comando. Se o tema do sistema não chegar, a pílula volta para o tema que está valendo.
-- **Cantos.** Arredondado mantém a cápsula (um painel limita o raio em 28). Reto deixa a casca e os controles internos com quina viva. Tema usa o raio atual do Hyprland. `omarchy hyprland corners`.
+- **Cantos.** Arredondado mantém a cápsula (um painel limita o raio em 28) e arredonda as janelas junto. Reto deixa a casca, os controles internos e as janelas com quina viva, inclusive o terminal. Tema usa o raio atual do Hyprland. Um desktop sem vão não achata a escolha arredondada. `omarchy hyprland corners`.
 - **Vidro.** Opaco é sólido. Vidro pinta o tema a 0.4 na cápsula e 0.58 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Transparente fica em 0.34 e 0.42, logo acima do ponto em que esse blur abre um buraco. O fio da borda acompanha. `omarchy hyprland window transparency`.
 - **Fonte.** A família escolhida entra na pílula na hora. O `omarchy font set` ainda reinicia o shell quando reescreve o fontconfig.
 - **Movimento.** O tamanho da pílula usa uma mola sem quique, e os fades são curtos. Com `omarchy toggle animations` desligado, tudo aparece na hora.
@@ -114,7 +116,7 @@ O modo jogo, no Controle, é outra ação. Ligar pode desligar animações, tira
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|calendar|power|last>
+omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|last>
 omarchy-shell ilha toggle <view|last>
 omarchy-shell ilha run <view> <tecla>   # exemplo: run calendar pgdn, run control q
 omarchy-shell ilha close
@@ -148,7 +150,7 @@ Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro 
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Controle da grade e a letra |
 | `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Linhas, teclado, rodapé |
 | `IconButton.qml`, `Icon.qml` | Botão e ícone Material Symbols |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Painéis |
+| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Painéis |
 | `i18n/` | Inglês e português do Brasil |
 | `install.sh`, `uninstall.sh` | Atalhos opcionais. O Omarchy não os executa |
 

@@ -3,11 +3,11 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
 
-// Captura (spec §3.4, painel 3): três linhas com legenda.
+// Captura (spec §3.4, painel 3): três linhas de ícones, com legenda.
 //   PRINT     Q Região · W Tela inteira · E Janela · R Rolagem
 //   GRAVAÇÃO  A Gravar região · S Gravar tela · D Som do sistema · F Mic na gravação
 //             (gravando: A+S viram "Parar gravação 00:42" em danger, c1–c2; D/F indisponíveis)
-//   EXTRAIR   Z Texto (OCR) · X QR code · C Conta-gotas (estica até c4)
+//   EXTRAIR   Z Texto (OCR) · X QR code · C Conta-gotas
 // ⇧Q = A e ⇧W = S. Tudo que gera pixels fecha a ilha antes (350 ms).
 //
 // Contrato de estado: active, closeRequested(), navigate(target), fg/bg/accent/danger,
@@ -169,24 +169,28 @@ Item {
         GridRow {
             caption: strings.t("capture.section.print")
             Tile {
+                iconFace: true
                 icon: "screenshot_region"
                 label: strings.t("capture.region")
                 closesIsland: true
                 onActivated: root.screenshot("region")
             }
             Tile {
+                iconFace: true
                 icon: "desktop_windows"
                 label: strings.t("capture.fullscreen")
                 closesIsland: true
                 onActivated: root.screenshot("fullscreen")
             }
             Tile {
+                iconFace: true
                 icon: "select_window"
                 label: strings.t("capture.window")
                 closesIsland: true
                 onActivated: root.screenshot("windows")
             }
             Tile {
+                iconFace: true
                 icon: "swipe_vertical"
                 label: strings.t("capture.scroll")
                 closesIsland: true
@@ -205,6 +209,7 @@ Item {
             // Gravando: um bloco só em c1–c2 (responde a A, S, ⇧Q e ⇧W).
             Tile {
                 visible: root.recording
+                iconFace: true
                 span: 2
                 icon: "stop_circle"
                 label: root.elapsedText !== "" ? strings.t("capture.stopWithTime").arg(root.elapsedText)
@@ -217,6 +222,7 @@ Item {
             }
             Tile {
                 visible: !root.recording
+                iconFace: true
                 icon: "videocam"
                 label: strings.t("capture.recordRegion")
                 closesIsland: true
@@ -224,12 +230,14 @@ Item {
             }
             Tile {
                 visible: !root.recording
+                iconFace: true
                 icon: "screen_record"
                 label: strings.t("capture.recordScreen")
                 closesIsland: true
                 onActivated: root.startRecording(true)
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 icon: root.withDesktopAudio ? "volume_up" : "volume_off"
                 label: strings.t("capture.desktopAudioRec")
@@ -240,6 +248,7 @@ Item {
                 onActivated: root.withDesktopAudio = !root.withDesktopAudio
             }
             Tile {
+                iconFace: true
                 kind: "toggle"
                 icon: root.withMicrophone ? "mic" : "mic_off"
                 label: strings.t("capture.micRec")
@@ -254,21 +263,23 @@ Item {
         GridRow {
             caption: strings.t("capture.section.extract")
             Tile {
+                iconFace: true
                 icon: "text_fields"
                 label: strings.t("capture.ocr")
                 closesIsland: true
                 onActivated: root.runAfterClose(["omarchy", "capture", "text"])
             }
             Tile {
+                iconFace: true
                 icon: "qr_code_scanner"
                 label: strings.t("capture.qr")
                 closesIsland: true
                 onActivated: root.runAfterClose(["omarchy", "capture", "qr"])
             }
             Tile {
+                iconFace: true
                 icon: "colorize"
                 label: strings.t("capture.picker")
-                stretch: true
                 closesIsland: true
                 onActivated: root.runAfterClose(["hyprpicker", "-a"])
             }

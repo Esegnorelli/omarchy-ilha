@@ -20,6 +20,7 @@ import "TileArm.js" as TileArm
 //   showBadge: bool                  mostra o KeyBadge (padrão true)
 //   closesIsland: bool               metadado: a ação fecha a ilha antes de rodar (o estado usa)
 //   compact: bool                    linha única, 32 px (InfoRow, segmentos)
+//   iconFace: bool                   ícone no centro e o nome numa linha (Controle)
 //   keyboardMode: bool               anel de foco e letras cheias só no modo teclado
 //   strings: Commons.Translations    para "Aplicando…" / "Confirmar?" (o grid repassa)
 //   fg, bg, accent, danger, muted, metrics
@@ -53,6 +54,7 @@ Item {
     property bool showBadge: true
     property bool closesIsland: false
     property bool compact: false
+    property bool iconFace: false
     property bool keyboardMode: false
     property var strings: null
 
@@ -144,9 +146,13 @@ Item {
     readonly property color ink: filled ? bg : fg
     readonly property color subInk: filled ? Qt.rgba(bg.r, bg.g, bg.b, 0.78) : muted
     readonly property color iconInk: filled ? bg : (hover.hovered && interactive ? accent : fg)
-    readonly property real radius: compact ? metrics.rowRadius - 2 : metrics.tileRadius
+    readonly property real radius: Math.max(0, compact ? metrics.rowRadius - 2 : metrics.tileRadius)
 
     readonly property string shownLabel: _armed ? (strings ? strings.t("grid.confirm") : label) : label
+    // No rosto de ícone o estado mora na cor. A linha de baixo só troca o nome
+    // quando há algo para dizer: confirmando, aplicando ou indisponível.
+    readonly property string faceCaption: (_armed || busy) && shownSublabel !== ""
+                                          ? shownSublabel : shownLabel
     readonly property string shownSublabel: _armed ? label
                                           : busy ? (strings ? strings.t("grid.busy") : sublabel)
                                           : (!available && unavailableText !== "") ? unavailableText
@@ -174,9 +180,43 @@ Item {
             Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
         }
 
+        // ----- Rosto de ícone: glifo no centro, nome numa linha -----
+        Item {
+            visible: tile.iconFace && !tile.compact && tile.detail === ""
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            anchors.topMargin: 6
+            anchors.bottomMargin: 6
+
+            Icon {
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -9
+                name: tile.icon
+                size: 26
+                filled: tile.filled
+                color: tile.iconInk
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+            Text {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                horizontalAlignment: Text.AlignHCenter
+                text: tile.faceCaption
+                textFormat: Text.PlainText
+                font.pixelSize: tile.metrics.tileSublabel
+                font.weight: Font.Medium
+                elide: Text.ElideRight
+                color: tile.ink
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+        }
+
         // ----- Layout empilhado (padrão): ícone no alto, textos embaixo -----
         Item {
-            visible: !tile.compact && tile.detail === ""
+            visible: !tile.iconFace && !tile.compact && tile.detail === ""
             anchors.fill: parent
             anchors.margins: tile.metrics.tilePadding
 
