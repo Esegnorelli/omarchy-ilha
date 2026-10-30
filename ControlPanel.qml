@@ -286,6 +286,18 @@ Item {
             onStreamFinished: root._dndLocal = text.trim() === "on"
         }
     }
+    property bool screensaverOn: true
+    property bool suspendOn: true
+    Process {
+        id: saverProc
+        command: ["omarchy-toggle-enabled", "screensaver-off"]
+        onExited: (exitCode, exitStatus) => root.screensaverOn = exitCode !== 0
+    }
+    Process {
+        id: suspendProc
+        command: ["omarchy-toggle-enabled", "suspend-off"]
+        onExited: (exitCode, exitStatus) => root.suspendOn = exitCode !== 0
+    }
     Process {
         id: animProc
         // Código de saída 0 significa que as animações estão desligadas.
@@ -298,6 +310,8 @@ Item {
         if (!root.idleService) idleProc.running = true;
         if (!root.dndService) dndProc.running = true;
         animProc.running = true;
+        saverProc.running = true;
+        suspendProc.running = true;
     }
 
     // Relê o estado real depois que o comando de alternância terminar.
@@ -336,6 +350,14 @@ Item {
             root._stayAwakeLocal = !root._stayAwakeLocal;
             root.runToggle(["omarchy", "toggle", "idle"]);
         }
+    }
+    function toggleScreensaver() {
+        root.screensaverOn = !root.screensaverOn;
+        root.runToggle(["omarchy", "toggle", "screensaver"]);
+    }
+    function toggleSuspend() {
+        root.suspendOn = !root.suspendOn;
+        root.runToggle(["omarchy", "toggle", "suspend"]);
     }
     function toggleAnimations() {
         root.animationsOn = !root.animationsOn;
@@ -631,7 +653,6 @@ Item {
             }
             Tile {
                 kind: "toggle"
-                stretch: true
                 on: root.gameModeOn
                 busy: root.gameBusy
                 icon: "sports_esports"
@@ -642,7 +663,6 @@ Item {
             Tile {
                 visible: root.hwWifi
                 kind: "toggle"
-                stretch: true
                 on: root.wifiOn
                 icon: root.wifiOn ? "wifi" : "wifi_off"
                 label: strings.t("control.wifi")
@@ -653,7 +673,6 @@ Item {
             Tile {
                 visible: root.hwBluetooth
                 kind: "toggle"
-                stretch: true
                 on: root.btOn
                 icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
                 label: strings.t("control.bluetooth")
@@ -662,6 +681,26 @@ Item {
                              ? strings.tn("control.connected", root.btConnected).arg(Commons.I18n.formatNumber(root.btConnected))
                              : strings.t("control.on"))
                 onActivated: root.toggleBluetooth()
+            }
+            // Sem Wi-Fi ou Bluetooth na máquina, as vagas viram toggles úteis
+            // em vez de esticar o vizinho.
+            Tile {
+                visible: !root.hwWifi
+                kind: "toggle"
+                on: root.screensaverOn
+                icon: "screenshot_monitor"
+                label: strings.t("control.screensaver")
+                sublabel: root.screensaverOn ? strings.t("control.on") : strings.t("control.off")
+                onActivated: root.toggleScreensaver()
+            }
+            Tile {
+                visible: !root.hwBluetooth
+                kind: "toggle"
+                on: root.suspendOn
+                icon: "bedtime"
+                label: strings.t("control.suspend")
+                sublabel: root.suspendOn ? strings.t("control.suspendOn") : strings.t("control.off")
+                onActivated: root.toggleSuspend()
             }
         }
 

@@ -45,7 +45,9 @@ Item {
     property bool barHidden: false
     // Altura de repouso informada: a faixa de ativação e a folga da bolinha.
     // Precisa ser maior que zero, senão as notificações usam o tamanho padrão.
-    readonly property int restHeight: 12
+    // Em repouso a ilha fica sempre visível: um notch compacto só com o relógio.
+    readonly property int restHeight: 30
+    readonly property int restWidth: 104
     readonly property int barSize: restHeight
     readonly property var screenBarSizes: {
         const sizes = ({})
@@ -581,15 +583,11 @@ Item {
             onRevealedChanged: {
                 stepTimer.stop()
                 if (revealed) {
-                    if (phase === 0) {
-                        phase = 1
-                        step("expand", 140)
-                    } else {
-                        phase = 2
-                        Qt.callLater(checkLatch)
-                    }
+                    // O notch compacto do relógio se estica direto até o estado.
+                    phase = 2
+                    Qt.callLater(checkLatch)
                 } else {
-                    // Conteúdo some primeiro, depois encolhe e sobe.
+                    // Conteúdo some primeiro, depois encolhe de volta ao relógio.
                     contentLatched = false
                     if (phase === 2)
                         step("shrink", 120)
@@ -627,8 +625,7 @@ Item {
                         win.phase = 2
                         Qt.callLater(win.checkLatch)
                     } else if (name === "shrink") {
-                        win.phase = 1
-                        win.step("rise", 180)
+                        win.phase = 0
                     } else if (name === "rise") {
                         win.phase = 0
                     }
@@ -768,8 +765,8 @@ Item {
             // A área de entrada segue o tamanho final do estado, não a pílula
             // animada: trocar a máscara a cada quadro faz o compositor mandar
             // saída/entrada do ponteiro e o hover piscar.
-            readonly property int inputWidth: revealed ? Math.ceil(targetWidth + 2 * flare) : dotVisible ? 48 : 0
-            readonly property int inputHeight: revealed ? Math.ceil(targetHeight) : dotVisible ? 10 : 0
+            readonly property int inputWidth: revealed ? Math.ceil(targetWidth + 2 * flare) : hoverAllowed ? island.restWidth + 2 * flare : 0
+            readonly property int inputHeight: revealed ? Math.ceil(targetHeight) : hoverAllowed ? island.restHeight : 0
 
             mask: Region {
                 Region {
@@ -855,15 +852,17 @@ Item {
                 Item {
                     id: pill
 
-                    readonly property bool asDot: win.phase === 0 && win.dotVisible
+                    // Em repouso: notch compacto só com o relógio (e a marquinha).
+                    readonly property bool atRest: win.phase !== 2
+                    readonly property bool asDot: false
 
                     anchors.horizontalCenter: parent.horizontalCenter
                     // Largura do corpo + as duas curvas côncavas do topo.
-                    width: (win.phase === 2 ? win.targetWidth : asDot ? 28 : 40) + 2 * win.flare
-                    height: win.phase === 2 ? win.targetHeight : asDot ? 6 : 12
-                    // Colado na borda de cima; em repouso fica escondido acima dela.
-                    y: win.phase > 0 || asDot ? 0 : -14
-                    opacity: win.phase > 0 || asDot ? 1 : 0
+                    width: (win.phase === 2 ? win.targetWidth : island.restWidth) + 2 * win.flare
+                    height: win.phase === 2 ? win.targetHeight : island.restHeight
+                    // Sempre colado na borda de cima; só some com a barra escondida.
+                    y: 0
+                    opacity: win.hoverAllowed ? 1 : 0
                     clip: true
                     // Respiro preso à borda de cima: o centro (e o relógio) não sai do lugar.
                     transformOrigin: Item.Top
@@ -908,10 +907,48 @@ Item {
                         anchors.fill: parent
                         radius: Math.min(height / 2, 24)
                         flare: Math.min(win.flare, height)
-                        color: pill.asDot ? indicatorSource.dotColor : island.bg
+                        color: island.bg
 
                         Behavior on color {
                             ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    // ---- Repouso: relógio compacto + marquinha de indicador ----
+                    Item {
+                        id: restClock
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        y: 0
+                        width: island.restWidth
+                        height: island.restHeight
+                        opacity: pill.atRest && !win.revealed ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity {
+                            NumberAnimation { duration: Commons.Style.duration(pill.atRest ? 160 : 90); easing.type: Easing.OutCubic }
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
+                            textFormat: Text.PlainText
+                            font.family: Commons.Style.fontFamily
+                            font.pixelSize: 13
+                            font.weight: Font.DemiBold
+                            color: island.fg
+                        }
+
+                        // Indicador ativo (gravando, Não perturbe…): ponto na cor do aviso.
+                        Rectangle {
+                            anchors.verticalCenter: parent.verticalCenter
+                            x: 10
+                            width: 6
+                            height: 6
+                            radius: 3
+                            color: indicatorSource.dotColor
+                            opacity: win.dotVisible ? 1 : 0
+                            Behavior on opacity {
+                                NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                            }
                         }
                     }
 
