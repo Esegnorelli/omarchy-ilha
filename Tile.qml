@@ -141,11 +141,14 @@ Item {
 
     // ---------- Aparência ----------
     readonly property bool filled: _armed || on
-    readonly property color fillColor: _armed ? danger : (on ? (tone === "danger" ? danger : accent)
-                                        : Qt.rgba(fg.r, fg.g, fg.b, hover.hovered && interactive ? metrics.alphaHover : metrics.alphaIdle))
-    readonly property color ink: filled ? bg : fg
-    readonly property color subInk: filled ? Qt.rgba(bg.r, bg.g, bg.b, 0.78) : muted
-    readonly property color iconInk: filled ? bg : (hover.hovered && interactive ? accent : fg)
+    readonly property bool glassOpen: metrics.glass !== "opaque"
+    readonly property color fillColor: _armed ? (glassOpen ? metrics.plate(danger) : danger)
+                                        : (on ? (glassOpen ? metrics.plate(tone === "danger" ? danger : accent)
+                                                           : (tone === "danger" ? danger : accent))
+                                              : Qt.rgba(fg.r, fg.g, fg.b, hover.hovered && interactive ? metrics.alphaHover : metrics.alphaIdle))
+    readonly property color ink: filled && !glassOpen ? bg : fg
+    readonly property color subInk: filled && !glassOpen ? Qt.rgba(bg.r, bg.g, bg.b, 0.78) : muted
+    readonly property color iconInk: filled && !glassOpen ? bg : (hover.hovered && interactive ? accent : fg)
     readonly property real radius: Math.max(0, compact ? metrics.rowRadius - 2 : metrics.tileRadius)
 
     readonly property string shownLabel: _armed ? (strings ? strings.t("grid.confirm") : label) : label

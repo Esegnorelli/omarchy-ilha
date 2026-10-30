@@ -57,6 +57,18 @@ QtObject {
     // tudo em quina viva. Tema acompanha o raio das janelas, e um tema
     // reto também fecha a ilha.
     property string corners: "rounded"
+    // Opaco fecha. Vidro e transparente limitam o fundo dos controles ao
+    // mesmo alfa da pílula, para um botão não virar uma placa sólida.
+    property string glass: "transparent"
+    readonly property real plateAlpha: glass === "opaque" ? 1 : glass === "glassy" ? 0.58 : 0.42
+    function plate(color, alpha) {
+        const c = color
+        if (!c)
+            return Qt.rgba(0, 0, 0, 0)
+        const requested = alpha === undefined ? 1 : Math.max(0, Math.min(1, Number(alpha) || 0))
+        const a = glass === "opaque" ? requested : Math.min(requested, plateAlpha)
+        return Qt.rgba(c.r, c.g, c.b, a)
+    }
     readonly property int themeCorner: Commons.Style.cornerRadius
     function fit(radius) {
         const n = Math.max(0, Number(radius) || 0)

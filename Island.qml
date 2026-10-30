@@ -289,6 +289,7 @@ Item {
     // Medidas da grade, repassadas aos estados (StateSlot.wire).
     property Metrics metrics: Metrics {
         corners: island.cornerMode
+        glass: island.glassMode
     }
 
     // ---- Teclado ----

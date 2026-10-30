@@ -339,7 +339,7 @@ Item {
                                 width: 48
                                 height: 28
                                 radius: height / 2
-                                color: cell.isToday ? root.accent
+                                color: cell.isToday ? root.metrics.plate(root.accent)
                                      : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
                                 opacity: cell.isToday ? 1 : (cellHover.hovered ? 1 : 0)
                                 Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
@@ -350,9 +350,13 @@ Item {
                                 textFormat: Text.PlainText
                                 font.pixelSize: 13
                                 font.weight: cell.isToday ? Font.DemiBold : Font.Normal
-                                color: cell.isToday ? root.bg
-                                     : (!cell.modelData.inMonth || cell.modelData.weekend) ? root.muted
-                                     : root.fg
+                                color: {
+                                    if (cell.isToday)
+                                        return root.metrics.glass === "opaque" ? root.bg : root.fg
+                                    if (!cell.modelData.inMonth || cell.modelData.weekend)
+                                        return root.muted
+                                    return root.fg
+                                }
                                 opacity: cell.isToday || cell.modelData.inMonth ? 1 : 0.5
                             }
 

@@ -935,7 +935,7 @@ Item {
                 ContinuousRect {
                     anchors.fill: parent
                     radius: root.metrics.fit(height / 2)
-                    color: Qt.rgba(root.bg.r, root.bg.g, root.bg.b, 0.78)
+                    color: root.metrics.plate(root.bg, 0.78)
                 }
                 Icon {
                     anchors.centerIn: parent
@@ -1339,7 +1339,7 @@ Item {
                     ContinuousRect {
                         anchors.fill: parent
                         radius: themes.cardRadius
-                        color: Qt.rgba(root.bg.r, root.bg.g, root.bg.b, 0.82)
+                        color: root.metrics.plate(root.bg, 0.82)
                         borderWidth: slot.center ? 2 : 1
                         borderColor: slot.center ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.16)
                     }
@@ -1601,6 +1601,14 @@ Item {
                 { value: "transparent", label: strings.t("style.transparency.transparent") },
                 { value: "glassy", label: strings.t("style.transparency.glassy") }
             ]
+            metrics: root.metrics
+            strings: strings
+            keyboardMode: root.keyboardMode
+            fg: root.fg
+            bg: root.bg
+            accent: root.accent
+            danger: root.danger
+            muted: root.muted
             onPicked: value => root.setTransparency(value)
         }
 
@@ -1614,6 +1622,14 @@ Item {
             current: root.pendingFont !== "" ? root.pendingFont : root.currentFont
             stepPreview: true
             options: root.fonts.map(f => ({ value: f, label: f, font: f }))
+            metrics: root.metrics
+            strings: strings
+            keyboardMode: root.keyboardMode
+            fg: root.fg
+            bg: root.bg
+            accent: root.accent
+            danger: root.danger
+            muted: root.muted
             onPreviewed: value => root.pendingFont = value
             onPicked: value => {
                 root.pendingFont = "";

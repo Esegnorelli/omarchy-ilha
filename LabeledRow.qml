@@ -239,7 +239,7 @@ Item {
                 width: Math.max(height, knob.x + knob.width / 2)
                 height: parent.height
                 radius: lrow.metrics.fit(3)
-                color: lrow.dimmed ? lrow.muted : lrow.accent
+                color: lrow.metrics.plate(lrow.dimmed ? lrow.muted : lrow.accent)
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
             }
             ContinuousRect {
@@ -372,7 +372,7 @@ Item {
             highlightResizeDuration: Commons.Style.duration(220)
             highlight: ContinuousRect {
                 radius: lrow.metrics.fit(height / 2)
-                color: lrow.accent
+                color: lrow.metrics.plate(lrow.accent)
             }
 
             delegate: Item {
@@ -398,7 +398,7 @@ Item {
                     font.family: chip.modelData.font ? chip.modelData.font : Qt.application.font.family
                     font.pixelSize: lrow.metrics.tileLabel
                     font.weight: chip.selected ? Font.DemiBold : Font.Normal
-                    color: chip.selected ? lrow.bg : lrow.fg
+                    color: chip.selected && lrow.metrics.glass === "opaque" ? lrow.bg : lrow.fg
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
                 }
                 scale: chipTap.pressed ? lrow.metrics.pressScale : 1
@@ -419,7 +419,7 @@ Item {
                 visible: chipList.contentX - chipList.originX > 1
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: lrow.bg }
+                    GradientStop { position: 0; color: lrow.metrics.plate(lrow.bg) }
                     GradientStop { position: 1; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
                 }
             }
@@ -431,7 +431,7 @@ Item {
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
                     GradientStop { position: 0; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
-                    GradientStop { position: 1; color: lrow.bg }
+                    GradientStop { position: 1; color: lrow.metrics.plate(lrow.bg) }
                 }
             }
         }
