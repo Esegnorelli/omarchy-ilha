@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "esegnorelli.ilha",
   "name": "Ilha",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Evandro Segnorelli",
   "license": "MIT",
   "description": "Floating island bar: a clock at rest, one status line on hover, and one panel at a time. Theme, corners, and glass update live.",
