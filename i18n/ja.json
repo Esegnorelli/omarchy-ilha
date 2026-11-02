@@ -163,6 +163,7 @@
   "power.suspendOff": "無効",
   "power.uptime": "稼働 %1",
   "strip.caughtUp": "すべて確認済み",
+  "strip.dateFormat": "M月d日(ddd)",
   "strip.desktop": "デスクトップ",
   "strip.notifications": {
     "other": "通知 %1 件"

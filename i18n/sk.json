@@ -175,6 +175,7 @@
   "power.suspendOff": "Zakázané",
   "power.uptime": "Beží %1",
   "strip.caughtUp": "Všetko vybavené",
+  "strip.dateFormat": "ddd d. M.",
   "strip.desktop": "Plocha",
   "strip.notifications": {
     "one": "%1 oznámenie",

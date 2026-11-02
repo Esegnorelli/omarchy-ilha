@@ -169,6 +169,7 @@
   "power.suspendOff": "Disabled",
   "power.uptime": "Up for %1",
   "strip.caughtUp": "All caught up",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Desktop",
   "strip.notifications": {
     "one": "%1 notification",

@@ -169,6 +169,7 @@
   "power.suspendOff": "අක්‍රියයි",
   "power.uptime": "ක්‍රියාකාලය %1",
   "strip.caughtUp": "සියල්ල බලා ඇත",
+  "strip.dateFormat": "MMM d, ddd",
   "strip.desktop": "ඩෙස්ක්ටොප්",
   "strip.notifications": {
     "one": "දැනුම්දීම් %1",

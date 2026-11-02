@@ -175,6 +175,7 @@
   "power.suspendOff": "Atspējots",
   "power.uptime": "Darbojas %1",
   "strip.caughtUp": "Viss izlasīts",
+  "strip.dateFormat": "ddd, d. MMM",
   "strip.desktop": "Darbvirsma",
   "strip.notifications": {
     "zero": "%1 paziņojumi",

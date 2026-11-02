@@ -305,7 +305,8 @@ Item {
                 icon: "extension"
                 label: strings.t("tools.plugins")
                 sublabel: strings.t("tools.plugins.sub")
-                trailingIcon: "chevron_right"
+                // Em RTL "avançar" aponta para a esquerda.
+                trailingIcon: Commons.I18n.rightToLeft ? "chevron_left" : "chevron_right"
                 onActivated: root.navigate("plugins")
             }
         }

@@ -181,6 +181,7 @@
   "power.suspendOff": "Wyłączone",
   "power.uptime": "Działa od %1",
   "strip.caughtUp": "Brak nowych",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Pulpit",
   "strip.notifications": {
     "one": "%1 powiadomienie",

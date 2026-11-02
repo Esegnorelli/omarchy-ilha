@@ -181,6 +181,7 @@
   "power.suspendOff": "Вимкнено",
   "power.uptime": "Працює %1",
   "strip.caughtUp": "Усе переглянуто",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Стільниця",
   "strip.notifications": {
     "one": "%1 сповіщення",

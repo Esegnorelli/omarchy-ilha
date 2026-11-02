@@ -163,6 +163,7 @@
   "power.suspendOff": "已禁用",
   "power.uptime": "已运行 %1",
   "strip.caughtUp": "全部已读",
+  "strip.dateFormat": "M月d日 ddd",
   "strip.desktop": "桌面",
   "strip.notifications": {
     "other": "%1 条通知"

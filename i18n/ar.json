@@ -51,7 +51,7 @@
   "control.micActive": "نشط",
   "control.micMuted": "مكتوم",
   "control.microphone": "الميكروفون",
-  "control.net.ethernet": "Ethernet",
+  "control.net.ethernet": "سلكي",
   "control.net.noAddress": "بلا IPv4",
   "control.net.offline": "غير متصل",
   "control.net.offlineHint": "لا شبكة متصلة",
@@ -193,6 +193,7 @@
   "power.suspendOff": "معطّل",
   "power.uptime": "يعمل منذ %1",
   "strip.caughtUp": "لا جديد",
+  "strip.dateFormat": "ddd، d MMM",
   "strip.desktop": "سطح المكتب",
   "strip.notifications": {
     "zero": "%1 إشعار",

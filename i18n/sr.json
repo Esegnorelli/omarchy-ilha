@@ -175,6 +175,7 @@
   "power.suspendOff": "Онемогућено",
   "power.uptime": "Ради %1",
   "strip.caughtUp": "Све прегледано",
+  "strip.dateFormat": "ddd, d. MMM",
   "strip.desktop": "Радна површина",
   "strip.notifications": {
     "one": "%1 обавештење",

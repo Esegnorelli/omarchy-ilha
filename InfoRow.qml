@@ -6,6 +6,8 @@ import qs.Commons as Commons
 // 32 px) em c3–c4, um por
 // coluna. Com um só botão visível e stretch: true ele ocupa c3–c4; sem stretch
 // fica em c4. A letra de cada botão é a da coluna onde começa.
+// RTL: o x dos botões é explícito, então layout() o espelha (c3/c4 ficam à
+// esquerda); ícone e textos vão por âncora e viram sozinhos.
 //
 // API pública:
 //   icon, title, detail: string   (detail em metrics.textSecondary; textos externos sempre PlainText)
@@ -40,6 +42,10 @@ Item {
     property int autoKeyRow: -1
     readonly property int resolvedKeyRow: keyRow >= -1 ? keyRow : autoKeyRow
     property bool keyable: false
+    // Espelhamento efetivo (herdado do Island em RTL).
+    readonly property bool rtl: LayoutMirroring.enabled
+    // x lógico (da borda inicial) para x na tela.
+    function _mx(x, w) { return info.rtl ? info.width - x - w : x; }
 
     default property alias buttons: holder.data
 
@@ -84,9 +90,9 @@ Item {
         const right = info.metrics.content - info.inset;
         const w = (right - left - info.metrics.gap) / 2;
         const placeAt = (k, col, span) => {
-            k.x = left + (col - 2) * (w + info.metrics.gap);
-            k.y = info.inset;
             k.width = span === 2 ? right - left : w;
+            k.x = info._mx(left + (col - 2) * (w + info.metrics.gap), k.width);
+            k.y = info.inset;
             k.height = info.metrics.compact;
             if ("keyCol" in k) k.keyCol = col;
             if ("keySpan" in k) k.keySpan = span;
@@ -103,6 +109,8 @@ Item {
     }
 
     onResolvedKeyRowChanged: relayout()
+    onRtlChanged: relayout()
+    onWidthChanged: relayout()
     Component.onCompleted: layout()
 
     ContinuousRect {
@@ -112,8 +120,10 @@ Item {
     }
 
     Row {
-        x: 12
-        width: info.metrics.colX(2, 4) - x - info.metrics.gap
+        // Âncora (e não x) para espelhar em RTL.
+        anchors.left: parent.left
+        anchors.leftMargin: 12
+        width: info.metrics.colX(2, 4) - 12 - info.metrics.gap
         anchors.verticalCenter: parent.verticalCenter
         spacing: 12
 
@@ -140,6 +150,9 @@ Item {
             spacing: 1
             Text {
                 width: parent.width
+                // Explícito para virar com o espelhamento: título latino e
+                // detalhe em árabe ficam na mesma borda.
+                horizontalAlignment: Text.AlignLeft
                 text: info.title
                 textFormat: Text.PlainText
                 font.family: info.fontFamily
@@ -151,6 +164,7 @@ Item {
             Text {
                 width: parent.width
                 visible: text !== ""
+                horizontalAlignment: Text.AlignLeft
                 text: info.detail
                 textFormat: Text.PlainText
                 font.family: info.fontFamily

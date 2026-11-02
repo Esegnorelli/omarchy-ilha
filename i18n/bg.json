@@ -169,6 +169,7 @@
   "power.suspendOff": "Изключено",
   "power.uptime": "Работи от %1",
   "strip.caughtUp": "Нищо ново",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Работен плот",
   "strip.notifications": {
     "one": "%1 известие",

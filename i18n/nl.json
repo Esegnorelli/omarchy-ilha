@@ -169,6 +169,7 @@
   "power.suspendOff": "Uitgeschakeld",
   "power.uptime": "Al %1 aan",
   "strip.caughtUp": "Alles bijgewerkt",
+  "strip.dateFormat": "ddd d MMM",
   "strip.desktop": "Bureaublad",
   "strip.notifications": {
     "one": "%1 melding",

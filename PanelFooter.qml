@@ -27,6 +27,16 @@ Item {
     // Respiro entre o estado e as dicas: os dois nunca encostam.
     readonly property int hintGap: 24
 
+    // RTL (ar, fa, he, ur): dicas e estado que começam com letras latinas de
+    // tecla ("Q–F …") ganhariam direção base LTR e embaralhariam os trechos.
+    // O U+200F (RIGHT-TO-LEFT MARK) no início força a base RTL, e cada texto
+    // fica alinhado à direita, para cada trecho ficar junto da sua tecla.
+    readonly property bool rtl: Commons.I18n.rightToLeft
+    function bidi(s) { return footer.rtl && s !== "" ? "\u200F" + s : s; }
+    // Alinhamento explícito é espelhado pelo LayoutMirroring herdado da ilha;
+    // este valor dá direita na tela com ou sem espelhamento.
+    readonly property int alignRight: LayoutMirroring.enabled ? Text.AlignLeft : Text.AlignRight
+
     implicitWidth: metrics.content
     implicitHeight: metrics.footer
     width: implicitWidth
@@ -38,7 +48,8 @@ Item {
         anchors.leftMargin: 2
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, Math.min(implicitWidth, footer.width - 4 - (hintsText.text !== "" ? Math.min(hintsText.implicitWidth, footer.width * 0.55) + footer.hintGap : 0)))
-        text: footer.status
+        horizontalAlignment: footer.rtl ? footer.alignRight : Text.AlignLeft
+        text: footer.bidi(footer.status)
         textFormat: Text.PlainText
         font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText
@@ -54,8 +65,8 @@ Item {
         anchors.rightMargin: 2
         anchors.verticalCenter: parent.verticalCenter
         width: Math.max(0, Math.min(implicitWidth, footer.width - 4 - (statusText.text !== "" ? statusText.width + footer.hintGap : 0)))
-        horizontalAlignment: Text.AlignRight
-        text: footer.hints
+        horizontalAlignment: footer.alignRight
+        text: footer.bidi(footer.hints)
         textFormat: Text.PlainText
         font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText

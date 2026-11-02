@@ -28,6 +28,10 @@ import qs.Commons as Commons
 //   next() / prev()          chips: escolhe o vizinho; slider/bar: ± step; segmented: vizinho
 //   focusItems() → [Item]    segmentos, ou o slider/barra/chips (sem letra; setas ←→ mudam o valor)
 // A roda acumula angleDelta e anda um passo a cada 120 (touchpad não dispara rajadas).
+// RTL: as colunas espelham (rótulo à direita, controles à esquerda; o x é
+// explícito e passa por _mx). Por dentro, o slider fino e os chips com ‹ ›
+// ficam LTR; o cartão "bar" espelha inteiro (título, valor, › virando ‹ e o
+// preenchimento crescendo da direita; ←/→ andam no sentido da tela).
 Item {
     id: lrow
 
@@ -79,6 +83,10 @@ Item {
     }
     readonly property real controlX: metrics.colX(1, 4)
     readonly property real controlWidth: metrics.spanWidth(3, 4)
+    // Espelhamento efetivo (herdado do Island em RTL).
+    readonly property bool rtl: LayoutMirroring.enabled
+    // x lógico (da borda inicial) para x na tela.
+    function _mx(x, w) { return lrow.rtl ? lrow.width - x - w : x; }
 
     function next() { lrow._step(1); }
     function prev() { lrow._step(-1); }
@@ -167,6 +175,7 @@ Item {
     Item {
         id: labelArea
         visible: lrow.variant !== "bar"
+        x: lrow._mx(0, width)
         width: lrow.metrics.col
         height: parent.height
 
@@ -192,6 +201,7 @@ Item {
                 spacing: 0
                 Text {
                     width: parent.width
+                    horizontalAlignment: Text.AlignLeft
                     text: lrow.label
                     textFormat: Text.PlainText
                     font.family: lrow.fontFamily
@@ -203,6 +213,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== ""
+                    horizontalAlignment: Text.AlignLeft
                     text: lrow.value
                     textFormat: Text.PlainText
                     font.family: lrow.fontFamily
@@ -224,7 +235,7 @@ Item {
         delegate: Tile {
             required property var modelData
             required property int index
-            x: lrow.metrics.colX(1 + index, 4)
+            x: lrow._mx(lrow.metrics.colX(1 + index, 4), width)
             y: (lrow.height - height) / 2
             width: lrow.metrics.col
             height: lrow.metrics.segment
@@ -253,7 +264,7 @@ Item {
     Item {
         id: sliderBox
         visible: lrow.variant === "slider"
-        x: lrow.controlX
+        x: lrow._mx(lrow.controlX, width)
         width: lrow.controlWidth
         height: parent.height
         activeFocusOnTab: visible
@@ -332,10 +343,9 @@ Item {
         id: barBox
         visible: lrow.variant === "bar"
         anchors.fill: parent
-        // Fica LTR em RTL (como o slider e o progresso da Mídia): título, valor,
-        // preenchimento e toque usam x explícito, que não espelha.
-        LayoutMirroring.enabled: false
-        LayoutMirroring.childrenInherit: true
+        // Espelha em RTL (só o progresso da Mídia fica LTR): tudo vai por
+        // âncora; o toque e as setas convertem para a distância da borda
+        // inicial (_fromStart).
         activeFocusOnTab: visible
         Accessible.role: Accessible.Slider
         Accessible.name: lrow.label
@@ -348,13 +358,18 @@ Item {
             lrow.moreTapped();
             return true;
         }
+        // Em RTL o preenchimento cresce para a esquerda: ← aumenta.
         function handleArrow(key) {
-            if (key === Qt.Key_Left) { lrow.prev(); return true; }
-            if (key === Qt.Key_Right) { lrow.next(); return true; }
+            const up = lrow.rtl ? Qt.Key_Left : Qt.Key_Right;
+            const down = lrow.rtl ? Qt.Key_Right : Qt.Key_Left;
+            if (key === down) { lrow.prev(); return true; }
+            if (key === up) { lrow.next(); return true; }
             return false;
         }
-        function setFromX(px) {
-            lrow.moved(Math.max(0, Math.min(1, px / Math.max(1, bar.width))));
+        // x local da barra → distância da borda onde o preenchimento começa.
+        function _fromStart(px) { return lrow.rtl ? bar.width - px : px; }
+        function setFromX(d) {
+            lrow.moved(Math.max(0, Math.min(1, d / Math.max(1, bar.width))));
         }
 
         ContinuousRect {
@@ -363,12 +378,17 @@ Item {
             color: Qt.rgba(lrow.fg.r, lrow.fg.g, lrow.fg.b, lrow.metrics.alphaIdle)
         }
 
-        // Cabeçalho: título à esquerda, valor e › à direita.
+        // Cabeçalho: título na borda inicial, valor e › na final.
         Text {
             id: barTitle
-            x: 14
-            y: 12
-            width: Math.min(implicitWidth, barValue.x - x - 8)
+            anchors.left: parent.left
+            anchors.leftMargin: 14
+            anchors.top: parent.top
+            anchors.topMargin: 12
+            // Sobra entre a margem de 14, o valor (8 antes dele) e o ›.
+            width: Math.min(implicitWidth, barBox.width - 14 - 8 - barValue.width
+                                           - (moreButton.visible ? 10 + moreButton.width + 8 : 14))
+            horizontalAlignment: Text.AlignLeft
             text: lrow.label
             textFormat: Text.PlainText
             font.family: lrow.fontFamily
@@ -399,7 +419,8 @@ Item {
             anchors.right: parent.right
             anchors.rightMargin: 10
             anchors.verticalCenter: barTitle.verticalCenter
-            icon: "chevron_right"
+            // Aponta para onde a subpágina entra.
+            icon: lrow.rtl ? "chevron_left" : "chevron_right"
             fg: lrow.fg
             accent: lrow.accent
             muted: lrow.muted
@@ -421,6 +442,8 @@ Item {
 
             ContinuousRect {
                 id: barFill
+                // Âncora: em RTL o preenchimento cresce da direita.
+                anchors.left: parent.left
                 height: parent.height
                 width: Math.max(height, barBox.fraction * bar.width)
                 radius: lrow.metrics.fit(16)
@@ -434,7 +457,8 @@ Item {
             Icon {
                 id: barIcon
                 visible: lrow.icon !== ""
-                x: 10
+                anchors.left: parent.left
+                anchors.leftMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 name: lrow.icon
                 size: 18
@@ -444,20 +468,20 @@ Item {
             }
 
             HoverHandler { id: barHover; cursorShape: Qt.PointingHandCursor }
-            // Um toque só: no ícone (os primeiros 38 px) é o rótulo (mudo);
-            // no resto, posiciona a barra.
+            // Um toque só: no ícone (os primeiros 38 px da borda inicial) é o
+            // rótulo (mudo); no resto, posiciona a barra.
             TapHandler {
                 onTapped: eventPoint => {
-                    const px = eventPoint.position.x;
-                    if (barIcon.visible && px < barIcon.x + barIcon.width + 10) lrow.labelTapped();
-                    else barBox.setFromX(px);
+                    const d = barBox._fromStart(eventPoint.position.x);
+                    if (barIcon.visible && d < 10 + barIcon.width + 10) lrow.labelTapped();
+                    else barBox.setFromX(d);
                 }
             }
             DragHandler {
                 id: barDrag
                 target: null
                 yAxis.enabled: false
-                onCentroidChanged: if (active) barBox.setFromX(centroid.position.x)
+                onCentroidChanged: if (active) barBox.setFromX(barBox._fromStart(centroid.position.x))
             }
             WheelHandler {
                 acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
@@ -480,7 +504,7 @@ Item {
         // ancorada nelas ficaria com largura negativa se espelhasse.
         LayoutMirroring.enabled: false
         LayoutMirroring.childrenInherit: true
-        x: lrow.controlX
+        x: lrow._mx(lrow.controlX, width)
         width: lrow.controlWidth
         height: parent.height
         activeFocusOnTab: visible

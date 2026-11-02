@@ -163,6 +163,7 @@
   "power.suspendOff": "비활성화됨",
   "power.uptime": "%1 동안 켜짐",
   "strip.caughtUp": "모두 확인함",
+  "strip.dateFormat": "M월 d일 (ddd)",
   "strip.desktop": "데스크톱",
   "strip.notifications": {
     "other": "알림 %1개"

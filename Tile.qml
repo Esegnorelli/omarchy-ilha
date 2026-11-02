@@ -364,8 +364,11 @@ Item {
 
             TileIcon {
                 id: stackIcon
-                x: -2
-                y: -2
+                // Âncora (e não x) para espelhar em RTL e não cair sobre a letra.
+                anchors.left: parent.left
+                anchors.leftMargin: -2
+                anchors.top: parent.top
+                anchors.topMargin: -2
                 width: tile.metrics.tileIcon + 4
                 height: tile.metrics.tileIcon + 4
                 name: tile.icon
@@ -382,6 +385,9 @@ Item {
 
                 Text {
                     width: parent.width
+                    // Explícito para virar com o espelhamento (título latino
+                    // na mesma borda da sublinha em árabe).
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownLabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
@@ -400,6 +406,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== ""
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownSublabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
@@ -448,6 +455,7 @@ Item {
 
                 Text {
                     width: parent.width
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownLabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
@@ -459,6 +467,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== ""
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownSublabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
@@ -469,6 +478,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== "" && !tile._armed
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.detail
                     textFormat: Text.PlainText
                     font.pixelSize: tile.metrics.tileSublabel
@@ -513,6 +523,9 @@ Item {
 
                 Text {
                     width: parent.width
+                    // Explícito (AlignLeft vira à direita no espelhamento):
+                    // "Wi-Fi" fica na mesma borda da sublinha em árabe.
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownLabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
@@ -524,6 +537,7 @@ Item {
                 Text {
                     width: parent.width
                     visible: text !== ""
+                    horizontalAlignment: Text.AlignLeft
                     text: tile.shownSublabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily

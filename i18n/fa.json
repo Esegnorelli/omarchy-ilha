@@ -169,6 +169,7 @@
   "power.suspendOff": "غیرفعال",
   "power.uptime": "روشن از %1",
   "strip.caughtUp": "همه خوانده شد",
+  "strip.dateFormat": "ddd، d MMM",
   "strip.desktop": "دسکتاپ",
   "strip.notifications": {
     "one": "%1 اعلان",

@@ -169,6 +169,7 @@
   "power.suspendOff": "غیر فعال",
   "power.uptime": "%1 سے چالو",
   "strip.caughtUp": "سب دیکھ لیا",
+  "strip.dateFormat": "ddd، d MMM",
   "strip.desktop": "ڈیسک ٹاپ",
   "strip.notifications": {
     "one": "%1 اطلاع",

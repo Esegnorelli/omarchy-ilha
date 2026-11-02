@@ -107,6 +107,8 @@ Item {
     height: implicitHeight
 
     function tr(key) { return strip.strings ? strip.strings.t(key) : key }
+    // Ordem curta de dia da semana, dia e mês de cada idioma (padrão Qt).
+    readonly property string dateFormat: strip.strings ? strip.strings.t("strip.dateFormat", "ddd, d MMM") : "ddd, d MMM"
     // tr + arg, sem avisos enquanto o catálogo ainda não carregou.
     function fmt(key, a, b) {
         let text = tr(key)
@@ -577,7 +579,7 @@ Item {
 
             Text {
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "ddd, d MMM")
+                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, strip.dateFormat)
                 color: strip.muted
                 font.pixelSize: 10
                 font.letterSpacing: 0.2
@@ -1060,7 +1062,7 @@ Item {
 
             Text {
                 anchors.baseline: wideClock.baseline
-                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "ddd, d MMM")
+                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, strip.dateFormat)
                 textFormat: Text.PlainText
                 color: Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, 0.6)
                 font.family: strip.fontFamily

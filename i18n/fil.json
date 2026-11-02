@@ -169,6 +169,7 @@
   "power.suspendOff": "Naka-disable",
   "power.uptime": "Bukas nang %1",
   "strip.caughtUp": "Wala nang bago",
+  "strip.dateFormat": "ddd, MMM d",
   "strip.desktop": "Desktop",
   "strip.notifications": {
     "one": "%1 abiso",

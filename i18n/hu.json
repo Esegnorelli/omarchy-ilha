@@ -169,6 +169,7 @@
   "power.suspendOff": "Letiltva",
   "power.uptime": "Üzemidő: %1",
   "strip.caughtUp": "Nincs új",
+  "strip.dateFormat": "MMM d., ddd",
   "strip.desktop": "Asztal",
   "strip.notifications": {
     "one": "%1 értesítés",

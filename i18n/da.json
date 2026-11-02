@@ -169,6 +169,7 @@
   "power.suspendOff": "Slået fra",
   "power.uptime": "Oppe i %1",
   "strip.caughtUp": "Alt er set",
+  "strip.dateFormat": "ddd d. MMM",
   "strip.desktop": "Skrivebord",
   "strip.notifications": {
     "one": "%1 notifikation",

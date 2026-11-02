@@ -175,6 +175,7 @@
   "power.suspendOff": "Disattivato",
   "power.uptime": "Attivo da %1",
   "strip.caughtUp": "Tutto letto",
+  "strip.dateFormat": "ddd d MMM",
   "strip.desktop": "Desktop",
   "strip.notifications": {
     "one": "%1 notifica",

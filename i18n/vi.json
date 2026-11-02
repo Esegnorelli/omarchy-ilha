@@ -163,6 +163,7 @@
   "power.suspendOff": "Đã tắt",
   "power.uptime": "Đã chạy %1",
   "strip.caughtUp": "Đã xem hết",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Màn hình nền",
   "strip.notifications": {
     "other": "%1 thông báo"

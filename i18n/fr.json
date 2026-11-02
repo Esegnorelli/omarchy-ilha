@@ -175,6 +175,7 @@
   "power.suspendOff": "Désactivée",
   "power.uptime": "Allumé depuis %1",
   "strip.caughtUp": "Rien de neuf",
+  "strip.dateFormat": "ddd d MMM",
   "strip.desktop": "Bureau",
   "strip.notifications": {
     "one": "%1 notification",

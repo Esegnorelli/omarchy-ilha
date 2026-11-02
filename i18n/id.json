@@ -163,6 +163,7 @@
   "power.suspendOff": "Nonaktif",
   "power.uptime": "Menyala %1",
   "strip.caughtUp": "Semua beres",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Desktop",
   "strip.notifications": {
     "other": "%1 notifikasi"

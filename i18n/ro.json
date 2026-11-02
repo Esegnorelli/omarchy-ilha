@@ -175,6 +175,7 @@
   "power.suspendOff": "Dezactivat",
   "power.uptime": "Pornit de %1",
   "strip.caughtUp": "Totul la zi",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Desktop",
   "strip.notifications": {
     "one": "%1 notificare",

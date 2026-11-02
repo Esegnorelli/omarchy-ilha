@@ -55,7 +55,9 @@ Item {
     // ---------- Player ----------
     readonly property var player: media ? media.mediaPlayer : null
     readonly property var players: media && media.mediaPlayers ? media.mediaPlayers : []
-    readonly property bool hasTrack: !!(media && media.hasMedia)
+    // Exige o player: na troca (um player some ou chega) hasMedia pode valer
+    // um instante antes de mediaPlayer existir.
+    readonly property bool hasTrack: !!(media && media.hasMedia && player)
     readonly property bool playing: !!(player && player.isPlaying)
     readonly property string title: hasTrack ? String(player.trackTitle || player.trackArtist || "") : ""
     readonly property string artist: hasTrack && player.trackTitle ? String(player.trackArtist || "") : ""

@@ -169,6 +169,7 @@
   "power.suspendOff": "முடக்கப்பட்டது",
   "power.uptime": "%1 இயக்கத்தில்",
   "strip.caughtUp": "எல்லாம் பார்த்தாயிற்று",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "டெஸ்க்டாப்",
   "strip.notifications": {
     "one": "%1 அறிவிப்பு",

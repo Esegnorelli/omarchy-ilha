@@ -175,6 +175,7 @@
   "power.suspendOff": "מושבת",
   "power.uptime": "פועל %1",
   "strip.caughtUp": "אין חדש",
+  "strip.dateFormat": "ddd, d בMMM",
   "strip.desktop": "שולחן עבודה",
   "strip.notifications": {
     "one": "התראה %1",

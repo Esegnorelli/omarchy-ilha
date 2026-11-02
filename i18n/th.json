@@ -163,6 +163,7 @@
   "power.suspendOff": "ปิดใช้งาน",
   "power.uptime": "เปิดมา %1",
   "strip.caughtUp": "ดูครบแล้ว",
+  "strip.dateFormat": "ddd d MMM",
   "strip.desktop": "เดสก์ท็อป",
   "strip.notifications": {
     "other": "แจ้งเตือน %1 รายการ"

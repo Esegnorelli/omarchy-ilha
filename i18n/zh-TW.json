@@ -163,6 +163,7 @@
   "power.suspendOff": "已停用",
   "power.uptime": "已運行 %1",
   "strip.caughtUp": "沒有新通知",
+  "strip.dateFormat": "M月d日 ddd",
   "strip.desktop": "桌面",
   "strip.notifications": {
     "other": "%1 則通知"

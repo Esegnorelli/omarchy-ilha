@@ -7,6 +7,9 @@ import qs.Commons as Commons
 // Se algum filho tem shape "round", a linha vira cápsulas + círculos: cada
 // round tem tileHeight de largura e as cápsulas dividem o resto; as letras
 // seguem a ordem dos filhos (Q W E R).
+// RTL: o x é explícito (não espelha sozinho), então layout() espelha a
+// posição; a ordem e as letras seguem a leitura (Q é o primeiro à direita).
+// As setas do PanelGrid andam pela posição na tela e viram junto.
 //
 // API pública:
 //   keyRow: int              -2 = automático (o PanelGrid conta as linhas com tecla), -1 = sem tecla, 0/1/2 = fixo
@@ -46,6 +49,8 @@ Item {
     property int autoKeyRow: -1
     readonly property int resolvedKeyRow: keyRow >= -1 ? keyRow : autoKeyRow
     readonly property bool keyable: true
+    // Espelhamento efetivo (herdado do Island em RTL).
+    readonly property bool rtl: LayoutMirroring.enabled
 
     default property alias tiles: holder.data
 
@@ -90,6 +95,8 @@ Item {
             if (c.visible) kids.push(c);
         }
         const h = row.tileHeight;
+        // x lógico (da borda inicial) para x na tela.
+        const place = (lx, w) => row.rtl ? row.width - lx - w : lx;
         // Cápsulas e círculos: round = h de largura, as cápsulas dividem o resto.
         if (kids.some(c => c.shape === "round")) {
             const rounds = kids.filter(c => c.shape === "round").length;
@@ -100,7 +107,7 @@ Item {
             for (let i = 0; i < kids.length; i++) {
                 const k = kids[i];
                 const w = k.shape === "round" ? h : capW;
-                k.x = x;
+                k.x = place(x, w);
                 k.y = 0;
                 k.width = w;
                 k.height = h;
@@ -122,9 +129,10 @@ Item {
         for (let i = 0; i < kids.length; i++) {
             const k = kids[i];
             const s = Math.min(spans[i], Math.max(1, n - c0));
-            k.x = row.metrics.colX(c0, n);
+            const w = row.metrics.spanWidth(s, n);
+            k.x = place(row.metrics.colX(c0, n), w);
             k.y = 0;
-            k.width = row.metrics.spanWidth(s, n);
+            k.width = w;
             k.height = h;
             if ("keyCol" in k) k.keyCol = c0 < n ? c0 : -1;
             if ("keySpan" in k) k.keySpan = s;
@@ -137,6 +145,7 @@ Item {
     onColumnsChanged: relayout()
     onTileHeightChanged: relayout()
     onWidthChanged: relayout()
+    onRtlChanged: relayout()
     Component.onCompleted: layout()
 
     // ---------- Legenda ----------

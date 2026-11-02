@@ -169,6 +169,7 @@
   "power.suspendOff": "Ανενεργή",
   "power.uptime": "Ενεργό %1",
   "strip.caughtUp": "Όλα ενημερωμένα",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Επιφάνεια",
   "strip.notifications": {
     "one": "%1 ειδοποίηση",

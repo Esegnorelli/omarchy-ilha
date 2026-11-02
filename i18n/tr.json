@@ -169,6 +169,7 @@
   "power.suspendOff": "Devre dışı",
   "power.uptime": "%1 süredir açık",
   "strip.caughtUp": "Hepsi bu kadar",
+  "strip.dateFormat": "d MMM ddd",
   "strip.desktop": "Masaüstü",
   "strip.notifications": {
     "one": "%1 bildirim",

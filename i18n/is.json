@@ -169,6 +169,7 @@
   "power.suspendOff": "Óvirkt",
   "power.uptime": "Uppi í %1",
   "strip.caughtUp": "Allt lesið",
+  "strip.dateFormat": "ddd, d. MMM",
   "strip.desktop": "Skjáborð",
   "strip.notifications": {
     "one": "%1 tilkynning",

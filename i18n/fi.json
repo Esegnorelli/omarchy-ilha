@@ -169,6 +169,7 @@
   "power.suspendOff": "Pois käytöstä",
   "power.uptime": "Päällä %1",
   "strip.caughtUp": "Ei uutta",
+  "strip.dateFormat": "ddd d.M.",
   "strip.desktop": "Työpöytä",
   "strip.notifications": {
     "one": "%1 ilmoitus",

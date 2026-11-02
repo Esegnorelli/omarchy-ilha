@@ -187,6 +187,7 @@
   "power.suspendOff": "Múchta",
   "power.uptime": "Ar siúl le %1",
   "strip.caughtUp": "Gach rud léite",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Deasc",
   "strip.notifications": {
     "one": "%1 fhógra",

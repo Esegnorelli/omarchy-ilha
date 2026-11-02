@@ -254,9 +254,13 @@ Item {
                 width: parent.width
                 height: 40
 
+                // x explícito não espelha sozinho: em RTL o mês anterior fica à
+                // direita (chevron_right) e o próximo à esquerda (chevron_left).
+                // As setas do PanelGrid seguem a posição na tela e PageUp/PageDown
+                // continuam anterior/próximo, então o teclado acompanha.
                 NavButton {
                     id: prevButton
-                    x: calendar.gridX
+                    x: root.rtl ? parent.width - calendar.gridX - width : calendar.gridX
                     anchors.verticalCenter: parent.verticalCenter
                     focusVisible: grid.focusVisible
                     icon: root.rtl ? "chevron_right" : "chevron_left"
@@ -265,7 +269,7 @@ Item {
                 }
                 NavButton {
                     id: nextButton
-                    x: parent.width - calendar.gridX - width
+                    x: root.rtl ? calendar.gridX : parent.width - calendar.gridX - width
                     anchors.verticalCenter: parent.verticalCenter
                     focusVisible: grid.focusVisible
                     icon: root.rtl ? "chevron_left" : "chevron_right"
@@ -426,7 +430,8 @@ Item {
                     NumberAnimation {
                         target: dayGrid
                         property: "shift"
-                        from: 14 * monthSwap.dir
+                        // Em RTL o próximo mês está à esquerda: entra pela esquerda.
+                        from: 14 * monthSwap.dir * (root.rtl ? -1 : 1)
                         to: 0
                         duration: Commons.Style.duration(220)
                         easing.type: Easing.Bezier

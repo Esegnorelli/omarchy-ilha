@@ -169,6 +169,7 @@
   "power.suspendOff": "নিষ্ক্রিয়",
   "power.uptime": "%1 ধরে চালু",
   "strip.caughtUp": "সব দেখা হয়েছে",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "ডেস্কটপ",
   "strip.notifications": {
     "one": "%1টি বিজ্ঞপ্তি",

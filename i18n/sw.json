@@ -169,6 +169,7 @@
   "power.suspendOff": "Imezimwa",
   "power.uptime": "Hai kwa %1",
   "strip.caughtUp": "Hakuna jipya",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Eneo-kazi",
   "strip.notifications": {
     "one": "Arifa %1",

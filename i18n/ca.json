@@ -175,6 +175,7 @@
   "power.suspendOff": "Desactivat",
   "power.uptime": "Encès fa %1",
   "strip.caughtUp": "Tot al dia",
+  "strip.dateFormat": "ddd, d MMM",
   "strip.desktop": "Escriptori",
   "strip.notifications": {
     "one": "%1 notificació",

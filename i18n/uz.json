@@ -169,6 +169,7 @@
   "power.suspendOff": "Oʻchirilgan",
   "power.uptime": "Ishlamoqda: %1",
   "strip.caughtUp": "Hammasi koʻrildi",
+  "strip.dateFormat": "ddd, d-MMM",
   "strip.desktop": "Ish stoli",
   "strip.notifications": {
     "one": "%1 ta bildirishnoma",

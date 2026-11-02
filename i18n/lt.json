@@ -175,6 +175,7 @@
   "power.suspendOff": "Išjungta",
   "power.uptime": "Veikia %1",
   "strip.caughtUp": "Viskas matyta",
+  "strip.dateFormat": "ddd, MMM d 'd'.",
   "strip.desktop": "Darbalaukis",
   "strip.notifications": {
     "one": "%1 pranešimas",
