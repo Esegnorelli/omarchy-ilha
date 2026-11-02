@@ -12,7 +12,7 @@ Ilha replaces the bar (`kinds: ["bar"]`, id `esegnorelli.ilha`). It is not a wid
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` switches the bar to Ilha. Omarchy asks you to confirm, because a plugin runs inside the long-lived shell. There is no extra package and no sudo: everything Ilha uses ships with Omarchy. `omarchy plugin add` only clones the repo and validates `manifest.json`, so Ilha finishes its own setup the first time it loads (`setup/setup.sh`, safe to run again). It writes `~/.local/state/omarchy/toggles/hypr/zz-ilha.lua`, which Omarchy loads at the end of the Hyprland config and which runs `hypr/init.lua` from the plugin: window transparency and the `Super+Z` binding. It checks the commands the panels call and reloads Hyprland only when something changed. Nothing in `~/.config/hypr` is edited.
+`--enable` switches the bar to Ilha. Omarchy asks you to confirm, because a plugin runs inside the long-lived shell. There is no extra package, no sudo, and no setup step: everything Ilha uses ships with Omarchy. `omarchy plugin add` only clones the repo and validates `manifest.json`, and that is all Ilha needs. It writes nothing outside its own folder.
 
 If the bar was hidden, show it again with `omarchy toggle bar`.
 
@@ -24,7 +24,7 @@ omarchy plugin update esegnorelli.ilha
 
 With no id, `omarchy plugin update` updates every git-managed plugin. It shows the diff and refuses to fast-forward over local edits.
 
-Omarchy keeps the previous Ilha in its QML cache after an update, so the new version would only show after a shell restart. Ilha notices that the version in `manifest.json` differs from the one running and restarts the shell once by itself (`omarchy-restart-shell`). When releasing, keep `builtVersion` in `Island.qml` equal to `version` in `manifest.json`.
+Omarchy keeps the previous Ilha in its QML cache, so after an update or a reinstall run `omarchy restart shell` to see the new version.
 
 ## Remove
 
@@ -34,7 +34,7 @@ Switch back to the default bar and keep Ilha installed:
 omarchy bar use omarchy.bar
 ```
 
-`uninstall.sh` does the same thing and also undoes the setup (`setup/setup.sh remove`). Run it before `omarchy plugin remove`; if you forget, the loader left behind does nothing once the plugin folder is gone.
+`uninstall.sh` does the same thing.
 
 Delete the checkout (the GitHub repo stays):
 
@@ -96,10 +96,10 @@ Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and networ
 - A click outside closes the panel.
 - Confirmations (reboot, power off, log out) turn the control red and read "Confirm?" for 4 seconds. A second press sooner than 350 ms is ignored.
 
-`Super+Z` opens and closes the last panel. Ilha registers it itself (`hypr/bindings.lua`); it is free in the default Omarchy bindings (`Super+Ctrl+Z` is zoom). If you already use `Super+Z`, setup leaves it alone. To pick another key, add it to `~/.config/hypr/bindings.lua`:
+Optional binding, in `~/.config/hypr/bindings.lua`. `Super+Z` is free in the default Omarchy bindings. `Super+Ctrl+Z` is zoom, so leave that one alone.
 
 ```lua
-o.bind("SUPER + ALT + Z", "Ilha", "omarchy-shell ilha toggle last")
+o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 ```
 
 ## Appearance
@@ -108,7 +108,7 @@ Estilo applies to the pill at the click. The system command still runs after tha
 
 - **Theme.** The pill reads that theme's `colors.toml` (your overlay, then the stock theme) and recolors immediately. `omarchy theme set` is debounced by 280 ms, so a fast series of clicks does not stack theme switches. Wallpaper, terminals, and borders follow the command. If the system theme never arrives, the pill returns to the theme that is actually current.
 - **Corners.** Rounded keeps the capsule (a panel caps the radius at 28) and rounds the windows with it. Sharp squares the shell, the inner controls, and the windows, including terminals. Theme uses the current Hyprland radius. A no-gap desktop does not flatten a rounded choice. `omarchy hyprland corners`.
-- **Glass.** Opaque is solid. Glassy paints the theme at 0.4 on the capsule and 0.58 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.34 and 0.42, just above the point where that blur cuts a hole. The rim light follows. Buttons, cards, chips, and the calendar use that same alpha, so a selected control does not turn into a solid plate. A floating workspace forces windows opaque; `hypr/transparency.lua`, loaded through the setup above, applies the choice again to every window after the floating setup, and does nothing while another bar is active. Glassy keeps terminals at full window opacity so their own glass background leaves the text sharp, and other windows use 0.75. `omarchy hyprland window transparency`.
+- **Glass.** Opaque is solid. Glassy paints the theme at 0.4 on the capsule and 0.58 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.34 and 0.42, just above the point where that blur cuts a hole. The rim light follows. Buttons, cards, chips, and the calendar use that same alpha, so a selected control does not turn into a solid plate. The same choice sets window opacity through Omarchy itself; Ilha adds no window rules. `omarchy hyprland window transparency`.
 - **Font.** The clicked family is used on the pill at once. `omarchy font set` still restarts the shell when it rewrites fontconfig.
 - **Motion.** The pill sizes with a critically damped spring, and fades are short. `omarchy toggle animations` off makes every change instant.
 - **Color source.** The pill uses `Commons.Color` only. There is no private palette.
@@ -154,8 +154,6 @@ A replacement bar can show installed widgets, but a third-party widget that need
 | `IconButton.qml`, `Icon.qml` | Button and Material Symbols icon |
 | `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Panels |
 | `i18n/` | English and Brazilian Portuguese |
-| `setup/setup.sh` | Setup Ilha runs when it loads; `remove` undoes it |
-| `hypr/` | Hyprland side: `init.lua` (entry), `transparency.lua`, `bindings.lua` |
 | `install.sh`, `uninstall.sh` | Optional helpers. Omarchy does not run them |
 
 A panel receives `active`, colors, `shell`, and `metrics`, and reports size with `implicitWidth` and `implicitHeight`. It can implement `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape`, and `focusFirst`.
