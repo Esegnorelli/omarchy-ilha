@@ -634,6 +634,23 @@ Item {
         onNoticeRequested: island.toggleNotice("")
     }
 
+    // ---- Transparência nas janelas: hypr/transparency.lua ----
+    // `omarchy plugin add` só clona; nada carrega o arquivo do plugin. O
+    // Omarchy carrega todo *.lua de toggles/hypr no fim da config, então a
+    // Ilha copia o arquivo para lá (só quando mudou) e o aplica já, sem
+    // recarregar o Hyprland. O arquivo só age enquanto a Ilha é a barra.
+    readonly property string transparencyHookSource: decodeURIComponent(String(Qt.resolvedUrl("hypr/transparency.lua")).replace(/^[a-z]+:\/\//, ""))
+    Process {
+        id: transparencyHook
+        running: true
+        command: ["sh", "-c",
+            "src=$1; dir=${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr; dst=$dir/zz-ilha-transparency.lua; "
+            + "[ -f \"$src\" ] || exit 0; cmp -s \"$src\" \"$dst\" && exit 0; "
+            + "mkdir -p \"$dir\" && cp -f \"$src\" \"$dst.tmp\" && mv -f \"$dst.tmp\" \"$dst\" || exit 1; "
+            + "command -v hyprctl >/dev/null && hyprctl eval \"dofile([[$dst]])\" >/dev/null 2>&1; exit 0",
+            "sh", island.transparencyHookSource]
+    }
+
     // ---- Barra escondida (omarchy toggle bar): flag bar-off ----
     Process {
         id: hiddenProbe

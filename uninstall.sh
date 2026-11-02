@@ -4,3 +4,5 @@
 set -euo pipefail
 
 omarchy bar use omarchy.bar
+# The window transparency hook Ilha copied; it is inert without Ilha anyway.
+rm -f "${XDG_STATE_HOME:-$HOME/.local/state}/omarchy/toggles/hypr/zz-ilha-transparency.lua"
