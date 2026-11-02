@@ -596,7 +596,10 @@ Item {
         })
     }
 
-    Component.onCompleted: panelScreen = focusedScreenName()
+    Component.onCompleted: {
+        panelScreen = focusedScreenName()
+        setupProc.running = true
+    }
 
     Timer {
         id: osdTimer
@@ -640,12 +643,22 @@ Item {
     // do Hyprland (transparência nas janelas, Super+Z), confere dependências
     // e recarrega o Hyprland só quando algo mudou.
     readonly property string setupScript: decodeURIComponent(String(Qt.resolvedUrl("setup/setup.sh")).replace(/^[a-z]+:\/\//, ""))
+    // Começa em Component.onCompleted, com o caminho já resolvido. Se a URL
+    // vier num formato inesperado, cai na pasta padrão de plugins.
     Process {
         id: setupProc
-        running: true
-        command: ["bash", island.setupScript]
+        command: ["bash", "-c",
+            "s=$1; [ -f \"$s\" ] || s=$HOME/.config/omarchy/plugins/esegnorelli.ilha/setup/setup.sh; exec bash \"$s\"",
+            "ilha-setup", island.setupScript]
+        stdout: SplitParser {
+            onRead: line => console.log(String(line))
+        }
         stderr: SplitParser {
             onRead: line => console.log(String(line))
+        }
+        onExited: (code, status) => {
+            if (code !== 0)
+                console.warn("ilha-setup: saiu com código " + code + " (" + island.setupScript + ")")
         }
     }
 
