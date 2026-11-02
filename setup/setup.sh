@@ -3,8 +3,8 @@
 # carrega (Island.qml), porque `omarchy plugin add` só clona e valida: não há
 # gancho de instalação. Pode rodar quantas vezes quiser.
 #
-#   setup.sh          instala ou atualiza
-#   setup.sh remove   desfaz (uninstall.sh chama isto)
+#   setup.sh [--loaded-version X]   instala ou atualiza
+#   setup.sh remove                 desfaz (uninstall.sh chama isto)
 #
 # O que faz:
 #   1. Grava ~/.local/state/omarchy/toggles/hypr/zz-ilha.lua, que o Omarchy
@@ -13,7 +13,20 @@
 #   2. Não registra Super+Z se você já usa essa tecla (marca no-bind).
 #   3. Confere os comandos de que os painéis dependem e avisa o que faltar.
 #   4. Recarrega o Hyprland só quando algo acima mudou.
+#   5. Com --loaded-version: se o manifest.json no disco tem outra versão, o
+#      shell está rodando a Ilha antiga da memória (o Omarchy não limpa o
+#      cache de QML ao recarregar plugins). Reinicia o shell uma vez.
 set -uo pipefail
+
+action=install
+loaded_version=""
+while (( $# > 0 )); do
+  case $1 in
+  remove) action=remove ;;
+  --loaded-version) loaded_version=${2:-}; shift ;;
+  esac
+  shift
+done
 
 PLUGIN_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 STATE_HOME=${XDG_STATE_HOME:-$HOME/.local/state}
@@ -33,9 +46,9 @@ reload_hyprland() {
   have_hyprland && hyprctl reload >/dev/null 2>&1
 }
 
-if [[ ${1:-} == "remove" ]]; then
+if [[ $action == remove ]]; then
   # Também apaga o nome antigo, de quando só a transparência era copiada.
-  rm -f "$LOADER" "$TOGGLES_DIR/zz-ilha-transparency.lua" "$STAMP" "$NO_BIND"
+  rm -f "$LOADER" "$TOGGLES_DIR/zz-ilha-transparency.lua" "$STAMP" "$NO_BIND" "$ILHA_STATE/restarted-for"
   rmdir "$ILHA_STATE" 2>/dev/null
   reload_hyprland
   exit 0
@@ -96,6 +109,18 @@ if [[ ! -f $STAMP || $(<"$STAMP") != "$stamp" ]]; then
   if reload_hyprland; then
     printf '%s' "$stamp" >"$STAMP"
     log "Hyprland recarregado com a config da Ilha"
+  fi
+fi
+
+# 5. Versão em memória diferente da do disco: reinicia o shell, uma vez por
+# versão. Quem reinicia é o Hyprland, porque este script morre com o shell.
+if [[ -n $loaded_version ]] && command -v jq >/dev/null 2>&1; then
+  disk_version=$(jq -r '.version // empty' "$PLUGIN_DIR/manifest.json" 2>/dev/null)
+  marker=$ILHA_STATE/restarted-for
+  if [[ -n $disk_version && $disk_version != "$loaded_version" && $(cat "$marker" 2>/dev/null) != "$disk_version" ]]; then
+    printf '%s' "$disk_version" >"$marker"
+    log "versão $disk_version instalada, $loaded_version em memória; reiniciando o shell"
+    have_hyprland && hyprctl dispatch 'hl.dsp.exec_cmd("omarchy-restart-shell")' >/dev/null 2>&1
   fi
 fi
 exit 0

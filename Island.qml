@@ -642,14 +642,17 @@ Item {
     // A Ilha roda o próprio setup ao carregar (é idempotente): liga a config
     // do Hyprland (transparência nas janelas, Super+Z), confere dependências
     // e recarrega o Hyprland só quando algo mudou.
+    // Versão deste código. Tem de ser igual a "version" no manifest.json:
+    // o setup compara as duas para saber se o shell ainda roda a Ilha antiga.
+    readonly property string builtVersion: "1.2.0"
     readonly property string setupScript: decodeURIComponent(String(Qt.resolvedUrl("setup/setup.sh")).replace(/^[a-z]+:\/\//, ""))
     // Começa em Component.onCompleted, com o caminho já resolvido. Se a URL
     // vier num formato inesperado, cai na pasta padrão de plugins.
     Process {
         id: setupProc
         command: ["bash", "-c",
-            "s=$1; [ -f \"$s\" ] || s=$HOME/.config/omarchy/plugins/esegnorelli.ilha/setup/setup.sh; exec bash \"$s\"",
-            "ilha-setup", island.setupScript]
+            "s=$1; [ -f \"$s\" ] || s=$HOME/.config/omarchy/plugins/esegnorelli.ilha/setup/setup.sh; exec bash \"$s\" --loaded-version \"$2\"",
+            "ilha-setup", island.setupScript, island.builtVersion]
         stdout: SplitParser {
             onRead: line => console.log(String(line))
         }

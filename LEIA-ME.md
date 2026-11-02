@@ -24,6 +24,8 @@ omarchy plugin update esegnorelli.ilha
 
 Sem id, `omarchy plugin update` atualiza todo plugin instalado por git. Ele mostra o diff e não avança por cima de edições locais.
 
+Depois de uma atualização o Omarchy guarda a Ilha antiga no cache de QML, e a versão nova só apareceria reiniciando o shell. A Ilha percebe que a versão do `manifest.json` é diferente da que está rodando e reinicia o shell uma vez sozinha (`omarchy-restart-shell`). Ao lançar uma versão, mantenha `builtVersion` no `Island.qml` igual a `version` no `manifest.json`.
+
 ## Remover
 
 Voltar para a barra padrão e manter a Ilha instalada:

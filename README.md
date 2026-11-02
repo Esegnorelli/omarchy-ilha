@@ -24,6 +24,8 @@ omarchy plugin update esegnorelli.ilha
 
 With no id, `omarchy plugin update` updates every git-managed plugin. It shows the diff and refuses to fast-forward over local edits.
 
+Omarchy keeps the previous Ilha in its QML cache after an update, so the new version would only show after a shell restart. Ilha notices that the version in `manifest.json` differs from the one running and restarts the shell once by itself (`omarchy-restart-shell`). When releasing, keep `builtVersion` in `Island.qml` equal to `version` in `manifest.json`.
+
 ## Remove
 
 Switch back to the default bar and keep Ilha installed:
