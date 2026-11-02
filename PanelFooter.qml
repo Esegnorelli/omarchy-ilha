@@ -2,8 +2,9 @@ import QtQuick
 import qs.Commons as Commons
 
 // Rodapé de 20 px de todo painel (spec §3.1): estado à esquerda, dicas de
-// teclado à direita, 11 px na fonte do tema: estado em muted, dicas em fg a 45%.
-// As dicas cedem espaço ao estado.
+// teclado à direita, 11 px na fonte do tema: estado em metrics.textSecondary,
+// dicas em fg a 55%. As dicas cedem espaço ao estado (ficam com pelo menos 45%
+// da largura) e cortam no fim, com um respiro fixo (hintGap) entre os dois.
 //
 // API pública:
 //   status: string    estado ao vivo ("Bateria 82% · carregando", "Pronto"…)
@@ -23,6 +24,9 @@ Item {
     property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
+    // Respiro entre o estado e as dicas: os dois nunca encostam.
+    readonly property int hintGap: 24
+
     implicitWidth: metrics.content
     implicitHeight: metrics.footer
     width: implicitWidth
@@ -33,14 +37,14 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: 2
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, footer.width - 2 - (hintsText.text !== "" ? Math.min(hintsText.implicitWidth, footer.width * 0.55) + 16 : 0))
+        width: Math.max(0, Math.min(implicitWidth, footer.width - 4 - (hintsText.text !== "" ? Math.min(hintsText.implicitWidth, footer.width * 0.55) + footer.hintGap : 0)))
         text: footer.status
         textFormat: Text.PlainText
         font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText
         font.weight: footer.alert ? Font.DemiBold : Font.Normal
         elide: Text.ElideRight
-        color: footer.alert ? footer.danger : footer.muted
+        color: footer.alert ? footer.danger : footer.metrics.textSecondary
         Behavior on color { ColorAnimation { duration: Commons.Style.duration(footer.metrics.msState); easing.type: Easing.OutCubic } }
     }
 
@@ -49,13 +53,14 @@ Item {
         anchors.right: parent.right
         anchors.rightMargin: 2
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, footer.width - statusText.width - 18)
+        width: Math.max(0, Math.min(implicitWidth, footer.width - 4 - (statusText.text !== "" ? statusText.width + footer.hintGap : 0)))
         horizontalAlignment: Text.AlignRight
         text: footer.hints
         textFormat: Text.PlainText
         font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText
-        elide: Text.ElideLeft
-        color: Qt.rgba(footer.fg.r, footer.fg.g, footer.fg.b, 0.45)
+        // Corta no fim: o começo da dica é o que importa ("Q–F alternar…").
+        elide: Text.ElideRight
+        color: Qt.rgba(footer.fg.r, footer.fg.g, footer.fg.b, 0.55)
     }
 }

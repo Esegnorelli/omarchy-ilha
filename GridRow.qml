@@ -182,7 +182,7 @@ Item {
                 font.pixelSize: row.metrics.captionText
                 font.weight: row.captionStatusAlert ? Font.DemiBold : Font.Normal
                 elide: Text.ElideRight
-                color: row.captionStatusAlert ? row.danger : row.muted
+                color: row.captionStatusAlert ? row.danger : row.metrics.textSecondary
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(row.metrics.msState); easing.type: Easing.OutCubic } }
             }
         }

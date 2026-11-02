@@ -9,7 +9,8 @@ import qs.Commons as Commons
 // mais): círculo fg a 10% (16% no hover) e ícone com opacidade cheia.
 //
 // API pública: icon, label, highlighted, solid, size (36), iconSize (20), fg, accent,
-// muted, fontFamily, readonly hovered, readonly pressed; sinal tapped().
+// muted, fontFamily, metrics (legenda em metrics.textSecondary), readonly hovered,
+// readonly pressed; sinal tapped().
 Item {
     id: button
 
@@ -30,6 +31,7 @@ Item {
     property string caption: ""
     property color muted: Commons.Color.muted
     property string fontFamily: Commons.Style.fontFamily
+    property Metrics metrics: Metrics {}
 
     readonly property bool hovered: hoverHandler.hovered
     readonly property bool pressed: tapHandler.pressed
@@ -89,7 +91,7 @@ Item {
         font.family: button.fontFamily
         font.pixelSize: 9
         font.weight: Font.DemiBold
-        color: button.highlighted ? button.accent : button.muted
+        color: button.highlighted ? button.accent : button.metrics.textSecondary
         opacity: button.caption !== "" ? 1 : 0
         Behavior on opacity {
             NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }

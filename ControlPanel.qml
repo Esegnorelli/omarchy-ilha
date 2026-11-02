@@ -14,6 +14,9 @@ import qs.Commons as Commons
 //   A Bluetooth* · S Modo jogo · D Luz noturna · F Animações
 //     (* sem Wi-Fi a vaga vira Proteção de tela; sem Bluetooth, Suspensão)
 //   Ligado acende só o círculo do ícone em accent; o corpo fica neutro.
+//   Wi-Fi com o rádio ligado e sem rede (e Bluetooth ligado sem aparelho
+//   conectado) fica em standby: véu de accent no círculo e o ícone em accent,
+//   para não parecer conectado.
 //   Som: LabeledRow "bar" de 80 px (−/= ±5%, M mudo; tocar no ícone = mudo;
 //     › ou Enter na barra abre a subpágina Som: saídas e entrada)
 //   Rede: InfoRow (interface · tipo, IPv4) com C QR do Wi-Fi* e V Velocidade
@@ -118,6 +121,8 @@ Item {
     readonly property bool hasWifi: wifiDevice !== null
     readonly property bool wifiOn: Networking.wifiEnabled
     readonly property string wifiSsid: wifiNetwork && wifiNetwork.name ? String(wifiNetwork.name) : ""
+    // Conectado de fato (o rádio ligado sozinho não conta).
+    readonly property bool wifiLinked: wifiNetwork !== null || (wifiDevice !== null && wifiDevice.connected === true)
 
     // Cabo tem prioridade quando os dois estão ligados (rota padrão).
     readonly property string netKind: {
@@ -720,6 +725,8 @@ Item {
                 shape: "capsule"
                 kind: "toggle"
                 on: root.wifiOn
+                // Rádio ligado sem rede: véu de accent, não o círculo sólido.
+                standby: root.wifiOn && !root.wifiLinked
                 icon: root.wifiOn ? "wifi" : "wifi_off"
                 label: strings.t("control.wifi")
                 sublabel: !root.wifiOn ? strings.t("control.off")
@@ -778,6 +785,8 @@ Item {
                 shape: "capsule"
                 kind: "toggle"
                 on: root.btOn
+                // Ligado sem nenhum aparelho conectado: o mesmo standby do Wi-Fi.
+                standby: root.btOn && root.btConnected === 0
                 icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
                 label: strings.t("control.bluetooth")
                 sublabel: !root.btOn ? strings.t("control.off")
@@ -915,6 +924,7 @@ Item {
                 fg: root.fg
                 accent: root.accent
                 fontFamily: root.fontFamily
+                metrics: root.metrics
                 onTapped: root.page = ""
             }
             Text {
@@ -1020,8 +1030,7 @@ Item {
                     textFormat: Text.PlainText
                     font.family: root.fontFamily
                     font.pixelSize: 13
-                    color: root.fg
-                    opacity: 0.38
+                    color: root.metrics.textSecondary
                 }
             }
         }

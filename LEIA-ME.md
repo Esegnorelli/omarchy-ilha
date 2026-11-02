@@ -50,12 +50,12 @@ A pílula flutua a 12 px da borda de cima, na camada de overlay, e não reserva 
 
 | Estado | O que está na pílula |
 |---|---|
-| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Se algo estiver ligado (gravação, Não perturbe, manter acordado, lembrete…), uma marca fica junto da hora. |
-| Hover | Nível 1: o relógio fixo no centro, os pontos dos workspaces de um lado (o ativo é uma pílula na cor de destaque), barras de rede e bateria do outro. |
-| Hover parado | Nível 2, depois de uns 0,9 s de hover: a pílula alarga em três colunas. À esquerda, o app em foco sobre os pontos dos workspaces. No centro, um relógio grande sobre a data. À direita, o estado das notificações sobre rede e bateria. |
+| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Se algo estiver ligado (gravação, Não perturbe, manter acordado, lembrete…), uma marca fica junto da hora. Com música tocando e nada mais ligado, a marca são três barrinhas na cor de destaque. |
+| Hover | Nível 1: o relógio fixo no centro, os pontos dos workspaces de um lado (o ativo é uma pílula na cor de destaque), barras de rede e bateria do outro. Com música tocando, o elemento "tocando agora" (a capa, ou uma nota, e o título curto) fica antes dos pontos. |
+| Hover parado | Nível 2, depois de uns 0,9 s de hover: a pílula alarga em três colunas. À esquerda, o app em foco sobre os pontos dos workspaces. No centro, um relógio grande sobre a data. À direita, o estado das notificações sobre rede e bateria. Com uma faixa carregada (tocando ou pausada), a linha do app em foco vira "título — artista" com um botão pequeno de tocar/pausar. |
 | Painel | O mesmo objeto vira um painel. Não há linha de cabeçalho em cima dele. |
 
-O ponteiro na faixa central de cima (600 px) ou na própria pílula abre a linha. Parado ali, vem o nível 2. Ao sair, volta o relógio. Nada troca sozinho.
+São dois níveis de hover. O ponteiro na faixa central de cima (600 px) ou na própria pílula abre o nível 1, a linha. Parado ali por 900 ms, vem o nível 2. Ao sair, volta o relógio. Nada troca sozinho. O clique no elemento "tocando agora", nos dois níveis, abre a Mídia. Sem player, nenhuma parte da música aparece.
 
 | Lugar | Conteúdo | Toque |
 |---|---|---|
@@ -79,16 +79,17 @@ Todos usam a mesma grade de 4 colunas, a mesma largura e altura fixa, então a p
 | 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins. A busca de atualizações roda no máximo a cada 10 minutos e desiste depois de 30 segundos |
 | 6 | Energia | Uma fileira de botões quadrados arredondados, ícone e nome: bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
 | — | Plugins | Busca os plugins do shell. Enter liga ou desliga. Trocar a barra pede um segundo toque. A roda chega nele depois da Energia |
+| — | Mídia | O player MPRIS ativo (o serviço de mídia do Omarchy, quando existe). Capa, título, artista e álbum. Barra de progresso com o tempo decorrido e o total: clique ou arraste nela para pular, quando o player deixa. Anterior, tocar/pausar, próxima. Aleatório e repetir (desligado, lista, faixa) só quando o player suporta. Fichas para trocar de player quando há mais de um. Teclas: Espaço ou `K` tocar/pausar, `←`/`J` anterior, `→`/`L` próxima, `,` e `.` voltam ou avançam 10 s, `S` aleatório, `R` repetir, `P` próximo player. Sem nada tocando, mostra o vazio na mesma altura |
 | — | OSD | Volume, brilho e outros avisos enviados para a ilha |
 | — | Notificação | O clique no sino da linha abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Ela não aparece sozinha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
 
-Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede abrem o Controle, o relógio abre o Tempo, energia abre a Energia.
+Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede abrem o Controle, o relógio abre o Tempo, energia abre a Energia, mídia abre a Mídia.
 
 ## Mouse e teclado
 
-- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Para baixo avança. Para cima volta. O painel aberto não tem linha no topo, mas a roda na borda de cima dele continua trocando os painéis.
+- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, e a Mídia quando há uma faixa. Para baixo avança. Para cima volta. O painel aberto não tem linha no topo, mas a roda na borda de cima dele continua trocando os painéis.
 - Listas e controles deslizantes guardam a própria roda. O volume fica no Controle.
-- `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem.
+- `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem, com a Mídia só quando há uma faixa.
 - Setas movem o foco. Enter e Espaço ativam.
 - As letras seguem a grade: `Q W E R`, `A S D F`, `Z X C V`. A letra aparece no controle só no modo teclado ou no hover. O contorno de foco só aparece depois de navegar pelo teclado. As mesmas letras valem no QWERTY e no ABNT2.
 - No Estilo, `[` e `]` só destacam a fonte. Enter ou o clique aplicam. Fontes de ícones ficam fora da lista.
@@ -118,7 +119,7 @@ O modo jogo, no Controle, é outra ação. Ligar pode desligar animações, tira
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|last>
+omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|media|last>
 omarchy-shell ilha toggle <view|last>
 omarchy-shell ilha run <view> <tecla>   # exemplo: run calendar pgdn, run control q
 omarchy-shell ilha close
@@ -127,11 +128,11 @@ omarchy-shell ilha closeOsd
 omarchy-shell ilha state
 ```
 
-`open` e `toggle` abrem o painel e fecham se ele já estiver aberto. `state` imprime JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
+`open` e `toggle` abrem o painel e fecham se ele já estiver aberto. `open media` funciona mesmo sem nada tocando. `state` imprime JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
 
 ## Idiomas
 
-Os textos ficam em `i18n/en.json` e `i18n/pt-BR.json` e seguem Configuração → Idioma sem reiniciar o shell. O que faltar cai no inglês.
+A Ilha traz um catálogo em `i18n/` para cada idioma que o Omarchy oferece. Ela segue Configuração → Idioma ao vivo, sem reiniciar o shell, inclusive números e relógio. O que faltar cai no inglês. Idiomas da direita para a esquerda (árabe, persa, hebraico, urdu) espelham a ilha inteira. O relógio, as barras da rede, a bateria e o progresso e os botões de transporte da Mídia ficam da esquerda para a direita de propósito.
 
 ## Dependências
 
@@ -145,15 +146,15 @@ Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro 
 |---|---|
 | `manifest.json` | Id, versão e a entrada `bar` |
 | `Island.qml` | Uma janela por monitor, a pílula, os painéis e o IPC |
-| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, estado das notificações |
+| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, estado das notificações, tocando agora |
 | `Indicators.qml` | Marcas de status ao vivo |
 | `ContinuousRect.qml` | Cápsula e cartão |
 | `Metrics.qml` | Medidas da grade, raios, durações |
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Controle da grade e a letra |
 | `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Linhas, teclado, rodapé |
 | `IconButton.qml`, `Icon.qml` | Botão e ícone Material Symbols |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Painéis |
-| `i18n/` | Inglês e português do Brasil |
+| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `MediaPanel.qml`, `OsdView.qml` | Painéis |
+| `i18n/` | Um catálogo por idioma do Omarchy |
 | `install.sh`, `uninstall.sh` | Atalhos opcionais. O Omarchy não os executa |
 
 Um painel recebe `active`, as cores, `shell` e `metrics`, e informa o tamanho com `implicitWidth` e `implicitHeight`. Pode implementar `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape` e `focusFirst`.

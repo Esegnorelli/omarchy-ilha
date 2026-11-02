@@ -28,6 +28,14 @@ import "TileArm.js" as TileArm
 // (handleEscape do estado → fechar). keyboardMode liga ao abrir por IPC ou
 // atalho e na primeira tecla; mover o ponteiro mais de 8 px desliga.
 //
+// Música: o painel "media" (MediaPanel) lê o player da mesma fonte dos
+// indicadores (serviço omarchy.media do shell, senão MPRIS direto). Só entra
+// na roda e no Ctrl+Tab quando há uma faixa; por IPC abre sempre.
+//
+// RTL (ar, fa, he, ur): a superfície espelha tudo (LayoutMirroring herdado).
+// O que é x calculado aqui (o ponto do repouso) troca de lado à mão; o
+// relógio e o progresso da música ficam da esquerda para a direita.
+//
 // Contrato com o host (shell.qml do Omarchy): as propriedades injetadas,
 // o estado publicado (barHidden, barSize, screenBarSizes, fontFamily,
 // position, barSizeFor), os atalhos de painel (summonBarWidget e afins) e os
@@ -319,9 +327,11 @@ Item {
     // ---- Estados ----
     // Painel aberto: "" ou um destes.
     property string view: ""
-    readonly property var views: ["launcher", "control", "capture", "style", "tools", "calendar", "power", "plugins"]
-    // Ordem da faixa: 0 = Tempo, 1–6 = Apps … Energia. Plugins vem depois, só na roda.
-    readonly property var categoryOrder: ["calendar", "launcher", "control", "capture", "style", "tools", "power", "plugins"]
+    readonly property var views: ["launcher", "control", "capture", "style", "tools", "calendar", "power", "plugins", "media"]
+    // Ordem da faixa: 0 = Tempo, 1–6 = Apps … Energia. Plugins e Música vêm
+    // depois, só na roda (Música só com faixa).
+    readonly property var categoryOrder: ["calendar", "launcher", "control", "capture", "style", "tools", "power", "plugins", "media"]
+    readonly property bool rtl: Commons.I18n.rightToLeft
     // Monitor que mostra painéis, OSD e eventos (só um por vez).
     property string panelScreen: ""
 
@@ -335,7 +345,8 @@ Item {
         "omarchy.bluetooth": "control",
         "omarchy.network": "control",
         "omarchy.clock": "calendar",
-        "omarchy.power": "power"
+        "omarchy.power": "power",
+        "omarchy.media": "media"
     })
 
     function focusedScreenName() {
@@ -414,7 +425,14 @@ Item {
         const at = categoryOrder.indexOf(view)
         const from = at < 0 ? categoryOrder.indexOf(lastView) : at
         const screen = screenName !== undefined && String(screenName) !== "" ? String(screenName) : panelScreen
-        show(categoryOrder[((from + step) % n + n) % n], screen)
+        // Música sem faixa fica fora da volta.
+        let next = from
+        for (let tries = 0; tries < n; tries++) {
+            next = ((next + step) % n + n) % n
+            if (categoryOrder[next] !== "media" || indicatorSource.hasMedia)
+                break
+        }
+        show(categoryOrder[next], screen)
     }
 
     // "Q", "shift+Q", "⇧Q", "enter", "pgdn"… → evento sintético para handleKey.
@@ -805,7 +823,9 @@ Item {
                 : "rest"
             readonly property bool revealed: mode !== "rest"
             // Ponto do repouso: só os estados ligados (notificação fica no sino).
-            readonly property bool dotVisible: !island.barHidden && indicatorSource.restDot
+            readonly property bool dotVisible: !island.barHidden && indicatorSource.restMark
+            // Só a música ligada: a marca vira um equalizador parado (três barras).
+            readonly property bool eqMark: !indicatorSource.restDot && indicatorSource.mediaPlaying
             // A pílula em repouso ganha 12 px com o ponto, para o par
             // ponto + relógio continuar no centro.
             readonly property real restPillWidth: island.restWidth + (dotVisible ? 12 : 0)
@@ -830,6 +850,7 @@ Item {
                 case "plugins": return pluginsSlot
                 case "calendar": return calendarSlot
                 case "power": return powerSlot
+                case "media": return mediaSlot
                 case "osd": return osdSlot
                 case "notice": return noticeSlot
                 default: return null
@@ -1103,6 +1124,12 @@ Item {
             Item {
                 id: surface
                 anchors.fill: parent
+                // RTL: a ilha inteira espelha (âncoras, Row, alinhamento do texto).
+                // Os x calculados não espelham; cada um decide o lado (ver o
+                // ponto do repouso e o OsdView), e o que deve ficar LTR desliga
+                // o espelho no próprio item.
+                LayoutMirroring.enabled: island.rtl
+                LayoutMirroring.childrenInherit: true
 
                 HoverHandler {
                     id: surfaceHover
@@ -1245,6 +1272,10 @@ Item {
                         height: island.restHeight
                         opacity: (!win.revealed && pill.atRest) || (win.mode === "hover" && !win.stripOn) ? 1 : 0
                         visible: opacity > 0
+                        // Posições calculadas à mão (o lado do ponto segue island.rtl):
+                        // o espelho automático fica desligado para não virar duas vezes.
+                        LayoutMirroring.enabled: false
+                        LayoutMirroring.childrenInherit: true
                         Behavior on opacity {
                             NumberAnimation { duration: Commons.Style.duration(pill.atRest ? 160 : 120); easing.type: Easing.OutCubic }
                         }
@@ -1253,7 +1284,8 @@ Item {
                             id: restClockText
                             anchors.centerIn: parent
                             // Com o ponto, o par ponto + relógio é que fica centrado.
-                            anchors.horizontalCenterOffset: win.dotVisible && !win.revealed ? 6 : 0
+                            // Em RTL o ponto vai para a direita e o relógio cede para a esquerda.
+                            anchors.horizontalCenterOffset: win.dotVisible && !win.revealed ? (island.rtl ? -6 : 6) : 0
                             text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
                             textFormat: Text.PlainText
                             font.family: island.fontFamily
@@ -1268,16 +1300,47 @@ Item {
                         }
 
                         // Indicador ativo (gravando, Não perturbe…): ponto na cor do aviso.
-                        Rectangle {
+                        // Só música tocando: três barrinhas paradas no destaque.
+                        // x calculado: do lado de fora do relógio, à esquerda (à direita em RTL).
+                        Item {
+                            id: restMark
                             anchors.verticalCenter: parent.verticalCenter
-                            x: restClockText.x - 12
-                            width: 6
-                            height: 6
-                            radius: 3
-                            color: indicatorSource.dotColor
+                            width: win.eqMark ? 8 : 6
+                            height: win.eqMark ? 10 : 6
+                            x: island.rtl ? restClockText.x + restClockText.width + 6
+                                : restClockText.x - 6 - width
                             opacity: win.dotVisible ? 1 : 0
                             Behavior on opacity {
                                 NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                            }
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                visible: !win.eqMark
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: indicatorSource.dotColor
+                            }
+
+                            Row {
+                                anchors.centerIn: parent
+                                visible: win.eqMark
+                                spacing: 1
+                                LayoutMirroring.enabled: false
+
+                                Repeater {
+                                    model: [6, 10, 7]
+
+                                    Rectangle {
+                                        required property int modelData
+                                        anchors.bottom: parent.bottom
+                                        width: 2
+                                        height: modelData
+                                        radius: 1
+                                        color: island.accent
+                                    }
+                                }
                             }
                         }
                     }
@@ -1334,6 +1397,10 @@ Item {
                             island.show(target, win.screenName)
                         }
                         onNoticeRequested: island.toggleNotice(win.screenName)
+                        onMediaRequested: {
+                            island.keyboardMode = false
+                            island.show("media", win.screenName)
+                        }
                         onPanelWheel: step => {
                             if (island.view === "")
                                 island.show("calendar", win.screenName)
@@ -1351,6 +1418,7 @@ Item {
                     StateSlot { id: pluginsSlot; hostWindow: win; hostIsland: island; name: "plugins"; source: "PluginsMenu.qml" }
                     StateSlot { id: calendarSlot; hostWindow: win; hostIsland: island; name: "calendar"; source: "CalendarView.qml" }
                     StateSlot { id: powerSlot; hostWindow: win; hostIsland: island; name: "power"; source: "PowerMenu.qml" }
+                    StateSlot { id: mediaSlot; hostWindow: win; hostIsland: island; name: "media"; source: "MediaPanel.qml" }
                     StateSlot { id: osdSlot; hostWindow: win; hostIsland: island; name: "osd"; source: "OsdView.qml" }
                     StateSlot { id: noticeSlot; hostWindow: win; hostIsland: island; name: "notice"; source: "NoticeView.qml" }
 
@@ -1457,7 +1525,7 @@ Item {
     //
     // Contrato (tudo opcional além de active/closeRequested/navigate):
     //   entra:  active, fg, bg, accent, danger, shell, metrics, keyboardMode,
-//           checkUpdates
+//           checkUpdates, media (a fonte de música, Indicators)
     //           (payload no OSD)
     //   sai:    closeRequested(), navigate(target) = trocar de categoria,
     //           footerStatus, footerHints, footerAlert (lidos pelo rodapé),
@@ -1548,6 +1616,8 @@ Item {
             bindIfPresent(target, "checkUpdates", () => slot.hostIsland.checkUpdates)
             bindIfPresent(target, "fontFamily", () => slot.hostIsland.fontFamily)
             bindIfPresent(target, "screenSpan", () => slot.hostWindow.screen.width)
+            // A fonte de música é a mesma dos indicadores (uma só para os monitores).
+            bindIfPresent(target, "media", () => slot.hostIsland.sharedIndicators)
             if (slot.name === "osd")
                 bindIfPresent(target, "payload", () => slot.hostIsland.osdPayload)
             if (slot.name === "notice")

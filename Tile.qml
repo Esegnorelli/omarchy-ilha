@@ -7,7 +7,8 @@ import "TileArm.js" as TileArm
 // lembretes".
 //
 // API pública:
-//   icon, label, sublabel: string    ícone Material Symbols, rótulo (12 DemiBold), sublinha (11 muted)
+//   icon, label, sublabel: string    ícone Material Symbols, rótulo (12 DemiBold, uma linha que
+//                                    encolhe até 10 px antes de cortar), sublinha (11 metrics.textSecondary)
 //   detail: string                   3ª linha opcional; com ela o layout vira ícone à esquerda (tiles largos)
 //   detailMono: bool                 detail em monospace (padrão: a fonte do tema)
 //   trailingIcon: string             ícone 18 muted à direita; com ele o card usa o layout largo
@@ -20,6 +21,8 @@ import "TileArm.js" as TileArm
 //                                    só tone: "danger" pinta o card inteiro.
 //                                    Capsule, round e iconFace: só o círculo do ícone acende.
 //   tone: "accent" | "danger"        cor do estado ligado (círculo, disco ou card danger)
+//   standby: bool                    ligado mas parado (Wi-Fi sem rede): com on, o círculo
+//                                    fica em accent a 22% e o ícone em accent, em vez de sólido
 //   busy: bool                       sublinha "Aplicando…", 60%, não ativa
 //   spinIcon: bool                   o ícone gira (1,2 s por volta) enquanto visível
 //   available: bool                  false = 35% (45% no rosto de ícone), sublinha = unavailableText, não ativa
@@ -65,6 +68,7 @@ Item {
     property string shape: "card"
     property bool on: false
     property string tone: "accent"
+    property bool standby: false
     property bool busy: false
     property bool spinIcon: false
     property bool available: true
@@ -193,13 +197,17 @@ Item {
     readonly property bool fillsWhole: shape === "card" && !iconFace
     readonly property bool wholeOn: on && !_armed && fillsWhole && tone === "danger"
     readonly property bool cardOn: on && !_armed && fillsWhole && !wholeOn
-    readonly property bool roundOn: on && !_armed && shape === "round"
+    readonly property bool roundOn: on && !_armed && shape === "round" && !standby
     readonly property color toneColor: tone === "danger" ? danger : accent
+    // Ligado parado: o círculo acende só um véu da cor, o ícone fica na cor.
+    readonly property bool standbyOn: on && standby && !_armed
+    readonly property color standbyColor: Qt.rgba(toneColor.r, toneColor.g, toneColor.b, hot ? 0.28 : 0.22)
     readonly property real neutralAlpha: focusShown || pressedNow ? metrics.alphaPressed
                                          : hot ? metrics.alphaHover : metrics.alphaIdle
     readonly property color fillColor: {
         if (_armed) return Qt.rgba(danger.r, danger.g, danger.b, 0.2);
         if (shape === "round") {
+            if (standbyOn) return standbyColor;
             if (on) return hot ? Qt.lighter(toneColor, 1.08) : toneColor;
             return Qt.rgba(fg.r, fg.g, fg.b, focusShown || pressedNow ? 0.18 : hot ? 0.16 : 0.10);
         }
@@ -213,7 +221,7 @@ Item {
     readonly property bool solidInk: wholeOn || roundOn
     readonly property color ink: solidInk ? bg : fg
     readonly property color subInk: solidInk ? Qt.rgba(bg.r, bg.g, bg.b, 0.78)
-                                   : _armed ? danger : muted
+                                   : _armed ? danger : metrics.textSecondary
     readonly property color iconInk: _armed ? danger
                                    : solidInk ? bg
                                    : cardOn ? toneColor
@@ -224,8 +232,8 @@ Item {
                                         : iconFace ? metrics.cardRadius : metrics.tileRadius)
     // Círculo do ícone da cápsula (44 px num tile de 60).
     readonly property real circle: Math.max(0, height - 16)
-    readonly property color circleColor: _armed ? danger : on ? toneColor : Qt.rgba(fg.r, fg.g, fg.b, 0.10)
-    readonly property color circleInk: _armed || on ? bg : fg
+    readonly property color circleColor: _armed ? danger : standbyOn ? standbyColor : on ? toneColor : Qt.rgba(fg.r, fg.g, fg.b, 0.10)
+    readonly property color circleInk: standbyOn ? toneColor : _armed || on ? bg : fg
 
     readonly property string layoutKind: shape === "round" ? "round"
                                        : compact ? "compact"
@@ -297,6 +305,7 @@ Item {
                 height: 40
                 radius: tile.metrics.fit(20)
                 color: tile._armed ? Qt.rgba(tile.danger.r, tile.danger.g, tile.danger.b, 0.2)
+                       : tile.standbyOn ? tile.standbyColor
                        : tile.on ? tile.toneColor : Qt.rgba(tile.fg.r, tile.fg.g, tile.fg.b, 0.08)
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
 
@@ -304,7 +313,7 @@ Item {
                     anchors.centerIn: parent
                     name: tile.icon
                     size: tile.faceIconSize
-                    color: tile.on && !tile._armed ? tile.bg : tile.iconInk
+                    color: tile.standbyOn ? tile.toneColor : tile.on && !tile._armed ? tile.bg : tile.iconInk
                 }
 
                 // Contagem: pílula accent sólida no canto do disco.
@@ -339,6 +348,8 @@ Item {
                 font.family: tile.fontFamily
                 font.pixelSize: tile.metrics.tileSublabel
                 font.weight: Font.Medium
+                fontSizeMode: Text.HorizontalFit
+                minimumPixelSize: 11
                 elide: Text.ElideRight
                 color: tile._armed ? tile.danger : tile.ink
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
@@ -376,11 +387,12 @@ Item {
                     font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileLabel
                     font.weight: Font.DemiBold
-                    // Sem sublinha, um rótulo longo ("Área de transferência")
-                    // quebra em duas linhas em vez de cortar.
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: tile.shownSublabel === "" ? 2 : 1
-                    lineHeight: 0.95
+                    // Uma linha só, para todos os cartões da fileira terem a
+                    // mesma linha de base: um rótulo longo encolhe até 10 px
+                    // e só então corta.
+                    maximumLineCount: 1
+                    fontSizeMode: Text.HorizontalFit
+                    minimumPixelSize: 11
                     elide: Text.ElideRight
                     color: tile.ink
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
@@ -408,6 +420,8 @@ Item {
 
             TileIcon {
                 id: wideIcon
+                // Âncora (e não x implícito 0) para espelhar junto com a coluna em RTL.
+                anchors.left: parent.left
                 anchors.verticalCenter: parent.verticalCenter
                 width: tile.metrics.tileIcon + 4
                 height: tile.metrics.tileIcon + 4
@@ -472,7 +486,9 @@ Item {
 
             ContinuousRect {
                 id: capCircle
-                x: (tile.height - width) / 2
+                // Âncora (e não x) para espelhar junto com a coluna em RTL.
+                anchors.left: parent.left
+                anchors.leftMargin: (tile.height - width) / 2
                 anchors.verticalCenter: parent.verticalCenter
                 width: tile.circle
                 height: tile.circle
@@ -513,7 +529,7 @@ Item {
                     font.family: tile.fontFamily
                     font.pixelSize: 11
                     elide: Text.ElideRight
-                    color: tile._armed ? tile.danger : tile.muted
+                    color: tile._armed ? tile.danger : tile.metrics.textSecondary
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
                 }
             }
@@ -525,7 +541,7 @@ Item {
             anchors.centerIn: parent
             name: tile.icon
             size: 22
-            color: tile._armed ? tile.danger : tile.roundOn ? tile.bg : tile.fg
+            color: tile._armed ? tile.danger : tile.standbyOn ? tile.toneColor : tile.roundOn ? tile.bg : tile.fg
         }
 
         // ----- Layout compacto: linha única centrada, letra à direita -----
@@ -549,11 +565,15 @@ Item {
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, compactArea.width - 16 - (compactIcon.visible ? compactIcon.width + 6 : 0))
+                    // Segmentos estreitos ("Arredondado", "Transparente"):
+                    // encolhe até 10 px antes de cortar.
+                    width: Math.min(implicitWidth, compactArea.width - 8 - (compactIcon.visible ? compactIcon.width + 6 : 0))
                     text: tile.shownLabel
                     textFormat: Text.PlainText
                     font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileLabel
+                    fontSizeMode: Text.HorizontalFit
+                    minimumPixelSize: 11
                     font.weight: tile.filled ? Font.DemiBold : Font.Medium
                     elide: Text.ElideRight
                     color: tile._armed ? tile.danger : tile.ink
@@ -562,18 +582,24 @@ Item {
             }
         }
 
+        // No round a letra mora dentro do círculo, embaixo do ícone (e não
+        // na borda, onde sumia sobre o accent); a cor segue o preenchimento.
         KeyBadge {
             readonly property bool middle: tile.compact || tile.layoutKind === "capsule"
-            readonly property bool roundCorner: tile.layoutKind === "round"
-            anchors.right: parent.right
-            anchors.rightMargin: roundCorner ? 2 : tile.layoutKind === "capsule" ? 14 : tile.compact ? 8 : 9
-            anchors.top: middle ? undefined : parent.top
-            anchors.topMargin: roundCorner ? 2 : 9
+            readonly property bool inCircle: tile.layoutKind === "round"
+            anchors.right: inCircle ? undefined : parent.right
+            anchors.rightMargin: tile.layoutKind === "capsule" ? 14 : tile.compact ? 8 : 9
+            anchors.horizontalCenter: inCircle ? parent.horizontalCenter : undefined
+            anchors.top: middle || inCircle ? undefined : parent.top
+            anchors.topMargin: 9
+            // Sem âncora vertical no round: y põe a letra no pé do círculo.
+            y: inCircle ? parent.height - height - Math.max(2, Math.round(tile.height * 0.07)) : 0
             anchors.verticalCenter: middle ? parent.verticalCenter : undefined
             letter: tile.letter
             keyboardMode: tile.keyboardMode
             strong: tile.hot || tile.focusShown
-            onFill: tile.solidInk && !roundCorner
+            // Fora do modo teclado o round não mostra a letra só por estar ligado.
+            onFill: tile.solidInk && (!inCircle || tile.keyboardMode || strong)
             fg: tile.fg
             bg: tile.bg
             accent: tile.accent

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
@@ -14,6 +15,16 @@ import qs.Commons as Commons
 // Nível 2 (expanded, depois de ~1 s de hover): cápsula larga de três
 // colunas. Esquerda: app focado sobre os pontos. Centro: hora grande e data.
 // Direita: estado das notificações sobre rede e bateria.
+//
+// Música (MPRIS, via indicatorSource): tocando, o nível 1 ganha o elemento
+// "tocando agora" (capa ou nota + título curto) à esquerda dos pontos. No
+// nível 2, com faixa (tocando ou pausada), a linha do app focado vira
+// "título — artista" com um play/pausa pequeno. Tocar no elemento abre o
+// painel de música. Sem player, nada disso aparece.
+//
+// RTL: o Island espelha a ilha inteira (LayoutMirroring); aqui tudo é
+// âncora ou Row e vira sozinho. O relógio, as barras da rede e a bateria
+// ficam da esquerda para a direita de propósito.
 //
 // As três zonas de largura fixa só existem no caminho de menus, que está
 // fechado. Elas não desenham os seis destinos juntos.
@@ -38,6 +49,7 @@ import qs.Commons as Commons
 //   indicatorNavigate(target) indicador ou "+N" pediu um painel
 //   noticeRequested()         toque no sino / no estado das notificações
 //   panelWheel(step)          roda: +1 próximo painel, -1 o anterior
+//   mediaRequested()          toque no elemento de música (abre o painel)
 Item {
     id: strip
 
@@ -67,6 +79,15 @@ Item {
     signal noticeRequested()
     // Roda na linha: +1 próximo painel, -1 o anterior.
     signal panelWheel(int step)
+    signal mediaRequested()
+
+    // ---- Música (lida da fonte compartilhada) ----
+    readonly property bool hasMedia: !!(indicatorSource && indicatorSource.hasMedia)
+    readonly property bool mediaPlaying: !!(indicatorSource && indicatorSource.mediaPlaying)
+    readonly property string mediaTitle: indicatorSource ? indicatorSource.mediaTitle : ""
+    readonly property string mediaArtist: indicatorSource ? indicatorSource.mediaArtist : ""
+    readonly property string mediaArtUrl: indicatorSource ? indicatorSource.mediaArtUrl : ""
+    readonly property string mediaLine: mediaArtist !== "" ? mediaTitle + " — " + mediaArtist : mediaTitle
 
     // A faixa de hover não é um menu. Os seis destinos não aparecem nela.
     readonly property bool menus: false
@@ -864,8 +885,18 @@ Item {
             anchors.right: stateClock.left
             anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
+            spacing: 12
 
-            SpaceDots { host: strip }
+            // Tocando agora: capa pequena (ou a nota) e o título curto.
+            NowPlaying {
+                anchors.verticalCenter: parent.verticalCenter
+                host: strip
+                visible: strip.mediaPlaying
+                artSize: 18
+                textWidth: 100
+            }
+
+            SpaceDots { anchors.verticalCenter: parent.verticalCenter; host: strip }
         }
 
         Row {
@@ -903,7 +934,62 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 6
 
+            // Com faixa, a linha de cima é a música: título — artista e um
+            // play/pausa pequeno. Sem faixa, o app focado.
             Row {
+                visible: strip.hasMedia
+                spacing: 8
+
+                NowPlaying {
+                    anchors.verticalCenter: parent.verticalCenter
+                    host: strip
+                    artSize: 16
+                    // Até a hora grande do centro (≈ 228 px na cápsula de 640).
+                    textWidth: 136
+                    wide: true
+                }
+
+                Item {
+                    id: miniPlay
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 22
+                    height: 22
+
+                    Accessible.role: Accessible.Button
+                    Accessible.name: strip.tr(strip.mediaPlaying ? "media.pause" : "media.play")
+
+                    ContinuousRect {
+                        anchors.fill: parent
+                        radius: height / 2
+                        color: Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, miniPlayHover.hovered ? strip.metrics.alphaPressed : strip.metrics.alphaHover)
+                        Behavior on color {
+                            ColorAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                        }
+                    }
+
+                    Icon {
+                        anchors.centerIn: parent
+                        name: strip.mediaPlaying ? "pause" : "play_arrow"
+                        size: 15
+                        filled: true
+                        color: strip.fg
+                    }
+
+                    scale: miniPlayTap.pressed ? strip.metrics.pressScale : 1
+                    Behavior on scale {
+                        NumberAnimation { duration: Commons.Style.duration(120); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+                    }
+
+                    HoverHandler { id: miniPlayHover; cursorShape: Qt.PointingHandCursor }
+                    TapHandler {
+                        id: miniPlayTap
+                        onTapped: if (strip.indicatorSource) strip.indicatorSource.mediaAction("playPause")
+                    }
+                }
+            }
+
+            Row {
+                visible: !strip.hasMedia
                 spacing: 8
 
                 Item {
@@ -1036,6 +1122,103 @@ Item {
     // ---- Peças da linha (componentes: os dois níveis usam as mesmas) ----
     // Componentes inline não enxergam os ids de fora: tudo passa por host.
 
+    // Tocando agora: capa arredondada (ou a nota no destaque) e o título.
+    // "wide" mostra "título — artista". Tocar abre o painel de música.
+    component NowPlaying: Row {
+        id: np
+        property var host: null
+        property int artSize: 18
+        property int textWidth: 110
+        property bool wide: false
+        spacing: 6
+
+        Accessible.role: Accessible.Button
+        Accessible.name: np.host ? np.host.mediaLine : ""
+
+        Item {
+            anchors.verticalCenter: parent.verticalCenter
+            width: np.artSize
+            height: np.artSize
+
+            // Capa com canto contínuo (máscara), decodificada no tamanho em que é desenhada.
+            RoundedArt {
+                id: npArt
+                anchors.fill: parent
+                url: np.host ? np.host.mediaArtUrl : ""
+                radius: np.host ? np.host.metrics.fit(5) : 5
+                maskColor: np.host ? np.host.fg : "white"
+            }
+
+            Icon {
+                anchors.centerIn: parent
+                visible: !npArt.ready
+                name: "music_note"
+                size: np.artSize - 2
+                filled: true
+                color: np.host ? np.host.accent : "transparent"
+            }
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(implicitWidth, np.textWidth)
+            text: !np.host ? "" : np.wide ? np.host.mediaLine : np.host.mediaTitle
+            color: np.host ? np.host.fg : "transparent"
+            font.family: np.host ? np.host.fontFamily : ""
+            font.pixelSize: 13
+            font.weight: Font.Medium
+            horizontalAlignment: Text.AlignLeft
+            elide: Text.ElideRight
+            maximumLineCount: 1
+            textFormat: Text.PlainText
+        }
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: if (np.host) np.host.mediaRequested() }
+    }
+
+    // Imagem recortada num ContinuousRect (MultiEffect com máscara).
+    // "ready" só liga com a imagem carregada; antes disso fica o ícone.
+    component RoundedArt: Item {
+        id: art
+        property string url: ""
+        property real radius: 0
+        property color maskColor: "white"
+        readonly property bool ready: url !== "" && artImage.status === Image.Ready
+
+        Image {
+            id: artImage
+            anchors.fill: parent
+            visible: false
+            source: art.url
+            sourceSize.width: Math.ceil(art.width * 2)
+            sourceSize.height: Math.ceil(art.height * 2)
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            smooth: true
+            cache: true
+        }
+
+        ContinuousRect {
+            id: artMask
+            anchors.fill: parent
+            radius: art.radius
+            color: art.maskColor
+            visible: false
+            layer.enabled: art.ready
+        }
+
+        MultiEffect {
+            anchors.fill: parent
+            visible: art.ready
+            source: artImage
+            maskEnabled: true
+            maskSource: artMask
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1
+        }
+    }
+
     // Marcas de estado vivas (gravando, não perturbe, acordado…): tocar
     // desliga ou abre o dono. Até duas, nos dois níveis de hover.
     component StatusMarks: Row {
@@ -1164,6 +1347,8 @@ Item {
         Row {
             id: bars
             visible: !net.wired
+            // As barras crescem da esquerda para a direita também em RTL.
+            LayoutMirroring.enabled: false
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 1
             spacing: 2
@@ -1190,7 +1375,8 @@ Item {
     }
 
     // Bateria: contorno de 22 × 11, preenchimento sólido no destaque
-    // (urgente abaixo de 15% sem carregar) e o pino de 2 × 5.
+    // (urgente abaixo de 15% sem carregar) e o pino de 2 × 5. As posições são
+    // x fixos: em RTL a bateria continua com o pino à direita, de propósito.
     component BatteryGlyph: Item {
         id: batt
         property var host: null

@@ -7,9 +7,10 @@ import qs.Commons as Commons
 //
 // API pública:
 //   letter: string        letra mostrada ("" esconde)
-//   keyboardMode: bool    false = escondida (salvo strong/onFill), true = muted a 70%
+//   keyboardMode: bool    false = escondida (salvo strong/onFill), true = metrics.textKey
+//                         (muted um degrau e meio acima, para ler sobre o cartão)
 //   strong: bool          item focado ou com hover: letra em fg
-//   onFill: bool          item preenchido (ligado/armado): letra na cor do fundo
+//   onFill: bool          item preenchido (ligado/armado): letra na cor do fundo a 85%
 //   fg, bg, accent, muted cores do tema
 //   fontFamily            fonte do tema (o Tile repassa a do Estilo)
 //   metrics: Metrics
@@ -28,7 +29,10 @@ Item {
     property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
-    readonly property color ink: onFill ? bg : (strong ? fg : Qt.rgba(muted.r, muted.g, muted.b, 0.7))
+    // muted fica aqui por compatibilidade (quem usa ainda repassa); a letra
+    // em repouso lê metrics.textKey, que já parte do muted do tema.
+    readonly property color ink: onFill ? Qt.rgba(bg.r, bg.g, bg.b, 0.85)
+                                        : (strong ? fg : metrics.textKey)
     readonly property real level: onFill || strong || keyboardMode ? 1 : 0
 
     // A opacidade da raiz fica livre para quem usa (a Faixa anima a dela);
@@ -42,8 +46,8 @@ Item {
         text: badge.letter
         textFormat: Text.PlainText
         font.family: badge.fontFamily
-        font.pixelSize: 10
-        font.weight: Font.DemiBold
+        font.pixelSize: 11
+        font.weight: Font.Bold
         color: badge.ink
         opacity: badge.level
         Behavior on color { ColorAnimation { duration: Commons.Style.duration(badge.metrics.msState); easing.type: Easing.OutCubic } }

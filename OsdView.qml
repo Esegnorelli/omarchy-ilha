@@ -4,6 +4,8 @@ import qs.Commons as Commons
 // OSD como estado compacto da pílula. Desenha o mesmo payload do OSD do
 // Omarchy: {icon, message, value, progressText, max, duration}. Uma mensagem
 // esconde a barra de progresso, como no original.
+// RTL: tudo é âncora ou Row, então o espelho do Island vira a barra (enche
+// da direita) e põe o valor do outro lado.
 Item {
     id: root
 
@@ -172,9 +174,12 @@ Item {
                 }
             }
 
+            // Âncora, não x fixo: em RTL o preenchimento cresce da direita e o
+            // ícone vai junto (o Island espelha a ilha inteira).
             Icon {
                 anchors.verticalCenter: parent.verticalCenter
-                x: 8
+                anchors.left: parent.left
+                anchors.leftMargin: 8
                 visible: root.glyph !== ""
                 name: root.glyph
                 size: 16

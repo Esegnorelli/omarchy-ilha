@@ -8,7 +8,7 @@ import qs.Commons as Commons
 // fica em c4. A letra de cada botão é a da coluna onde começa.
 //
 // API pública:
-//   icon, title, detail: string   (detail em muted; textos externos sempre PlainText)
+//   icon, title, detail: string   (detail em metrics.textSecondary; textos externos sempre PlainText)
 //   alert: bool                   ícone em danger (por exemplo sem conexão)
 //   fontFamily: string            fonte do tema (repassada aos botões)
 //   keyRow: int                   -2 automático, -1, 0/1/2
@@ -156,7 +156,7 @@ Item {
                 font.family: info.fontFamily
                 font.pixelSize: info.metrics.tileSublabel
                 elide: Text.ElideRight
-                color: info.muted
+                color: info.metrics.textSecondary
             }
         }
     }

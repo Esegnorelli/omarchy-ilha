@@ -21,11 +21,17 @@ Item {
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
+    property color muted: Commons.Color.muted
 
     // O host liga enquanto este estado está visível.
     property bool active: false
     property bool keyboardMode: false
     property Metrics metrics: Metrics {}
+    // Texto secundário (sublinhas, legendas): o token compartilhado do
+    // Metrics, um passo mais claro que o muted; sem ele, o muted do tema.
+    readonly property var _tokens: metrics
+    readonly property color textSecondary: _tokens && _tokens.textSecondary !== undefined
+                                           ? _tokens.textSecondary : muted
 
     signal closeRequested()
     signal navigate(string target)
@@ -149,6 +155,7 @@ Item {
         bg: root.bg
         accent: root.accent
         danger: root.danger
+        muted: root.textSecondary
 
         // Linha Q W E: preserva a sessão.
         GridRow {

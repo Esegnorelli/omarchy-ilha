@@ -29,6 +29,18 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    // Texto de segundo plano (rótulos laterais, contagens, legendas): o muted
+    // um degrau acima, pelo token do Metrics. Com o par fg/muted daqui, para
+    // acompanhar a prévia do tema; sem o token, fica o muted.
+    readonly property color textSecondary: {
+        const m = root.metrics;
+        if (m && typeof m.secondaryOf === "function")
+            return m.secondaryOf(root.fg, root.muted);
+        const v = m ? m["textSecondary"] : undefined;
+        if (v !== undefined && v !== null && v !== "")
+            return v;
+        return root.muted;
+    }
 
     // O host liga enquanto este estado está visível; as leituras são refeitas ao ligar.
     property bool active: false
@@ -701,8 +713,26 @@ Item {
             font.pixelSize: 12
             font.weight: cap.statusStrong ? Font.DemiBold : Font.Normal
             elide: Text.ElideRight
-            color: cap.statusStrong ? root.fg : root.muted
+            color: cap.statusStrong ? root.fg : root.textSecondary
             Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+        }
+    }
+
+    // Máscara das bordas das faixas: opaca no meio e some em `edge` px nos
+    // dois lados. Com o MultiEffect (limiar 0.5, espalhamento 1) o degradê vira
+    // uma rampa suave; o cartão que sai pela borda esmaece em vez de ser cortado.
+    component EdgeMask: Rectangle {
+        id: edgeMask
+        property real edge: 56
+        readonly property real stop: Math.min(0.5, edge / Math.max(1, width))
+        visible: false
+        layer.enabled: true
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0) }
+            GradientStop { position: edgeMask.stop; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 1) }
+            GradientStop { position: 1 - edgeMask.stop; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 1) }
+            GradientStop { position: 1; color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0) }
         }
     }
 
@@ -925,7 +955,7 @@ Item {
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
-                color: picker.activeFocus && !(root.wallTyping && root.wallQuery === "") ? root.fg : root.muted
+                color: picker.activeFocus && !(root.wallTyping && root.wallQuery === "") ? root.fg : root.textSecondary
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
             }
             Text {
@@ -939,7 +969,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 13
                 elide: Text.ElideRight
-                color: root.muted
+                color: root.textSecondary
             }
             TapHandler { onTapped: picker.forceActiveFocus(Qt.MouseFocusReason) }
         }
@@ -953,7 +983,27 @@ Item {
             clip: true
 
             readonly property real centerX: width / 2
-            readonly property real step: picker.thumbW + picker.gap
+
+            // Escala por distância do centro, e o deslocamento que mantém o
+            // mesmo vão visível entre miniaturas de tamanhos diferentes: os
+            // vizinhos ficam simétricos em volta da escolhida.
+            function scaleAt(a) { return a === 0 ? 1 : a === 1 ? 0.82 : 0.68; }
+            function offsetFor(d) {
+                const a = Math.abs(d);
+                let off = 0;
+                for (let k = 1; k <= a; k++)
+                    off += picker.thumbW * (row.scaleAt(k - 1) + row.scaleAt(k)) / 2 + picker.gap;
+                return d < 0 ? -off : off;
+            }
+
+            // As bordas esmaecem em vez de cortar a miniatura que sai da faixa.
+            layer.enabled: true
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: rowMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1
+            }
 
             Repeater {
                 model: picker.listed
@@ -971,10 +1021,10 @@ Item {
 
                     width: picker.thumbW
                     height: picker.thumbH
-                    x: row.centerX + distance * row.step * (root.rtl ? -1 : 1) - width / 2
+                    x: row.centerX + row.offsetFor(distance) * (root.rtl ? -1 : 1) - width / 2
                     y: (row.height - height) / 2
                     z: 100 - absDistance
-                    scale: absDistance === 0 ? 1 : absDistance === 1 ? 0.82 : 0.68
+                    scale: row.scaleAt(absDistance)
                     transformOrigin: Item.Center
                     opacity: {
                         if (isActive || absDistance === 0) return 1;
@@ -1010,7 +1060,7 @@ Item {
                             visible: shot.status !== Image.Ready
                             name: thumb.entry && thumb.entry.video ? "movie" : "image"
                             size: 18
-                            color: root.muted
+                            color: root.textSecondary
                         }
                     }
                     ContinuousRect {
@@ -1069,8 +1119,16 @@ Item {
                 textFormat: Text.PlainText
                 font.family: root.fontFamily
                 font.pixelSize: 13
-                color: root.muted
+                color: root.textSecondary
             }
+        }
+        EdgeMask {
+            id: rowMask
+            x: row.x
+            y: row.y
+            width: row.width
+            height: row.height
+            edge: 56
         }
 
         // Rodapé: o arquivo da escolhida e a contagem.
@@ -1089,7 +1147,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 11
                 elide: Text.ElideMiddle
-                color: root.muted
+                color: root.textSecondary
             }
             Text {
                 id: countText
@@ -1103,7 +1161,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 11
                 font.features: ({ "tnum": 1 })
-                color: root.muted
+                color: root.textSecondary
             }
         }
 
@@ -1252,7 +1310,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 13
                 font.weight: Font.DemiBold
-                color: themes.activeFocus ? root.fg : root.muted
+                color: themes.activeFocus ? root.fg : root.textSecondary
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
             }
             Icon {
@@ -1262,7 +1320,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 name: "search"
                 size: 16
-                color: root.muted
+                color: root.textSecondary
             }
             Text {
                 anchors.left: searchIcon.right
@@ -1275,7 +1333,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 13
                 elide: Text.ElideRight
-                color: root.themeQuery !== "" ? root.fg : root.muted
+                color: root.themeQuery !== "" ? root.fg : root.textSecondary
                 opacity: root.themeQuery !== "" || root.themeTyping ? 1 : 0.7
             }
             KeyBadge {
@@ -1305,7 +1363,7 @@ Item {
                 font.family: root.fontFamily
                 font.pixelSize: 13
                 font.features: ({ "tnum": 1 })
-                color: root.muted
+                color: root.textSecondary
             }
             TapHandler { onTapped: themes.forceActiveFocus(Qt.MouseFocusReason) }
         }
@@ -1318,6 +1376,14 @@ Item {
             height: themes.cardH
             visible: !themes.gridMode
             clip: true
+            // As amostras que saem pela borda esmaecem em vez de serem cortadas.
+            layer.enabled: visible
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: carouselMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1
+            }
 
             Repeater {
                 model: themes.gridMode ? [] : themes.listed
@@ -1351,6 +1417,14 @@ Item {
                 }
             }
         }
+        EdgeMask {
+            id: carouselMask
+            x: carousel.x
+            y: carousel.y
+            width: carousel.width
+            height: carousel.height
+            edge: 64
+        }
 
         // Todos os temas: grade de 4 colunas que rola até o cursor.
         Flickable {
@@ -1370,7 +1444,9 @@ Item {
                 width: parent.width
                 columns: themes.columns
                 spacing: themes.gap
-                layoutDirection: root.rtl ? Qt.RightToLeft : Qt.LeftToRight
+                // RTL: o espelho herdado da ilha já inverte a grade; virar aqui
+                // de novo a deixaria LTR.
+                layoutDirection: Qt.LeftToRight
 
                 Repeater {
                     model: themes.gridMode ? themes.listed : []
@@ -1409,7 +1485,7 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: 13
             elide: Text.ElideRight
-            color: root.muted
+            color: root.textSecondary
         }
 
         WheelHandler {
@@ -1553,7 +1629,7 @@ Item {
                 bg: root.bg
                 accent: root.accent
                 danger: root.danger
-                muted: root.muted
+                muted: root.textSecondary
                 onPicked: value => root.setCorners(value)
             }
         }
@@ -1577,7 +1653,7 @@ Item {
             bg: root.bg
             accent: root.accent
             danger: root.danger
-            muted: root.muted
+            muted: root.textSecondary
             onPicked: value => root.setTransparency(value)
         }
 
@@ -1599,7 +1675,7 @@ Item {
             bg: root.bg
             accent: root.accent
             danger: root.danger
-            muted: root.muted
+            muted: root.textSecondary
             onPreviewed: value => root.pendingFont = value
             onPicked: value => {
                 root.pendingFont = "";

@@ -7,8 +7,9 @@ import qs.Commons as Commons
 //   Q Área de transferência · W Emojis · E Atalhos · R Menu do Omarchy
 //   A Notificações (histórico) · S Sobre · D Atualizações (largo, c3–c4)
 //   Z Plugins (largo): abre a lista do shell na própria ilha
-// O tile de atualizações sempre existe: "Verificando…", "Sistema em dia" ou
-// "N pendentes", e tocar roda a atualização (fecha a ilha antes).
+// O tile de atualizações sempre existe, no mesmo rosto de ícone dos outros:
+// gira enquanto verifica, acende com selo "N" quando há pendentes, e tocar
+// roda a atualização (fecha a ilha antes). O texto do estado vai no rodapé.
 // Rede foi para o Controle. O Tempo é só o calendário.
 //
 // Contrato com o host: active, fg/bg/accent/danger, shell, metrics,
@@ -22,11 +23,17 @@ Item {
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
+    property color muted: Commons.Color.muted
 
     // O host liga enquanto este estado está visível.
     property bool active: false
     property bool keyboardMode: false
     property Metrics metrics: Metrics {}
+    // Texto secundário (sublinhas, legendas): o token compartilhado do
+    // Metrics, um passo mais claro que o muted; sem ele, o muted do tema.
+    readonly property var _tokens: metrics
+    readonly property color textSecondary: _tokens && _tokens.textSecondary !== undefined
+                                           ? _tokens.textSecondary : muted
 
     // Fachada PluginShellApi do host. Não é usada aqui hoje, mas o host a
     // passa a todos os estados; pode ser null.
@@ -61,6 +68,7 @@ Item {
                                          : updatesChecking ? strings.t("tools.updates.checking")
                                          : hasUpdates ? fmt(strings.tn("tools.footer.updates", updateLines.length),
                                                             [Commons.I18n.formatNumber(updateLines.length)])
+                                         : updatesFailed ? strings.t("tools.updates.unknown")
                                          : updatesExit >= 0 ? strings.t("tools.updates.upToDate")
                                          : ""
     readonly property string footerHints: strings.t("hint.open")
@@ -147,8 +155,8 @@ Item {
     // A última verificação terminou sem resposta (erro ou tempo esgotado).
     property bool updatesFailed: false
 
-    // Deixa as linhas da verificação mais legíveis (e curtas: cabem na
-    // 3ª linha do tile largo).
+    // Deixa as linhas da verificação mais legíveis (e curtas: vão para a
+    // descrição acessível do tile).
     function describeUpdate(line) {
         let m = line.match(/^omarchy-dev-checkout\s+(\d+)\s+new\s+commits?\s+on\s+(\S+)/);
         if (m) {
@@ -207,6 +215,7 @@ Item {
         bg: root.bg
         accent: root.accent
         danger: root.danger
+        muted: root.textSecondary
 
         // Linha Q W E R: menus e seletores do Omarchy.
         GridRow {
@@ -262,23 +271,25 @@ Item {
                 closesIsland: true
                 onActivated: root.launch(["omarchy", "launch", "about"])
             }
+            // Mesmo rosto de ícone dos vizinhos (disco no centro, nome numa
+            // linha). O estado mora no disco (accent = há pendentes), no selo
+            // com a contagem e no rodapé; a sublinha fica para a acessibilidade.
             Tile {
                 span: 2
-                icon: root.hasUpdates ? "update" : root.firstCheck ? "sync" : "check_circle"
+                iconFace: true
+                icon: root.hasUpdates || root.updatesFailed ? "update" : root.firstCheck ? "sync" : "check_circle"
                 spinIcon: root.firstCheck
-                label: strings.t("tools.updates.title")
+                label: root.firstCheck ? strings.t("tools.updates.checkingShort") : strings.t("tools.updates.title")
                 on: root.hasUpdates
+                badgeText: !root.hasUpdates ? ""
+                           : root.updateLines.length > 9 ? "9+"
+                           : Commons.I18n.formatNumber(root.updateLines.length)
                 sublabel: root.firstCheck ? strings.t("tools.updates.checkingShort")
                           : root.hasUpdates ? root.fmt(strings.tn("tools.updates.pendingAction", root.updateLines.length),
                                                        [Commons.I18n.formatNumber(root.updateLines.length)])
+                                              + " · " + root.describeUpdate(root.updateLines[0])
                           : root.updatesFailed ? strings.t("tools.updates.unknown")
                           : strings.t("tools.updates.upToDate")
-                // 3ª linha: o que há para atualizar (monoespaçado) ou a dica;
-                // vazia só enquanto a primeira verificação roda.
-                detail: root.hasUpdates ? root.describeUpdate(root.updateLines[0])
-                        : root.firstCheck ? ""
-                        : strings.t("tools.updates.runHint")
-                detailMono: root.hasUpdates
                 closesIsland: true
                 // Mesmo caminho que o próprio Omarchy usa para atualizar.
                 onActivated: root.launch(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"])

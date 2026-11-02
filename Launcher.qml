@@ -3,8 +3,8 @@ import Quickshell
 import qs.Commons as Commons
 
 // Apps (spec §3.4): linha de busca de 40 px + 8 + lista de altura fixa
-// (6 linhas de 52 = 312; rola quando há mais). Sem resultado, o aviso fica
-// centrado no bloco. A altura nunca muda: 360.
+// (6 linhas de 46 = 276; rola quando há mais). Sem resultado, o aviso fica
+// centrado no bloco. A altura nunca muda: 324.
 //
 // Teclas no campo: ↑↓ e Tab/⇧Tab escolhem, ↵ abre, Esc limpa a busca
 // (o 2º Esc sobe para o host e fecha). Alt+dígito e Ctrl+Tab sobem para o
@@ -34,13 +34,25 @@ Item {
     property Metrics metrics: Metrics {}
     property bool keyboardMode: false
 
+    // Texto secundário (descrições): o tom do Metrics quando existir (alfa
+    // sobre fg ou cor pronta); sem ele, fg a 62%, um passo acima do muted.
+    readonly property color secondary: {
+        const v = root.metrics ? root.metrics["textSecondary"] : undefined;
+        if (typeof v === "number")
+            return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, v);
+        if (v !== undefined && v !== null && v !== "")
+            return v;
+        return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62);
+    }
+
     signal closeRequested()
     signal navigate(string target)
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
     readonly property int visibleRows: 6
-    readonly property int rowHeight: metrics.listRow
+    // Linha um pouco mais compacta que o listRow do Metrics (52 → 46).
+    readonly property int rowHeight: Math.max(40, metrics.listRow - 6)
     readonly property int searchHeight: 40
     readonly property int listHeight: visibleRows * rowHeight
 
@@ -249,8 +261,7 @@ Item {
             if (i >= 0) root.selectedIndex = i;
         }
 
-        // Seleção: placa neutra um pouco mais clara, com a barrinha de accent
-        // que desliza junto.
+        // Seleção: só uma placa neutra sutil, que desliza junto (sem barrinha).
         highlight: Item {
             width: list.width
             height: root.rowHeight
@@ -258,14 +269,6 @@ Item {
                 anchors.fill: parent
                 radius: root.metrics.rowRadius
                 color: root.metrics.plate(root.fg, root.metrics.alphaHover)
-            }
-            ContinuousRect {
-                x: 4
-                anchors.verticalCenter: parent.verticalCenter
-                width: 3
-                height: 16
-                radius: root.metrics.fit(1.5)
-                color: root.accent
             }
         }
 
@@ -292,16 +295,14 @@ Item {
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.launch(row.index) }
 
-            // Ícone do app numa placa de 36, como no desenho da lista.
-            ContinuousRect {
+            // Ícone do app solto, sem placa atrás.
+            Item {
                 id: iconBox
                 anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.leftMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
-                width: 36
-                height: 36
-                radius: root.metrics.fit(10)
-                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
+                width: 28
+                height: 28
 
                 readonly property string src: {
                     const v = String(row.modelData.icon || "");
@@ -314,8 +315,8 @@ Item {
                 Image {
                     id: img
                     anchors.centerIn: parent
-                    width: 22
-                    height: 22
+                    width: 24
+                    height: 24
                     source: iconBox.src
                     sourceSize.width: 44
                     sourceSize.height: 44
@@ -331,7 +332,7 @@ Item {
                     name: "apps"
                     size: 20
                     filled: row.selected
-                    color: root.fg
+                    color: root.secondary
                 }
             }
 
@@ -360,7 +361,7 @@ Item {
                     textFormat: Text.PlainText
                     text: String(row.modelData.genericName || row.modelData.comment || "")
                     visible: text.length > 0
-                    color: root.muted
+                    color: root.secondary
                     font.family: root.fontFamily
                     font.pixelSize: 11
                     elide: Text.ElideRight

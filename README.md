@@ -50,12 +50,12 @@ The pill floats 12 px from the top edge, on the overlay layer, and does not rese
 
 | State | What is on the pill |
 |---|---|
-| Rest | The clock, in a true capsule of 108 × 38. If something is on (recording, Do not disturb, stay awake, a reminder, …) a single mark sits with the time. |
-| Hover | Level 1: the clock fixed at the centre, workspace dots on one side (the active one is an accent pill), network bars and battery on the other. |
-| Hover, held | Level 2, after about 0.9 s of hover: the pill widens to three columns. Left, the focused app over the workspace dots. Centre, a big clock over the date. Right, the notification status over network and battery. |
+| Rest | The clock, in a true capsule of 108 × 38. If something is on (recording, Do not disturb, stay awake, a reminder, …) a single mark sits with the time. When music is playing and nothing else is on, the mark is three small accent bars. |
+| Hover | Level 1: the clock fixed at the centre, workspace dots on one side (the active one is an accent pill), network bars and battery on the other. While music plays, a now-playing element (the cover, or a note, and the short title) sits before the dots. |
+| Hover, held | Level 2, after about 0.9 s of hover: the pill widens to three columns. Left, the focused app over the workspace dots. Centre, a big clock over the date. Right, the notification status over network and battery. With a track loaded (playing or paused), the focused-app line becomes "title — artist" with a small play/pause button. |
 | Panel | The same object morphs into one panel. There is no header line on top of it. |
 
-Move the pointer into the top-center strip (600 px) or onto the pill to open the line. Keep it there and level 2 follows. Leave, and it returns to the clock. Nothing rotates on its own.
+There are two hover levels. Move the pointer into the top-center strip (600 px) or onto the pill to open level 1, the line. Keep it there for 900 ms and level 2 follows. Leave, and it returns to the clock. Nothing rotates on its own. A click on the now-playing element, at either level, opens Media. With no player, none of the music parts appear.
 
 | Place | Content | Click |
 |---|---|---|
@@ -79,16 +79,17 @@ Every panel uses the same 4-column grid, the same width, and a fixed height, so 
 | 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins. The update check runs at most every 10 minutes and gives up after 30 seconds |
 | 6 | Energia | A row of rounded square buttons, icon and label: lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
 | — | Plugins | Search the shell plugins. Enter turns one on or off. Switching the bar asks for a second press. The wheel reaches it after Energia |
+| — | Media | The active MPRIS player (Omarchy's media service when present). Album art, title, artist, and album. A progress bar with elapsed and total time: click or drag it to seek when the player allows. Previous, play/pause, next. Shuffle and repeat (off, playlist, track) only when the player supports them. Chips to switch players when there is more than one. Keys: Space or `K` play/pause, `←`/`J` previous, `→`/`L` next, `,` and `.` seek 10 s, `S` shuffle, `R` repeat, `P` next player. Nothing playing shows an empty state at the same height |
 | — | OSD | Volume, brightness, and other notices sent to the island |
 | — | Notification | Click the bell on the status line. The newest one opens inside the pill: icon, app, and summary on one line. It does not appear on its own. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
 
-Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and network open Controle, the clock opens Tempo, power opens Energia.
+Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and network open Controle, the clock opens Tempo, power opens Energia, media opens Media.
 
 ## Mouse and keyboard
 
-- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Scroll down goes forward. Scroll up goes back. An open panel has no line on top, but the wheel on its top edge still cycles panels.
+- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, and Media when a track is loaded. Scroll down goes forward. Scroll up goes back. An open panel has no line on top, but the wheel on its top edge still cycles panels.
 - Lists and sliders keep their own wheel. Volume lives in Controle.
-- `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them.
+- `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them, Media included only when a track is loaded.
 - Arrow keys move, Enter and Space activate.
 - Letters follow the grid: `Q W E R`, `A S D F`, `Z X C V`. The letter shows on the control in keyboard mode or on hover only. The focus outline appears only after you navigate with the keyboard. The same letters work on a QWERTY or ABNT2 keyboard.
 - In Estilo, `[` and `]` only highlight a font. Enter or a click applies it. Icon fonts stay out of the list.
@@ -118,7 +119,7 @@ Game mode, in Controle, is a separate action. Turning it on can disable animatio
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|last>
+omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|media|last>
 omarchy-shell ilha toggle <view|last>
 omarchy-shell ilha run <view> <key>     # example: run calendar pgdn, run control q
 omarchy-shell ilha close
@@ -127,11 +128,11 @@ omarchy-shell ilha closeOsd
 omarchy-shell ilha state
 ```
 
-`open` and `toggle` both open that panel, and close it when it is already open. `state` prints JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
+`open` and `toggle` both open that panel, and close it when it is already open. `open media` works even with nothing playing. `state` prints JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
 
 ## Languages
 
-Strings live in `i18n/en.json` and `i18n/pt-BR.json` and follow Setup → Language without a shell restart. A missing string falls back to English.
+Ilha ships a catalog in `i18n/` for every language Omarchy offers. It follows Setup → Language live, without a shell restart, numbers and the clock included. A missing string falls back to English. Right-to-left languages (Arabic, Persian, Hebrew, Urdu) mirror the whole island. The clock, the network bars, the battery, and the Media progress and transport buttons stay left to right on purpose.
 
 ## Dependencies
 
@@ -145,15 +146,15 @@ A replacement bar can show installed widgets, but a third-party widget that need
 |---|---|
 | `manifest.json` | Plugin id, version, and the `bar` entry |
 | `Island.qml` | One window per monitor, the pill, panels, and IPC |
-| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, notification status |
+| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, notification status, now playing |
 | `Indicators.qml` | Live status marks |
 | `ContinuousRect.qml` | Capsule and card |
 | `Metrics.qml` | Grid sizes, radii, durations |
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Grid control and its letter |
 | `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Rows, keyboard navigation, footer |
 | `IconButton.qml`, `Icon.qml` | Button and Material Symbols icon |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Panels |
-| `i18n/` | English and Brazilian Portuguese |
+| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `MediaPanel.qml`, `OsdView.qml` | Panels |
+| `i18n/` | One catalog per Omarchy language |
 | `install.sh`, `uninstall.sh` | Optional helpers. Omarchy does not run them |
 
 A panel receives `active`, colors, `shell`, and `metrics`, and reports size with `implicitWidth` and `implicitHeight`. It can implement `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape`, and `focusFirst`.

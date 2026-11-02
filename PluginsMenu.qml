@@ -27,14 +27,26 @@ Item {
     property Metrics metrics: Metrics {}
     property bool keyboardMode: false
 
+    // Texto secundário (tipo do plugin): o tom do Metrics quando existir
+    // (alfa sobre fg ou cor pronta); sem ele, fg a 62%, um passo acima do muted.
+    readonly property color secondary: {
+        const v = root.metrics ? root.metrics["textSecondary"] : undefined;
+        if (typeof v === "number")
+            return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, v);
+        if (v !== undefined && v !== null && v !== "")
+            return v;
+        return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62);
+    }
+
     signal closeRequested()
     signal navigate(string target)
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
-    // 40 + 8 + 6 × 52 = 360, a mesma altura do Apps.
+    // 40 + 8 + 6 × 46 = 324, a mesma altura do Apps.
     readonly property int visibleRows: 6
-    readonly property int rowHeight: metrics.listRow
+    // Linha um pouco mais compacta que o listRow do Metrics (52 → 46).
+    readonly property int rowHeight: Math.max(40, metrics.listRow - 6)
     readonly property int searchHeight: 40
     readonly property int listHeight: visibleRows * rowHeight
 
@@ -386,7 +398,7 @@ Item {
             if (i >= 0) root.selectedIndex = i;
         }
 
-        // Seleção: a mesma placa neutra e a barrinha do Apps.
+        // Seleção: a mesma placa neutra sutil do Apps (sem barrinha).
         highlight: Item {
             width: list.width
             height: root.rowHeight
@@ -394,14 +406,6 @@ Item {
                 anchors.fill: parent
                 radius: root.metrics.rowRadius
                 color: root.metrics.plate(root.fg, root.metrics.alphaHover)
-            }
-            ContinuousRect {
-                x: 4
-                anchors.verticalCenter: parent.verticalCenter
-                width: 3
-                height: 16
-                radius: root.metrics.fit(1.5)
-                color: root.accent
             }
         }
 
@@ -433,25 +437,23 @@ Item {
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.activate(row.index) }
 
-            // Tipo num círculo de 32: accent sólido quando ligado.
-            ContinuousRect {
+            // Ícone do tipo, solto (sem placa): accent quando ligado.
+            Item {
                 id: mark
                 anchors.left: parent.left
-                anchors.leftMargin: 14
+                anchors.leftMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
-                width: 32
-                height: 32
-                radius: root.metrics.fit(16)
-                color: row.on ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                width: 28
+                height: 28
 
                 Icon {
                     id: markIcon
                     anchors.centerIn: parent
                     name: row.busy ? "sync" : root.kindIcon(row.modelData.kinds)
-                    size: 18
+                    size: 20
                     filled: row.on
-                    color: row.on ? root.bg : root.muted
+                    color: row.on ? root.accent : root.secondary
+                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
 
                     // Gira enquanto o comando roda.
                     RotationAnimator on rotation {
@@ -490,7 +492,7 @@ Item {
                     text: root.kindText(row.modelData.kinds)
                     visible: text.length > 0
                     textFormat: Text.PlainText
-                    color: root.muted
+                    color: root.secondary
                     font.family: root.fontFamily
                     font.pixelSize: 11
                     elide: Text.ElideRight

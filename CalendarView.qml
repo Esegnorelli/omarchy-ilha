@@ -4,7 +4,9 @@ import qs.Commons as Commons
 
 // Tempo (spec §3.4, view id "calendar"): só o mês, na largura da grade.
 //
-//   bloco 276   ‹ Mês de ano ›  (40) · 8 · iniciais (20) · 4 · 6 × 34 linhas de 7 × 76
+//   bloco 72 + n × 34   ‹ Mês de ano ›  (40) · 8 · iniciais (20) · 4 · n linhas de 7 × 76
+//   n = semanas que o mês ocupa (5 na maioria; 6 só quando precisa; 4 num
+//   fevereiro exato), sem linha inteira do mês seguinte.
 //
 // Contrato de estado: active, shell, fg/bg/accent/danger, metrics,
 // keyboardMode, footerStatus, footerHints, handleKey(event) → bool,
@@ -26,6 +28,20 @@ Item {
     property var shell: null
     property Metrics metrics: Metrics {}
     property bool keyboardMode: false
+
+    // Texto secundário (iniciais, fins de semana): o tom do Metrics quando
+    // existir (alfa sobre fg ou cor pronta); sem ele, fg a 62%, um passo
+    // acima do muted.
+    readonly property color secondary: {
+        const v = root.metrics ? root.metrics["textSecondary"] : undefined;
+        if (typeof v === "number")
+            return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, v);
+        if (v !== undefined && v !== null && v !== "")
+            return v;
+        return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62);
+    }
+    // Dias de outro mês: bem mais apagados que os fins de semana.
+    readonly property color outside: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.22)
 
     signal closeRequested()
     signal navigate(string target)
@@ -117,12 +133,22 @@ Item {
         return out;
     }
 
-    // 42 células (6 semanas), cada uma com dia, mês e ano.
+    // Semanas que o mês ocupa (4 a 6), para não sobrar linha inteira do
+    // mês seguinte.
+    readonly property int weekRows: {
+        const first = new Date(viewYear, viewMonth, 1);
+        const offset = (first.getDay() - weekStart + 7) % 7;
+        const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+        return Math.ceil((offset + daysInMonth) / 7);
+    }
+    readonly property int rowHeight: 34
+
+    // weekRows × 7 células, cada uma com dia, mês e ano.
     readonly property var cells: {
         const first = new Date(viewYear, viewMonth, 1);
         const offset = (first.getDay() - weekStart + 7) % 7;
         const out = [];
-        for (let i = 0; i < 42; i++) {
+        for (let i = 0; i < weekRows * 7; i++) {
             const d = new Date(viewYear, viewMonth, 1 - offset + i);
             out.push({
                 day: d.getDate(),
@@ -210,11 +236,11 @@ Item {
         danger: root.danger
         muted: root.muted
 
-        // ----- Bloco do calendário: 40 + 8 + 20 + 4 + 6 × 34 = 276 -----
+        // ----- Bloco do calendário: 40 + 8 + 20 + 4 + n × 34 (242 com 5 semanas) -----
         Item {
             id: calendar
             width: root.metrics.content
-            height: 276
+            height: 72 + root.weekRows * root.rowHeight
 
             // Itens focáveis do bloco (setas do PanelGrid passam por eles).
             function focusItems() { return [prevButton, nextButton]; }
@@ -311,20 +337,20 @@ Item {
                         font.family: root.fontFamily
                         font.pixelSize: root.metrics.captionText
                         font.weight: Font.DemiBold
-                        color: root.muted
-                        opacity: modelData.weekend ? 0.75 : 1
+                        color: root.secondary
+                        opacity: modelData.weekend ? 0.8 : 1
                     }
                 }
             }
 
-            // Grade de 6 semanas (6 × 34). Ao trocar de mês, desliza de leve
+            // Grade de n semanas (n × 34). Ao trocar de mês, desliza de leve
             // no sentido da troca e reaparece (sem quique).
             Item {
                 id: days
                 x: calendar.gridX
                 y: 72
                 width: 7 * calendar.cellWidth
-                height: 204
+                height: root.weekRows * root.rowHeight
                 clip: true
 
                 Grid {
@@ -341,7 +367,7 @@ Item {
                                                             && modelData.month === root.todayMonth
                                                             && modelData.year === root.todayYear
                             width: calendar.cellWidth
-                            height: 34
+                            height: root.rowHeight
 
                             // Hoje: pílula sólida de accent (marca de estado ativo),
                             // com tinta bg. O hover só aparece nos dias de outro
@@ -368,12 +394,11 @@ Item {
                                     if (cell.isToday)
                                         return root.bg
                                     if (!cell.modelData.inMonth)
-                                        return root.muted
+                                        return root.outside
                                     if (cell.modelData.weekend)
-                                        return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62)
+                                        return root.secondary
                                     return root.fg
                                 }
-                                opacity: cell.isToday || cell.modelData.inMonth ? 1 : 0.45
                             }
 
                             HoverHandler {

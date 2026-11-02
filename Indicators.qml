@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
 import qs.Commons as Commons
 
 // Fileira de indicadores da ilha. Só aparece o que está ligado, e tocar
@@ -18,6 +19,9 @@ import qs.Commons as Commons
 // - Lembretes: omarchy-reminder show --json.
 // - Atualizações: omarchy-update-available (0 = há atualização).
 // - Notificações na tela: ~/.local/state/omarchy/notifications/live.json.
+// - Música: o serviço omarchy.media do shell (o mesmo player ativo da barra
+//   padrão). Sem shell, lê o MPRIS direto, com a mesma escolha simples:
+//   o preferido, senão o que toca, senão o primeiro com faixa.
 Item {
     id: root
 
@@ -90,11 +94,107 @@ Item {
 
     readonly property bool anyActive: recording || dnd || nightlight || stayAwake
         || reminderCount > 0 || updateAvailable || notificationCount > 0
+    // ---- Música (MPRIS) ----
+    // O serviço do shell decide o player ativo; esta instância só repassa.
+    // Uma instância espelho (source) lê tudo da fonte.
+    readonly property var mediaService: serviceFor("omarchy.media")
+    // Reserva sem shell: os players do MPRIS com algum metadado.
+    property string ownMediaKey: ""
+    readonly property var ownMediaPlayers: {
+        const list = Mpris.players ? Mpris.players.values : []
+        const out = []
+        for (let i = 0; i < list.length; i++) {
+            const p = list[i]
+            if (p && (p.trackTitle || p.trackArtist || p.identity))
+                out.push(p)
+        }
+        out.sort((a, b) => (!!a.isPlaying === !!b.isPlaying) ? 0 : (a.isPlaying ? -1 : 1))
+        return out
+    }
+    readonly property var ownMediaPlayer: {
+        const list = ownMediaPlayers
+        if (list.length === 0)
+            return null
+        for (let i = 0; i < list.length; i++)
+            if (ownMediaKey !== "" && mediaKey(list[i]) === ownMediaKey)
+                return list[i]
+        for (let j = 0; j < list.length; j++)
+            if (list[j].isPlaying)
+                return list[j]
+        for (let k = 0; k < list.length; k++)
+            if (list[k].trackTitle)
+                return list[k]
+        return list[0]
+    }
+
+    readonly property var mediaPlayers: source ? source.mediaPlayers
+        : mediaService ? (mediaService.sourcePlayers || []) : ownMediaPlayers
+    readonly property var mediaPlayer: source ? source.mediaPlayer
+        : mediaService ? mediaService.activePlayer : ownMediaPlayer
+    // Há faixa: título ou artista. Sem isso nada de música aparece na pílula.
+    readonly property bool hasMedia: !!(mediaPlayer && (mediaPlayer.trackTitle || mediaPlayer.trackArtist))
+    readonly property bool mediaPlaying: hasMedia && !!mediaPlayer.isPlaying
+    readonly property string mediaTitle: hasMedia ? oneLine(mediaPlayer.trackTitle || mediaPlayer.trackArtist, 160) : ""
+    readonly property string mediaArtist: hasMedia && mediaPlayer.trackTitle ? oneLine(mediaPlayer.trackArtist, 120) : ""
+    readonly property string mediaArtUrl: hasMedia && mediaPlayer.trackArtUrl ? String(mediaPlayer.trackArtUrl) : ""
+
+    function mediaKey(player) {
+        if (!player)
+            return ""
+        if (mediaService && typeof mediaService.playerKey === "function")
+            return String(mediaService.playerKey(player) || "")
+        return String(player.dbusName || player.desktopEntry || player.identity || "")
+    }
+
+    // Nome curto do player para o seletor (Spotify, Firefox…).
+    function mediaLabel(player) {
+        if (!player)
+            return ""
+        const name = String(player.identity || player.desktopEntry || "").trim()
+        return oneLine(name !== "" ? name : player.dbusName, 32)
+    }
+
+    function selectMedia(key) {
+        if (source) {
+            source.selectMedia(key)
+            return
+        }
+        if (mediaService && typeof mediaService.selectPlayer === "function") {
+            mediaService.selectPlayer(String(key))
+            return
+        }
+        ownMediaKey = String(key || "")
+    }
+
+    // "playPause", "play", "pause", "next", "previous". Sem OSD: o
+    // controle já está na tela.
+    function mediaAction(action, key) {
+        if (source)
+            return source.mediaAction(action, key)
+        if (mediaService && typeof mediaService.runAction === "function")
+            return !!mediaService.runAction(action, false, key !== undefined ? String(key) : mediaKey(mediaPlayer))
+        const p = mediaPlayer
+        if (!p)
+            return false
+        if (action === "next" && p.canGoNext) { p.next(); return true }
+        if (action === "previous" && p.canGoPrevious) { p.previous(); return true }
+        if (action === "playPause" || action === "play" || action === "pause") {
+            const wantPlay = action === "play" || (action === "playPause" && !p.isPlaying)
+            if (wantPlay && p.canPlay) { p.play(); return true }
+            if (!wantPlay && p.canPause) { p.pause(); return true }
+            if (p.canTogglePlaying) { p.togglePlaying(); return true }
+        }
+        return false
+    }
+
     // Ponto da pílula em repouso: só estados que o usuário ligou (ou que
     // pedem ação). Notificação na tela não acende o ponto; ela vive no sino.
     readonly property bool restDot: recording || dnd || nightlight || stayAwake
         || reminderCount > 0 || updateAvailable
     readonly property color dotColor: recording ? danger : accent
+    // Música tocando também marca o repouso (o ponto no destaque, ou o do
+    // aviso, se houver um ligado). Pausada, não.
+    readonly property bool restMark: restDot || mediaPlaying
 
     // Não avisa durante as primeiras leituras (estado que já estava ligado
     // ao carregar). Depois disso, qualquer passagem de desligado para

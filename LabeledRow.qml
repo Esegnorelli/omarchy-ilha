@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import qs.Commons as Commons
 
 // Linha fina de 44 px (spec §3.2): rótulo e valor em c1, controle em c2–c4.
@@ -7,9 +8,9 @@ import qs.Commons as Commons
 //
 // API pública:
 //   variant: "segmented" | "slider" | "chips" | "bar"
-//   icon, label: string      rótulo em c1 (11 DemiBold muted) com ícone opcional;
+//   icon, label: string      rótulo em c1 (11 DemiBold metrics.textSecondary) com ícone opcional;
 //                            no bar o rótulo é o título (12 DemiBold fg) e o ícone vai na barra
-//   value: string            valor atual abaixo do rótulo (12 DemiBold fg); no bar, 11 muted à direita
+//   value: string            valor atual abaixo do rótulo (12 DemiBold fg); no bar, 11 textSecondary à direita
 //   options: [{ value, label, icon?, font? }]   segmentos (até 3, um por coluna) ou chips
 //   current: string          valor escolhido (segmented/chips)
 //   sliderValue: real 0–1, step: real (0.05), dimmed: bool (valor e trilho apagados, ex. mudo)
@@ -197,7 +198,7 @@ Item {
                     font.pixelSize: lrow.metrics.captionText
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
-                    color: lrow.muted
+                    color: lrow.metrics.textSecondary
                 }
                 Text {
                     width: parent.width
@@ -331,6 +332,10 @@ Item {
         id: barBox
         visible: lrow.variant === "bar"
         anchors.fill: parent
+        // Fica LTR em RTL (como o slider e o progresso da Mídia): título, valor,
+        // preenchimento e toque usam x explícito, que não espelha.
+        LayoutMirroring.enabled: false
+        LayoutMirroring.childrenInherit: true
         activeFocusOnTab: visible
         Accessible.role: Accessible.Slider
         Accessible.name: lrow.label
@@ -383,7 +388,7 @@ Item {
             font.family: lrow.fontFamily
             font.pixelSize: 11
             font.features: ({ "tnum": 1 })
-            color: lrow.muted
+            color: lrow.dimmed ? lrow.muted : lrow.metrics.textSecondary
         }
         IconButton {
             id: moreButton
@@ -398,6 +403,7 @@ Item {
             fg: lrow.fg
             accent: lrow.accent
             muted: lrow.muted
+            metrics: lrow.metrics
             label: lrow.label
             onTapped: lrow.moreTapped()
         }
@@ -470,6 +476,10 @@ Item {
     Item {
         id: chipsBox
         visible: lrow.variant === "chips"
+        // Fica LTR em RTL: as setas usam x explícito (não espelha) e a lista
+        // ancorada nelas ficaria com largura negativa se espelhasse.
+        LayoutMirroring.enabled: false
+        LayoutMirroring.childrenInherit: true
         x: lrow.controlX
         width: lrow.controlWidth
         height: parent.height
@@ -521,6 +531,15 @@ Item {
             spacing: 6
             boundsBehavior: Flickable.StopAtBounds
             model: lrow.variant === "chips" ? lrow.options : []
+            // Máscara só quando sobra chip fora da faixa (chipFade).
+            layer.enabled: lrow.variant === "chips" && contentWidth > width + 1
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: chipFade
+                // 0.5 + 1 = smoothstep(0, 1, alfa da máscara): degradê suave (o mesmo do Strip).
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1
+            }
             currentIndex: lrow.currentIndex
             highlightFollowsCurrentItem: true
             // A opção escolhida desliza para o meio; as vizinhas somem
@@ -588,30 +607,41 @@ Item {
             }
         }
 
-        // Esmaecimento nas bordas: degradê da cor do fundo por cima dos chips.
+        // Esmaecimento nas bordas: máscara de opacidade (e não um degradê da
+        // cor do fundo por cima), assim o chip cortado some de verdade também
+        // nos painéis de vidro e transparentes. Cada borda só esmaece quando
+        // há chip escondido daquele lado.
         Item {
             id: chipFade
             anchors.fill: chipList
-            readonly property real edge: 22
+            visible: false
+            layer.enabled: chipList.layer.enabled
+            readonly property real edge: 24
+            readonly property bool leftOpen: chipList.contentX - chipList.originX > 1
+            readonly property bool rightOpen: chipList.contentX - chipList.originX < chipList.contentWidth - chipList.width - 1
             Rectangle {
                 width: chipFade.edge
                 height: parent.height
-                visible: chipList.contentX - chipList.originX > 1
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: lrow.metrics.plate(lrow.bg) }
-                    GradientStop { position: 1; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
+                    GradientStop { position: 0; color: Qt.rgba(1, 1, 1, chipFade.leftOpen ? 0 : 1) }
+                    GradientStop { position: 1; color: "white" }
                 }
+            }
+            Rectangle {
+                x: chipFade.edge
+                width: Math.max(0, parent.width - 2 * chipFade.edge)
+                height: parent.height
+                color: "white"
             }
             Rectangle {
                 x: parent.width - width
                 width: chipFade.edge
                 height: parent.height
-                visible: chipList.contentX - chipList.originX < chipList.contentWidth - chipList.width - 1
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0; color: Qt.rgba(lrow.bg.r, lrow.bg.g, lrow.bg.b, 0) }
-                    GradientStop { position: 1; color: lrow.metrics.plate(lrow.bg) }
+                    GradientStop { position: 0; color: "white" }
+                    GradientStop { position: 1; color: Qt.rgba(1, 1, 1, chipFade.rightOpen ? 0 : 1) }
                 }
             }
         }

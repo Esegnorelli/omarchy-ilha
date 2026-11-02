@@ -19,6 +19,12 @@ import qs.Commons as Commons
 //   colX(c, columns), spanWidth(s, columns)  posição e largura em px de colunas (columns = 4 ou 3)
 //   panelHeight(rowsHeight)                altura total da ilha para um painel
 //   alpha*, opacity*                       níveis de tinta derivados de fg/accent
+//   textSecondary (color)                  texto secundário (sublinhas, descrições, valores,
+//                                          rótulos laterais, cabeçalho da semana): muted
+//                                          levado um degrau na direção de fg (mixSecondary).
+//                                          Todo texto de segundo plano usa este token, não muted.
+//   secondaryOf(fg, muted)                 o mesmo degrau para um par fg/muted próprio
+//   textKey (color)                        letra do KeyBadge em repouso (modo teclado)
 //                                          (cartão: idle 0.06, hover 0.10, pressionado/foco 0.14)
 //   ms*                                    durações base (sempre passar por Commons.Style.duration)
 QtObject {
@@ -105,6 +111,27 @@ QtObject {
     readonly property real opacityBusy: 0.6
     readonly property real opacityUnavailable: 0.35
     readonly property real opacityBadgeFaint: 0.4
+
+    // ---------- Texto ----------
+    // O muted do tema some sobre o vidro escuro. O texto secundário sobe um
+    // degrau: muted misturado a fg. Vale para temas claros também (a mistura
+    // sempre caminha para fg, que é o polo de contraste).
+    property color inkFg: Commons.Color.foreground
+    property color inkMuted: Commons.Color.muted
+    readonly property real mixSecondary: 0.4
+    readonly property real mixKey: 0.55
+    function secondaryOf(fg, muted) {
+        return mixInk(fg, muted, mixSecondary);
+    }
+    function mixInk(fg, muted, t) {
+        const f = fg, m = muted;
+        if (!f || !m)
+            return m || f || Qt.rgba(0, 0, 0, 0);
+        return Qt.rgba(m.r + (f.r - m.r) * t, m.g + (f.g - m.g) * t, m.b + (f.b - m.b) * t, 1);
+    }
+    readonly property color textSecondary: mixInk(inkFg, inkMuted, mixSecondary)
+    // A letra da tecla precisa ler sobre o cartão neutro: mais perto de fg.
+    readonly property color textKey: mixInk(inkFg, inkMuted, mixKey)
 
     // ---------- Tempo (ms, antes de Commons.Style.duration) ----------
     readonly property int msPress: 120
