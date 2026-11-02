@@ -105,7 +105,9 @@ Item {
     readonly property color fillBody: Qt.rgba(bg.r, bg.g, bg.b, alphaBody)
     readonly property int rimWidth: glassTransparent ? 1 : 0
     readonly property color rimRest: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-    readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+    // Painel aberto sempre tem um fio: quando o fundo do tema é a mesma cor
+    // da janela atrás (terminal do próprio tema), sem ele a borda some.
+    readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, 0.10)
 
     // Repouso e hover: sempre uma cápsula de verdade (altura / 2), menos no
     // Reto. Painel: cartão de 32 no Arredondado e num tema sem
@@ -1217,7 +1219,7 @@ Item {
                         anchors.fill: parent
                         radius: island.shellRadius(height, win.isPanel)
                         color: win.isPanel ? island.fillBody : island.fillRest
-                        borderWidth: island.rimWidth
+                        borderWidth: win.isPanel ? 1 : island.rimWidth
                         borderColor: win.isPanel ? island.rimBody : island.rimRest
 
                         Behavior on radius {
