@@ -12,7 +12,7 @@ A Ilha substitui a barra (`kinds: ["bar"]`, id `esegnorelli.ilha`). Não é um w
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` troca a barra para a Ilha. O Omarchy pede confirmação, porque um plugin roda dentro do shell que fica aberto. Não há pacote extra, nem sudo, nem gancho de instalação. O `omarchy plugin add` só clona o repositório e valida o `manifest.json`.
+`--enable` troca a barra para a Ilha. O Omarchy pede confirmação, porque um plugin roda dentro do shell que fica aberto. Não há pacote extra nem sudo: tudo o que a Ilha usa vem com o Omarchy. O `omarchy plugin add` só clona o repositório e valida o `manifest.json`, então a Ilha termina a própria instalação na primeira vez que carrega (`setup/setup.sh`, que pode rodar de novo sem problema). Ele grava `~/.local/state/omarchy/toggles/hypr/zz-ilha.lua`, que o Omarchy carrega no fim da config do Hyprland e que roda o `hypr/init.lua` do plugin: transparência nas janelas e o atalho `Super+Z`. Também confere os comandos que os painéis chamam e recarrega o Hyprland só quando algo mudou. Nada em `~/.config/hypr` é editado.
 
 Se a barra estiver escondida, mostre de novo com `omarchy toggle bar`.
 
@@ -32,7 +32,7 @@ Voltar para a barra padrão e manter a Ilha instalada:
 omarchy bar use omarchy.bar
 ```
 
-O `uninstall.sh` faz a mesma coisa.
+O `uninstall.sh` faz a mesma coisa e também desfaz a instalação (`setup/setup.sh remove`). Rode antes do `omarchy plugin remove`; se esquecer, o carregador que sobra não faz nada sem a pasta do plugin.
 
 Apagar a cópia instalada (o repositório no GitHub continua):
 
@@ -94,10 +94,10 @@ Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede a
 - Um clique fora fecha o painel.
 - Confirmações (reiniciar, desligar, sair) deixam o controle vermelho com "Confirmar?" por 4 segundos. Um segundo toque antes de 350 ms é ignorado.
 
-Atalho opcional, em `~/.config/hypr/bindings.lua`. `Super+Z` está livre nos atalhos padrão do Omarchy. `Super+Ctrl+Z` é o zoom, então esse fica quieto.
+`Super+Z` abre e fecha o último painel. A própria Ilha registra o atalho (`hypr/bindings.lua`); ele está livre nos atalhos padrão do Omarchy (`Super+Ctrl+Z` é o zoom). Se você já usa `Super+Z`, a instalação não mexe nele. Para usar outra tecla, coloque em `~/.config/hypr/bindings.lua`:
 
 ```lua
-o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
+o.bind("SUPER + ALT + Z", "Ilha", "omarchy-shell ilha toggle last")
 ```
 
 ## Aparência
@@ -106,7 +106,7 @@ O Estilo chega na pílula no clique. O comando do sistema continua depois.
 
 - **Tema.** A pílula lê o `colors.toml` daquele tema (a sua camada, depois o tema de fábrica) e recolore na hora. O `omarchy theme set` espera 280 ms, então uma sequência rápida de cliques não empilha trocas. Papel de parede, terminais e bordas seguem o comando. Se o tema do sistema não chegar, a pílula volta para o tema que está valendo.
 - **Cantos.** Arredondado mantém a cápsula (um painel limita o raio em 28) e arredonda as janelas junto. Reto deixa a casca, os controles internos e as janelas com quina viva, inclusive o terminal. Tema usa o raio atual do Hyprland. Um desktop sem vão não achata a escolha arredondada. `omarchy hyprland corners`.
-- **Vidro.** Opaco é sólido. Vidro pinta o tema a 0.4 na cápsula e 0.58 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Transparente fica em 0.34 e 0.42, logo acima do ponto em que esse blur abre um buraco. O fio da borda acompanha. Botões, cartões, chips e o calendário usam esse mesmo alfa, então um controle escolhido não vira uma placa sólida. Uma área flutuante força as janelas opacas; ao carregar, a Ilha copia `hypr/transparency.lua` para `~/.local/state/omarchy/toggles/hypr/zz-ilha-transparency.lua` (o Omarchy carrega tudo dali no fim da config do Hyprland) e o aplica na hora; ele reaplica a escolha em toda janela depois da área flutuante e não faz nada enquanto outra barra estiver ativa. No vidro o terminal fica com opacidade 1, porque o fundo de vidro é do tema e o texto não desbota, e as outras janelas ficam em 0.75. `omarchy hyprland window transparency`.
+- **Vidro.** Opaco é sólido. Vidro pinta o tema a 0.4 na cápsula e 0.58 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Transparente fica em 0.34 e 0.42, logo acima do ponto em que esse blur abre um buraco. O fio da borda acompanha. Botões, cartões, chips e o calendário usam esse mesmo alfa, então um controle escolhido não vira uma placa sólida. Uma área flutuante força as janelas opacas; o `hypr/transparency.lua`, carregado pela instalação acima, reaplica a escolha em toda janela depois da área flutuante e não faz nada enquanto outra barra estiver ativa. No vidro o terminal fica com opacidade 1, porque o fundo de vidro é do tema e o texto não desbota, e as outras janelas ficam em 0.75. `omarchy hyprland window transparency`.
 - **Fonte.** A família escolhida entra na pílula na hora. O `omarchy font set` ainda reinicia o shell quando reescreve o fontconfig.
 - **Movimento.** O tamanho da pílula usa uma mola sem quique, e os fades são curtos. Com `omarchy toggle animations` desligado, tudo aparece na hora.
 - **Cor.** A pílula usa só `Commons.Color`. Não há paleta própria.
@@ -152,6 +152,8 @@ Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro 
 | `IconButton.qml`, `Icon.qml` | Botão e ícone Material Symbols |
 | `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `OsdView.qml` | Painéis |
 | `i18n/` | Inglês e português do Brasil |
+| `setup/setup.sh` | Instalação que a Ilha roda ao carregar; `remove` desfaz |
+| `hypr/` | Lado do Hyprland: `init.lua` (entrada), `transparency.lua`, `bindings.lua` |
 | `install.sh`, `uninstall.sh` | Atalhos opcionais. O Omarchy não os executa |
 
 Um painel recebe `active`, as cores, `shell` e `metrics`, e informa o tamanho com `implicitWidth` e `implicitHeight`. Pode implementar `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape` e `focusFirst`.
