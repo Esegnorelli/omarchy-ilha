@@ -4,7 +4,7 @@ import qs.Commons as Commons
 
 // Tempo (spec §3.4, view id "calendar"): só o mês, na largura da grade.
 //
-//   bloco 242   ‹ Mês de ano ›  (32) · iniciais (18) · 6 × 32 linhas de 7 × 76
+//   bloco 276   ‹ Mês de ano ›  (40) · 8 · iniciais (20) · 4 · 6 × 34 linhas de 7 × 76
 //
 // Contrato de estado: active, shell, fg/bg/accent/danger, metrics,
 // keyboardMode, footerStatus, footerHints, handleKey(event) → bool,
@@ -19,6 +19,8 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    // Fonte do Estilo (o host liga quando a propriedade existe).
+    property string fontFamily: Commons.Style.fontFamily
 
     property bool active: false
     property var shell: null
@@ -146,14 +148,16 @@ Item {
     }
 
     // ---------- Componentes internos ----------
-    // Botão ‹ › do cabeçalho: pílula de 32 px, focável, com anel no modo teclado.
+    // Botão ‹ › do cabeçalho: círculo de 36 px, focável. O anel é o mesmo dos
+    // tiles (1 px accent a 55%) e só aparece depois de navegar (focusVisible).
     component NavButton: Item {
         id: nav
         property string icon: ""
+        property bool focusVisible: false
         signal clicked()
 
-        width: 44
-        height: 32
+        width: 36
+        height: 36
         activeFocusOnTab: true
         Accessible.role: Accessible.Button
 
@@ -169,7 +173,7 @@ Item {
 
             ContinuousRect {
                 anchors.fill: parent
-                radius: height / 2
+                radius: root.metrics.fit(18)
                 color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, navHover.hovered ? root.metrics.alphaHover : root.metrics.alphaIdle)
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
             }
@@ -177,18 +181,17 @@ Item {
                 anchors.centerIn: parent
                 name: nav.icon
                 size: 20
-                color: navHover.hovered || (nav.activeFocus && root.keyboardMode) ? root.accent : root.fg
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                color: root.fg
             }
         }
         ContinuousRect {
             anchors.fill: parent
-            anchors.margins: -root.metrics.ring
-            radius: height / 2
+            radius: root.metrics.fit(height / 2)
             color: "transparent"
-            borderWidth: root.metrics.ring
-            borderColor: root.accent
-            opacity: nav.activeFocus && root.keyboardMode ? 1 : 0
+            borderWidth: 1
+            borderColor: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55)
+            opacity: nav.activeFocus && nav.focusVisible ? 1 : 0
+            visible: opacity > 0
             Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.OutCubic } }
         }
         HoverHandler { id: navHover; cursorShape: Qt.PointingHandCursor }
@@ -207,11 +210,11 @@ Item {
         danger: root.danger
         muted: root.muted
 
-        // ----- Bloco do calendário: 32 + 18 + 6 × 32 = 242 -----
+        // ----- Bloco do calendário: 40 + 8 + 20 + 4 + 6 × 34 = 276 -----
         Item {
             id: calendar
             width: root.metrics.content
-            height: 242
+            height: 276
 
             // Itens focáveis do bloco (setas do PanelGrid passam por eles).
             function focusItems() { return [prevButton, nextButton]; }
@@ -223,11 +226,13 @@ Item {
             Item {
                 id: header
                 width: parent.width
-                height: 32
+                height: 40
 
                 NavButton {
                     id: prevButton
                     x: calendar.gridX
+                    anchors.verticalCenter: parent.verticalCenter
+                    focusVisible: grid.focusVisible
                     icon: root.rtl ? "chevron_right" : "chevron_left"
                     Accessible.name: strings.t("calendar.previousMonth")
                     onClicked: root.shiftMonth(-1)
@@ -235,6 +240,8 @@ Item {
                 NavButton {
                     id: nextButton
                     x: parent.width - calendar.gridX - width
+                    anchors.verticalCenter: parent.verticalCenter
+                    focusVisible: grid.focusVisible
                     icon: root.rtl ? "chevron_left" : "chevron_right"
                     Accessible.name: strings.t("calendar.nextMonth")
                     onClicked: root.shiftMonth(1)
@@ -249,7 +256,7 @@ Item {
 
                     ContinuousRect {
                         anchors.fill: parent
-                        radius: height / 2
+                        radius: root.metrics.fit(height / 2)
                         color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
                         opacity: titleHover.hovered && !root.showingToday ? 1 : 0
                         Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
@@ -262,6 +269,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.monthTitle
                             textFormat: Text.PlainText
+                            font.family: root.fontFamily
                             font.pixelSize: 15
                             font.weight: Font.DemiBold
                             color: root.fg
@@ -271,7 +279,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             width: root.showingToday ? 0 : 6
                             height: 6
-                            radius: 3
+                            radius: root.metrics.fit(3)
                             color: root.accent
                             opacity: root.showingToday ? 0 : 1
                             Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
@@ -286,36 +294,37 @@ Item {
                 }
             }
 
-            // Iniciais dos dias da semana (18 px)
+            // Iniciais dos dias da semana (20 px)
             Row {
                 x: calendar.gridX
-                y: 32
+                y: 48
                 Repeater {
                     model: root.weekdays
                     Text {
                         required property var modelData
                         width: calendar.cellWidth
-                        height: 18
+                        height: 20
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         text: modelData.label
                         textFormat: Text.PlainText
+                        font.family: root.fontFamily
                         font.pixelSize: root.metrics.captionText
                         font.weight: Font.DemiBold
                         color: root.muted
-                        opacity: modelData.weekend ? 0.6 : 1
+                        opacity: modelData.weekend ? 0.75 : 1
                     }
                 }
             }
 
-            // Grade de 6 semanas (6 × 32). Ao trocar de mês, desliza de leve
+            // Grade de 6 semanas (6 × 34). Ao trocar de mês, desliza de leve
             // no sentido da troca e reaparece (sem quique).
             Item {
                 id: days
                 x: calendar.gridX
-                y: 50
+                y: 72
                 width: 7 * calendar.cellWidth
-                height: 192
+                height: 204
                 clip: true
 
                 Grid {
@@ -332,32 +341,39 @@ Item {
                                                             && modelData.month === root.todayMonth
                                                             && modelData.year === root.todayYear
                             width: calendar.cellWidth
-                            height: 32
+                            height: 34
 
+                            // Hoje: pílula sólida de accent (marca de estado ativo),
+                            // com tinta bg. O hover só aparece nos dias de outro
+                            // mês, os únicos que respondem ao toque.
                             ContinuousRect {
                                 anchors.centerIn: parent
-                                width: 48
-                                height: 28
-                                radius: height / 2
-                                color: cell.isToday ? root.metrics.plate(root.accent)
+                                width: 44
+                                height: 30
+                                radius: root.metrics.fit(height / 2)
+                                color: cell.isToday ? root.accent
                                      : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
-                                opacity: cell.isToday ? 1 : (cellHover.hovered ? 1 : 0)
+                                opacity: cell.isToday ? 1 : (cellHover.hovered && !cell.modelData.inMonth ? 1 : 0)
                                 Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
                             }
                             Text {
                                 anchors.centerIn: parent
                                 text: Commons.I18n.formatNumber(cell.modelData.day)
                                 textFormat: Text.PlainText
+                                font.family: root.fontFamily
                                 font.pixelSize: 13
-                                font.weight: cell.isToday ? Font.DemiBold : Font.Normal
+                                font.weight: cell.isToday ? Font.Bold : Font.Normal
+                                font.features: ({ "tnum": 1 })
                                 color: {
                                     if (cell.isToday)
-                                        return root.metrics.glass === "opaque" ? root.bg : root.fg
-                                    if (!cell.modelData.inMonth || cell.modelData.weekend)
+                                        return root.bg
+                                    if (!cell.modelData.inMonth)
                                         return root.muted
+                                    if (cell.modelData.weekend)
+                                        return Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62)
                                     return root.fg
                                 }
-                                opacity: cell.isToday || cell.modelData.inMonth ? 1 : 0.5
+                                opacity: cell.isToday || cell.modelData.inMonth ? 1 : 0.45
                             }
 
                             HoverHandler {

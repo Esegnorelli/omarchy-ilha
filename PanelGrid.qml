@@ -8,9 +8,12 @@ import "TileArm.js" as TileArm
 //
 // API pública:
 //   filhos: as linhas, em ordem
-//   keyboardMode: bool      repassado às linhas (anel de foco e letras cheias)
+//   keyboardMode: bool      repassado às linhas (letras cheias)
+//   navigated: bool         o usuário já andou pelo teclado (setas, letra, Enter, Tab);
+//                           focusFirst() zera. As linhas recebem focusVisible =
+//                           keyboardMode && navigated: o anel não aparece só por abrir.
 //   strings                 Commons.Translations repassado (o estado passa o seu)
-//   fg, bg, accent, danger, muted, metrics   repassados às linhas
+//   fg, bg, accent, danger, muted, metrics, fontFamily   repassados às linhas
 // Funções:
 //   handleKey(event) → bool
 //       Q W E R / A S D F / Z X C V (por event.key, vale em QWERTY e ABNT2)
@@ -31,12 +34,15 @@ Item {
     id: grid
 
     property bool keyboardMode: false
+    property bool navigated: false
+    readonly property bool focusVisible: keyboardMode && navigated
     property var strings: null
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     default property alias rows: column.data
@@ -66,7 +72,7 @@ Item {
                 grid._wired.push(r);
                 r.visibleChanged.connect(grid.relayout);
                 if (r.keyableChanged) r.keyableChanged.connect(grid.relayout);
-                for (const p of ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "strings"])
+                for (const p of ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "focusVisible", "strings", "fontFamily"])
                     if (p in r) r[p] = Qt.binding(() => grid[p]);
             }
             if (!r.visible || !("autoKeyRow" in r)) continue;
@@ -112,6 +118,7 @@ Item {
     }
 
     function focusFirst() {
+        grid.navigated = false;
         const q = grid.itemAtKey(0, 0);
         const target = q && q.activeFocusOnTab ? q : grid.focusItems()[0];
         if (target) target.forceActiveFocus(Qt.TabFocusReason);
@@ -136,10 +143,15 @@ Item {
     // Vizinho mais próximo na direção: só candidatos à frente; sobreposição no
     // eixo cruzado conta como alinhado; empate fica com o primeiro na ordem.
     function moveFocus(key) {
+        grid.navigated = true;
         const items = grid.focusItems();
         if (items.length === 0) return false;
         const cur = grid.focusedItem();
-        if (!cur) return grid.focusFirst();
+        if (!cur) {
+            const ok = grid.focusFirst();
+            grid.navigated = true;
+            return ok;
+        }
         const a = grid._center(cur);
         let best = null, bestScore = Infinity;
         for (const it of items) {
@@ -168,8 +180,15 @@ Item {
         const k = event.key;
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier);
 
+        // Tab segue a cadeia de foco do Qt; aqui só marca que houve navegação.
+        if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
+            grid.navigated = true;
+            return false;
+        }
+
         if (k === Qt.Key_Left || k === Qt.Key_Right || k === Qt.Key_Up || k === Qt.Key_Down) {
             if (mods) return false;
+            grid.navigated = true;
             const cur = grid.focusedItem();
             if (cur && typeof cur.handleArrow === "function" && cur.handleArrow(k, event)) return true;
             grid.moveFocus(k);
@@ -181,6 +200,7 @@ Item {
             const cur = grid.focusedItem();
             if (!cur || typeof cur.activate !== "function") return false;
             if (event.isAutoRepeat) return true;
+            grid.navigated = true;
             cur.activate();
             return true;
         }
@@ -190,6 +210,7 @@ Item {
         const it = grid.itemAtKey(pos[0], pos[1]);
         if (!it) return false;
         if (event.isAutoRepeat) return true;
+        grid.navigated = true;
         if (it.activeFocusOnTab) it.forceActiveFocus(Qt.ShortcutFocusReason);
         it.activate();
         return true;

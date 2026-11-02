@@ -26,6 +26,7 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     // Verificar atualizações (faz git fetch no checkout de desenvolvimento).
     property bool checkUpdates: true
     // Outra instância que já lê o sistema. Com ela, esta só desenha a
@@ -89,6 +90,10 @@ Item {
 
     readonly property bool anyActive: recording || dnd || nightlight || stayAwake
         || reminderCount > 0 || updateAvailable || notificationCount > 0
+    // Ponto da pílula em repouso: só estados que o usuário ligou (ou que
+    // pedem ação). Notificação na tela não acende o ponto; ela vive no sino.
+    readonly property bool restDot: recording || dnd || nightlight || stayAwake
+        || reminderCount > 0 || updateAvailable
     readonly property color dotColor: recording ? danger : accent
 
     // Não avisa durante as primeiras leituras (estado que já estava ligado
@@ -377,13 +382,13 @@ Item {
         if (dnd)
             list.push({ key: "dnd", icon: "notifications_off", tint: fg, count: 0 })
         if (nightlight)
-            list.push({ key: "nightlight", icon: "dark_mode", tint: fg, count: 0 })
+            list.push({ key: "nightlight", icon: "nightlight", tint: fg, count: 0 })
         if (stayAwake)
             list.push({ key: "stayAwake", icon: "coffee", tint: fg, count: 0 })
         if (reminderCount > 0)
             list.push({ key: "reminders", icon: "alarm", tint: fg, count: reminderCount })
         if (updateAvailable)
-            list.push({ key: "updates", icon: "system_update", tint: accent, count: 0 })
+            list.push({ key: "updates", icon: "update", tint: accent, count: 0 })
         if (notificationCount > 0)
             list.push({ key: "notifications", icon: "notifications", tint: fg, count: notificationCount })
         return list
@@ -490,7 +495,9 @@ Item {
                     anchors.topMargin: 2
                     text: chip.modelData.count > 9 ? "9+" : Commons.I18n.formatNumber(chip.modelData.count)
                     color: root.fg
+                    font.family: root.fontFamily
                     font.pixelSize: 9
+                    font.features: ({ "tnum": 1 })
                     font.weight: Font.Bold
                     textFormat: Text.PlainText
                 }
@@ -532,6 +539,7 @@ Item {
                 anchors.centerIn: parent
                 text: "+" + Commons.I18n.formatNumber(root.hiddenCount)
                 color: root.fg
+                font.family: root.fontFamily
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
                 textFormat: Text.PlainText

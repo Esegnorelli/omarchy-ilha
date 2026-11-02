@@ -4,14 +4,19 @@ import qs.Commons as Commons
 // Linha de Tiles da grade (spec §3.2 TileRow). Os filhos (Tile) são postos
 // lado a lado pelo span na grade 128 + 8 (ou 3 colunas iguais, Energia).
 // O último filho visível com stretch: true estica até a última coluna.
+// Se algum filho tem shape "round", a linha vira cápsulas + círculos: cada
+// round tem tileHeight de largura e as cápsulas dividem o resto; as letras
+// seguem a ordem dos filhos (Q W E R).
 //
 // API pública:
 //   keyRow: int              -2 = automático (o PanelGrid conta as linhas com tecla), -1 = sem tecla, 0/1/2 = fixo
 //   columns: 4 | 3
-//   caption: string          legenda opcional de 16 px acima (11 DemiBold muted, caixa alta)
+//   tileHeight: int          altura dos tiles (metrics.tile; o Controle usa metrics.capsuleTile)
+//   caption: string          legenda opcional de 16 px acima (12 Medium, fg a 60%, como frase)
 //   captionStatus: string    estado ao vivo à direita da legenda
 //   captionStatusAlert: bool estado em danger (por exemplo "● Gravando 00:42")
-//   keyboardMode, strings, fg, bg, accent, danger, muted, metrics   repassados aos Tiles
+//   keyboardMode, focusVisible, strings, fg, bg, accent, danger, muted, metrics, fontFamily
+//                            repassados aos Tiles (focusVisible vem do PanelGrid)
 //   readonly resolvedKeyRow  linha de tecla efetiva
 //   autoKeyRow               escrito pelo PanelGrid
 // Funções:
@@ -22,17 +27,20 @@ Item {
 
     property int keyRow: -2
     property int columns: 4
+    property int tileHeight: metrics.tile
     property string caption: ""
     property string captionStatus: ""
     property bool captionStatusAlert: false
 
     property bool keyboardMode: false
+    property bool focusVisible: false
     property var strings: null
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     property int autoKeyRow: -1
@@ -45,7 +53,7 @@ Item {
     readonly property int captionSpace: hasCaption ? metrics.caption + metrics.captionGap : 0
 
     implicitWidth: metrics.content
-    implicitHeight: captionSpace + metrics.tile
+    implicitHeight: captionSpace + tileHeight
     width: implicitWidth
 
     function focusItems() {
@@ -66,7 +74,8 @@ Item {
         c.visibleChanged.connect(row.relayout);
         if (c.spanChanged) c.spanChanged.connect(row.relayout);
         if (c.stretchChanged) c.stretchChanged.connect(row.relayout);
-        const pass = ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "strings"];
+        if (c.shapeChanged) c.shapeChanged.connect(row.relayout);
+        const pass = ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "focusVisible", "strings", "fontFamily"];
         for (const p of pass)
             if (p in c) c[p] = Qt.binding(() => row[p]);
     }
@@ -79,6 +88,28 @@ Item {
             if (!("span" in c)) continue;   // Repeater e afins
             row._wire(c);
             if (c.visible) kids.push(c);
+        }
+        const h = row.tileHeight;
+        // Cápsulas e círculos: round = h de largura, as cápsulas dividem o resto.
+        if (kids.some(c => c.shape === "round")) {
+            const rounds = kids.filter(c => c.shape === "round").length;
+            const caps = kids.length - rounds;
+            const free = row.width - rounds * h - Math.max(0, kids.length - 1) * row.metrics.gap;
+            const capW = caps > 0 ? Math.max(h, free / caps) : 0;
+            let x = 0;
+            for (let i = 0; i < kids.length; i++) {
+                const k = kids[i];
+                const w = k.shape === "round" ? h : capW;
+                k.x = x;
+                k.y = 0;
+                k.width = w;
+                k.height = h;
+                if ("keyCol" in k) k.keyCol = i < 4 ? i : -1;
+                if ("keySpan" in k) k.keySpan = 1;
+                if ("keyRow" in k) k.keyRow = row.resolvedKeyRow;
+                x += w + row.metrics.gap;
+            }
+            return;
         }
         const spans = kids.map(c => Math.max(1, Math.min(n, c.span || 1)));
         let used = spans.reduce((a, b) => a + b, 0);
@@ -94,7 +125,7 @@ Item {
             k.x = row.metrics.colX(c0, n);
             k.y = 0;
             k.width = row.metrics.spanWidth(s, n);
-            k.height = row.metrics.tile;
+            k.height = h;
             if ("keyCol" in k) k.keyCol = c0 < n ? c0 : -1;
             if ("keySpan" in k) k.keySpan = s;
             if ("keyRow" in k) k.keyRow = row.resolvedKeyRow;
@@ -104,6 +135,8 @@ Item {
 
     onResolvedKeyRowChanged: relayout()
     onColumnsChanged: relayout()
+    onTileHeightChanged: relayout()
+    onWidthChanged: relayout()
     Component.onCompleted: layout()
 
     // ---------- Legenda ----------
@@ -119,12 +152,13 @@ Item {
             width: Math.min(implicitWidth, parent.width / 2)
             text: row.caption
             textFormat: Text.PlainText
-            font.pixelSize: row.metrics.captionText
-            font.weight: Font.DemiBold
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 0.6
+            font.family: row.fontFamily
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            font.capitalization: Font.MixedCase
+            font.letterSpacing: 0
             elide: Text.ElideRight
-            color: row.muted
+            color: Qt.rgba(row.fg.r, row.fg.g, row.fg.b, 0.6)
         }
         Row {
             anchors.right: parent.right
@@ -144,6 +178,7 @@ Item {
                 width: Math.min(implicitWidth, row.width / 2)
                 text: row.captionStatus
                 textFormat: Text.PlainText
+                font.family: row.fontFamily
                 font.pixelSize: row.metrics.captionText
                 font.weight: row.captionStatusAlert ? Font.DemiBold : Font.Normal
                 elide: Text.ElideRight
@@ -157,7 +192,7 @@ Item {
         id: holder
         y: row.captionSpace
         width: parent.width
-        height: row.metrics.tile
+        height: row.tileHeight
         onChildrenChanged: row.relayout()
     }
 }

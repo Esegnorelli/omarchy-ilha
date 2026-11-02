@@ -9,23 +9,39 @@ import "TileArm.js" as TileArm
 // API pública:
 //   icon, label, sublabel: string    ícone Material Symbols, rótulo (12 DemiBold), sublinha (11 muted)
 //   detail: string                   3ª linha opcional; com ela o layout vira ícone à esquerda (tiles largos)
+//   detailMono: bool                 detail em monospace (padrão: a fonte do tema)
+//   trailingIcon: string             ícone 18 muted à direita; com ele o card usa o layout largo
 //   kind: "action" | "toggle" | "confirm"
-//   on: bool                         ligado (preenchido em accent, ou danger com tone: "danger")
-//   tone: "accent" | "danger"        cor do preenchimento quando on
+//   shape: "card" | "capsule" | "round"
+//       card     o cartão de sempre (empilhado, largo, rosto de ícone ou compacto)
+//       capsule  cápsula com um círculo de ícone à esquerda, nome e sublinha
+//       round    o tile inteiro é o círculo (só o ícone; o nome vai no hoverNote)
+//   on: bool                         ligado. Card: fundo neutro mais claro (14%) e ícone em accent;
+//                                    só tone: "danger" pinta o card inteiro.
+//                                    Capsule, round e iconFace: só o círculo do ícone acende.
+//   tone: "accent" | "danger"        cor do estado ligado (círculo, disco ou card danger)
 //   busy: bool                       sublinha "Aplicando…", 60%, não ativa
-//   available: bool                  false = 35%, sublinha = unavailableText (ou sublabel), não ativa
+//   spinIcon: bool                   o ícone gira (1,2 s por volta) enquanto visível
+//   available: bool                  false = 35% (45% no rosto de ícone), sublinha = unavailableText, não ativa
 //   unavailableText: string          motivo mostrado quando indisponível
 //   span: 1–4, stretch: bool         lidos pelo GridRow
 //   keyHint: string                  letra manual; vazio = automática pela posição (keyRow/keyCol)
 //   showBadge: bool                  mostra o KeyBadge (padrão true)
+//   badgeText: string                contagem pequena em accent no canto do disco (rosto de ícone)
 //   closesIsland: bool               metadado: a ação fecha a ilha antes de rodar (o estado usa)
-//   compact: bool                    linha única, 32 px (InfoRow, segmentos)
-//   iconFace: bool                   ícone no centro e o nome numa linha (Controle)
-//   keyboardMode: bool               anel de foco e letras cheias só no modo teclado
+//   compact: bool                    linha única, 32 px (InfoRow, segmentos), em cápsula
+//   iconFace: bool                   ícone num disco de 40 px no centro e o nome numa linha
+//   faceIconSize: int                glifo dentro do disco (24)
+//   cornerRadius: int                >= 0 troca o raio calculado
+//   keyboardMode: bool               letras cheias só no modo teclado
+//   focusVisible: bool               o GridRow/PanelGrid liga depois que o usuário navegou;
+//                                    com foco, preenche a 14% e desenha um anel de 1 px accent
 //   strings: Commons.Translations    para "Aplicando…" / "Confirmar?" (o grid repassa)
-//   fg, bg, accent, danger, muted, metrics
+//   fg, bg, accent, danger, muted, metrics, fontFamily
 //   keyRow, keyCol, keySpan          preenchidos pelo GridRow (posição na grade)
-//   readonly armed: bool, letter: string
+//   readonly armed: bool, letter: string, hovered: bool
+//   readonly hoverNote: string       "rótulo · sublinha" (o round mostra no rodapé)
+//   readonly noteShown: bool         round com hover há msTooltip
 // Sinal:  activated()                ação, toggle ou 2ª ativação de um confirm
 // Funções:
 //   activate() → bool                o que clique/tecla/Enter fazem; false se nada aconteceu
@@ -34,7 +50,8 @@ import "TileArm.js" as TileArm
 //
 // Confirm: 1ª ativação arma por 4 s; a 2ª (clique, mesma tecla ou Enter) roda;
 // uma 2ª com menos de 350 ms é ignorada; armar um desarma os outros (TileArm.js);
-// Esc chama TileArm.disarmAll() pelo PanelGrid.
+// Esc chama TileArm.disarmAll() pelo PanelGrid. Armado é o único estado que
+// tinge o corpo inteiro (danger a 20%).
 Item {
     id: tile
 
@@ -42,20 +59,28 @@ Item {
     property string label: ""
     property string sublabel: ""
     property string detail: ""
+    property bool detailMono: false
+    property string trailingIcon: ""
     property string kind: "action"
+    property string shape: "card"
     property bool on: false
     property string tone: "accent"
     property bool busy: false
+    property bool spinIcon: false
     property bool available: true
     property string unavailableText: ""
     property int span: 1
     property bool stretch: false
     property string keyHint: ""
     property bool showBadge: true
+    property string badgeText: ""
     property bool closesIsland: false
     property bool compact: false
     property bool iconFace: false
+    property int faceIconSize: 24
+    property int cornerRadius: -1
     property bool keyboardMode: false
+    property bool focusVisible: false
     property var strings: null
 
     property color fg: Commons.Color.bar.text
@@ -63,6 +88,7 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     // Posição na grade (o GridRow escreve).
@@ -83,14 +109,14 @@ Item {
 
     signal activated()
 
-    implicitWidth: metrics.col
+    implicitWidth: shape === "round" ? implicitHeight : metrics.col
     implicitHeight: compact ? metrics.compact : metrics.tile
 
     // Um tile focado que fica indisponível mantém a flag até perder o foco
     // (o Qt não deixa desligá-la no item com foco ativo).
     activeFocusOnTab: interactive || activeFocus
     Accessible.role: Accessible.Button
-    Accessible.name: tile.label
+    Accessible.name: shape === "round" ? tile.hoverNote : tile.label
     Accessible.description: tile.sublabel
     Accessible.checkable: tile.kind === "toggle"
     Accessible.checked: tile.on
@@ -139,36 +165,107 @@ Item {
     onInteractiveChanged: if (!interactive && _armed) disarm()
     Component.onDestruction: TileArm.release(tile)
 
+    // ---------- Nota do round ----------
+    // O round não tem texto: depois de msTooltip de hover o nome e o estado
+    // aparecem no rodapé do painel (o estado lê noteShown/hoverNote).
+    readonly property string hoverNote: shownSublabel !== "" ? label + " · " + shownSublabel : label
+    // O Timer não repetido desliga running ao disparar; por isso a nota só
+    // apaga quando o hover acaba, não quando o timer para.
+    readonly property bool _noteHover: shape === "round" && hover.hovered && visible
+    property bool _noteShown: false
+    readonly property bool noteShown: _noteShown && _noteHover
+    on_NoteHoverChanged: if (!_noteHover) _noteShown = false
+    Timer {
+        id: noteTimer
+        interval: tile.metrics.msTooltip
+        running: tile._noteHover
+        onTriggered: tile._noteShown = true
+    }
+
     // ---------- Aparência ----------
     readonly property bool filled: _armed || on
-    readonly property bool glassOpen: metrics.glass !== "opaque"
-    readonly property color fillColor: _armed ? (glassOpen ? metrics.plate(danger) : danger)
-                                        : (on ? (glassOpen ? metrics.plate(tone === "danger" ? danger : accent)
-                                                           : (tone === "danger" ? danger : accent))
-                                              : Qt.rgba(fg.r, fg.g, fg.b, hover.hovered && interactive ? metrics.alphaHover : metrics.alphaIdle))
-    readonly property color ink: filled && !glassOpen ? bg : fg
-    readonly property color subInk: filled && !glassOpen ? Qt.rgba(bg.r, bg.g, bg.b, 0.78) : muted
-    readonly property color iconInk: filled && !glassOpen ? bg : (hover.hovered && interactive ? accent : fg)
-    readonly property real radius: Math.max(0, compact ? metrics.rowRadius - 2 : metrics.tileRadius)
+    readonly property bool hot: hover.hovered && interactive
+    readonly property bool focusShown: activeFocus && focusVisible
+    readonly property bool pressedNow: (tap.pressed && interactive) || _pulsing
+    // Accent nunca pinta um card inteiro: ligado, o card fica num neutro mais
+    // claro com o ícone em accent. Só o tom danger ainda tinge o corpo;
+    // capsule, round e o rosto de ícone acendem apenas o círculo do ícone.
+    readonly property bool fillsWhole: shape === "card" && !iconFace
+    readonly property bool wholeOn: on && !_armed && fillsWhole && tone === "danger"
+    readonly property bool cardOn: on && !_armed && fillsWhole && !wholeOn
+    readonly property bool roundOn: on && !_armed && shape === "round"
+    readonly property color toneColor: tone === "danger" ? danger : accent
+    readonly property real neutralAlpha: focusShown || pressedNow ? metrics.alphaPressed
+                                         : hot ? metrics.alphaHover : metrics.alphaIdle
+    readonly property color fillColor: {
+        if (_armed) return Qt.rgba(danger.r, danger.g, danger.b, 0.2);
+        if (shape === "round") {
+            if (on) return hot ? Qt.lighter(toneColor, 1.08) : toneColor;
+            return Qt.rgba(fg.r, fg.g, fg.b, focusShown || pressedNow ? 0.18 : hot ? 0.16 : 0.10);
+        }
+        if (wholeOn) {
+            const c = metrics.plate(toneColor);
+            return hot ? Qt.lighter(c, 1.08) : c;
+        }
+        return Qt.rgba(fg.r, fg.g, fg.b, cardOn ? (hot || pressedNow ? 0.18 : metrics.alphaPressed) : neutralAlpha);
+    }
+    // Tinta sobre accent sólido é a cor do fundo; no resto, fg.
+    readonly property bool solidInk: wholeOn || roundOn
+    readonly property color ink: solidInk ? bg : fg
+    readonly property color subInk: solidInk ? Qt.rgba(bg.r, bg.g, bg.b, 0.78)
+                                   : _armed ? danger : muted
+    readonly property color iconInk: _armed ? danger
+                                   : solidInk ? bg
+                                   : cardOn ? toneColor
+                                   : kind === "confirm" ? Qt.rgba(danger.r, danger.g, danger.b, 0.85)
+                                   : (hot ? accent : fg)
+    readonly property real radius: Math.max(0, cornerRadius >= 0 ? cornerRadius
+                                        : (compact || shape !== "card") ? metrics.fit(height / 2)
+                                        : iconFace ? metrics.cardRadius : metrics.tileRadius)
+    // Círculo do ícone da cápsula (44 px num tile de 60).
+    readonly property real circle: Math.max(0, height - 16)
+    readonly property color circleColor: _armed ? danger : on ? toneColor : Qt.rgba(fg.r, fg.g, fg.b, 0.10)
+    readonly property color circleInk: _armed || on ? bg : fg
+
+    readonly property string layoutKind: shape === "round" ? "round"
+                                       : compact ? "compact"
+                                       : shape === "capsule" ? "capsule"
+                                       : detail !== "" || trailingIcon !== "" ? "wide"
+                                       : iconFace ? "face" : "stack"
 
     readonly property string shownLabel: _armed ? (strings ? strings.t("grid.confirm") : label) : label
     // No rosto de ícone o estado mora na cor. A linha de baixo só troca o nome
     // quando há algo para dizer: confirmando, aplicando ou indisponível.
-    readonly property string faceCaption: (_armed || busy) && shownSublabel !== ""
+    readonly property string faceCaption: (_armed || busy || (!available && unavailableText !== "")) && shownSublabel !== ""
                                           ? shownSublabel : shownLabel
     readonly property string shownSublabel: _armed ? label
                                           : busy ? (strings ? strings.t("grid.busy") : sublabel)
                                           : (!available && unavailableText !== "") ? unavailableText
                                           : sublabel
 
-    opacity: !available ? metrics.opacityUnavailable : (busy ? metrics.opacityBusy : 1)
+    opacity: !available ? (iconFace ? 0.45 : metrics.opacityUnavailable) : (busy ? metrics.opacityBusy : 1)
     Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
 
-    // O conteúdo encolhe junto; o anel de foco fica fora para não pulsar.
+    // Ícone com giro opcional (spinIcon), igual em todos os layouts.
+    component TileIcon: Icon {
+        id: tileIcon
+        filled: tile.filled
+        RotationAnimator on rotation {
+            from: 0
+            to: 360
+            duration: Commons.Style.duration(1200)
+            loops: Animation.Infinite
+            running: tile.spinIcon && tileIcon.visible && Commons.Style.duration(1200) > 0
+            onRunningChanged: if (!running) tileIcon.rotation = 0
+        }
+        Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+    }
+
+    // O conteúdo encolhe junto com o fundo.
     Item {
         id: body
         anchors.fill: parent
-        scale: (tap.pressed && tile.interactive) || tile._pulsing ? tile.metrics.pressScale : 1
+        scale: tile.pressedNow ? tile.metrics.pressScale : 1
         Behavior on scale {
             NumberAnimation { duration: Commons.Style.duration(tile.metrics.msPress); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
         }
@@ -177,30 +274,60 @@ Item {
             anchors.fill: parent
             radius: tile.radius
             color: tile.fillColor
-            // Confirm em repouso: contorno fino em danger, avisa sem gritar.
-            borderWidth: tile.kind === "confirm" && !tile.filled ? 1 : 0
-            borderColor: Qt.rgba(tile.danger.r, tile.danger.g, tile.danger.b, 0.55)
+            // Sem contorno em repouso; o confirm avisa pela cor do ícone.
+            borderWidth: 0
             Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
         }
 
-        // ----- Rosto de ícone: glifo no centro, nome numa linha -----
+        // ----- Rosto de ícone: disco de 40 px no centro, nome numa linha -----
         Item {
-            visible: tile.iconFace && !tile.compact && tile.detail === ""
+            visible: tile.layoutKind === "face"
             anchors.fill: parent
             anchors.leftMargin: 8
             anchors.rightMargin: 8
             anchors.topMargin: 6
             anchors.bottomMargin: 6
 
-            Icon {
+            ContinuousRect {
+                id: faceDisc
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.verticalCenterOffset: -9
-                name: tile.icon
-                size: 26
-                filled: tile.filled
-                color: tile.iconInk
+                width: 40
+                height: 40
+                radius: tile.metrics.fit(20)
+                color: tile._armed ? Qt.rgba(tile.danger.r, tile.danger.g, tile.danger.b, 0.2)
+                       : tile.on ? tile.toneColor : Qt.rgba(tile.fg.r, tile.fg.g, tile.fg.b, 0.08)
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+
+                TileIcon {
+                    anchors.centerIn: parent
+                    name: tile.icon
+                    size: tile.faceIconSize
+                    color: tile.on && !tile._armed ? tile.bg : tile.iconInk
+                }
+
+                // Contagem: pílula accent sólida no canto do disco.
+                ContinuousRect {
+                    visible: tile.badgeText !== ""
+                    x: parent.width - width / 2 - 4
+                    y: -4
+                    width: Math.max(16, badgeLabel.implicitWidth + 8)
+                    height: 16
+                    radius: tile.metrics.fit(8)
+                    color: tile.accent
+                    Text {
+                        id: badgeLabel
+                        anchors.centerIn: parent
+                        text: tile.badgeText
+                        textFormat: Text.PlainText
+                        font.family: tile.fontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.DemiBold
+                        font.features: ({ "tnum": 1 })
+                        color: tile.bg
+                    }
+                }
             }
             Text {
                 anchors.left: parent.left
@@ -209,21 +336,22 @@ Item {
                 horizontalAlignment: Text.AlignHCenter
                 text: tile.faceCaption
                 textFormat: Text.PlainText
+                font.family: tile.fontFamily
                 font.pixelSize: tile.metrics.tileSublabel
                 font.weight: Font.Medium
                 elide: Text.ElideRight
-                color: tile.ink
+                color: tile._armed ? tile.danger : tile.ink
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
             }
         }
 
         // ----- Layout empilhado (padrão): ícone no alto, textos embaixo -----
         Item {
-            visible: !tile.iconFace && !tile.compact && tile.detail === ""
+            visible: tile.layoutKind === "stack"
             anchors.fill: parent
             anchors.margins: tile.metrics.tilePadding
 
-            Icon {
+            TileIcon {
                 id: stackIcon
                 x: -2
                 y: -2
@@ -231,9 +359,7 @@ Item {
                 height: tile.metrics.tileIcon + 4
                 name: tile.icon
                 size: tile.metrics.tileIcon
-                filled: tile.filled
                 color: tile.iconInk
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
             }
 
             Column {
@@ -247,6 +373,7 @@ Item {
                     width: parent.width
                     text: tile.shownLabel
                     textFormat: Text.PlainText
+                    font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileLabel
                     font.weight: Font.DemiBold
                     // Sem sublinha, um rótulo longo ("Área de transferência")
@@ -263,6 +390,7 @@ Item {
                     visible: text !== ""
                     text: tile.shownSublabel
                     textFormat: Text.PlainText
+                    font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileSublabel
                     elide: Text.ElideRight
                     color: tile.subInk
@@ -271,28 +399,36 @@ Item {
             }
         }
 
-        // ----- Layout largo (com detail): ícone à esquerda, três linhas -----
+        // ----- Layout largo (detail ou trailingIcon): ícone à esquerda, até três linhas -----
         Item {
-            visible: !tile.compact && tile.detail !== ""
+            visible: tile.layoutKind === "wide"
             anchors.fill: parent
             anchors.leftMargin: tile.metrics.tilePadding + 2
             anchors.rightMargin: tile.metrics.tilePadding + tile.metrics.badge + 4
 
-            Icon {
+            TileIcon {
                 id: wideIcon
                 anchors.verticalCenter: parent.verticalCenter
                 width: tile.metrics.tileIcon + 4
                 height: tile.metrics.tileIcon + 4
                 name: tile.icon
                 size: tile.metrics.tileIcon
-                filled: tile.filled
                 color: tile.iconInk
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+            Icon {
+                id: wideTrailing
+                visible: tile.trailingIcon !== ""
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                name: tile.trailingIcon
+                size: 18
+                color: tile.solidInk ? tile.subInk : tile.muted
             }
             Column {
                 anchors.left: wideIcon.right
                 anchors.leftMargin: 10
-                anchors.right: parent.right
+                anchors.right: wideTrailing.visible ? wideTrailing.left : parent.right
+                anchors.rightMargin: wideTrailing.visible ? 8 : 0
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
 
@@ -300,6 +436,7 @@ Item {
                     width: parent.width
                     text: tile.shownLabel
                     textFormat: Text.PlainText
+                    font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileLabel
                     font.weight: Font.DemiBold
                     elide: Text.ElideRight
@@ -310,6 +447,7 @@ Item {
                     visible: text !== ""
                     text: tile.shownSublabel
                     textFormat: Text.PlainText
+                    font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileSublabel
                     elide: Text.ElideRight
                     color: tile.subInk
@@ -320,17 +458,80 @@ Item {
                     text: tile.detail
                     textFormat: Text.PlainText
                     font.pixelSize: tile.metrics.tileSublabel
-                    font.family: "monospace"
+                    font.family: tile.detailMono ? "monospace" : tile.fontFamily
                     elide: Text.ElideMiddle
                     color: tile.subInk
                 }
             }
         }
 
+        // ----- Cápsula: círculo do ícone à esquerda, nome e sublinha -----
+        Item {
+            visible: tile.layoutKind === "capsule"
+            anchors.fill: parent
+
+            ContinuousRect {
+                id: capCircle
+                x: (tile.height - width) / 2
+                anchors.verticalCenter: parent.verticalCenter
+                width: tile.circle
+                height: tile.circle
+                radius: tile.metrics.fit(width / 2)
+                color: tile.circleColor
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+
+                TileIcon {
+                    anchors.centerIn: parent
+                    name: tile.icon
+                    size: 20
+                    color: tile.circleInk
+                }
+            }
+            Column {
+                anchors.left: capCircle.right
+                anchors.leftMargin: 12
+                anchors.right: parent.right
+                anchors.rightMargin: tile.letter !== "" ? 14 + tile.metrics.badge + 6 : 14
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 1
+
+                Text {
+                    width: parent.width
+                    text: tile.shownLabel
+                    textFormat: Text.PlainText
+                    font.family: tile.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    color: tile.fg
+                }
+                Text {
+                    width: parent.width
+                    visible: text !== ""
+                    text: tile.shownSublabel
+                    textFormat: Text.PlainText
+                    font.family: tile.fontFamily
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    color: tile._armed ? tile.danger : tile.muted
+                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
+                }
+            }
+        }
+
+        // ----- Round: o tile inteiro é o círculo -----
+        TileIcon {
+            visible: tile.layoutKind === "round"
+            anchors.centerIn: parent
+            name: tile.icon
+            size: 22
+            color: tile._armed ? tile.danger : tile.roundOn ? tile.bg : tile.fg
+        }
+
         // ----- Layout compacto: linha única centrada, letra à direita -----
         Item {
             id: compactArea
-            visible: tile.compact
+            visible: tile.layoutKind === "compact"
             anchors.fill: parent
             anchors.rightMargin: tile.letter !== "" ? tile.metrics.badge + 6 : 0
             anchors.leftMargin: tile.letter !== "" ? 6 : 0
@@ -338,57 +539,59 @@ Item {
             Row {
                 anchors.centerIn: parent
                 spacing: 6
-                Icon {
+                TileIcon {
                     id: compactIcon
                     visible: tile.icon !== ""
                     anchors.verticalCenter: parent.verticalCenter
                     name: tile.icon
                     size: 16
-                    filled: tile.filled
                     color: tile.iconInk
-                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
                 }
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.min(implicitWidth, compactArea.width - 16 - (compactIcon.visible ? compactIcon.width + 6 : 0))
                     text: tile.shownLabel
                     textFormat: Text.PlainText
+                    font.family: tile.fontFamily
                     font.pixelSize: tile.metrics.tileLabel
                     font.weight: tile.filled ? Font.DemiBold : Font.Medium
                     elide: Text.ElideRight
-                    color: tile.ink
+                    color: tile._armed ? tile.danger : tile.ink
                     Behavior on color { ColorAnimation { duration: Commons.Style.duration(tile.metrics.msState); easing.type: Easing.OutCubic } }
                 }
             }
         }
 
         KeyBadge {
+            readonly property bool middle: tile.compact || tile.layoutKind === "capsule"
+            readonly property bool roundCorner: tile.layoutKind === "round"
             anchors.right: parent.right
-            anchors.rightMargin: tile.compact ? 8 : 9
-            anchors.top: tile.compact ? undefined : parent.top
-            anchors.topMargin: 9
-            anchors.verticalCenter: tile.compact ? parent.verticalCenter : undefined
+            anchors.rightMargin: roundCorner ? 2 : tile.layoutKind === "capsule" ? 14 : tile.compact ? 8 : 9
+            anchors.top: middle ? undefined : parent.top
+            anchors.topMargin: roundCorner ? 2 : 9
+            anchors.verticalCenter: middle ? parent.verticalCenter : undefined
             letter: tile.letter
             keyboardMode: tile.keyboardMode
-            strong: (tile.hovered && tile.interactive) || (tile.activeFocus && tile.keyboardMode)
-            onFill: tile.filled
+            strong: tile.hot || tile.focusShown
+            onFill: tile.solidInk && !roundCorner
             fg: tile.fg
             bg: tile.bg
             accent: tile.accent
             muted: tile.muted
+            fontFamily: tile.fontFamily
             metrics: tile.metrics
         }
     }
 
-    // Anel de foco: 2 px accent, raio + 2, só depois de usar o teclado.
+    // Foco de teclado: 1 px accent a 55% sobre a borda, só depois de navegar.
     ContinuousRect {
         anchors.fill: parent
-        anchors.margins: -tile.metrics.ring
-        radius: tile.radius + tile.metrics.ring
+        radius: tile.radius
         color: "transparent"
-        borderWidth: tile.metrics.ring
-        borderColor: tile.accent
-        opacity: tile.activeFocus && tile.keyboardMode ? 1 : 0
+        borderWidth: 1
+        borderColor: Qt.rgba(tile.accent.r, tile.accent.g, tile.accent.b, 0.55)
+        opacity: tile.focusShown ? 1 : 0
+        visible: opacity > 0
         Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(tile.metrics.msPress); easing.type: Easing.OutCubic } }
     }
 

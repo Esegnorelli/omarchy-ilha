@@ -49,9 +49,11 @@ Item {
     // Precisa ser maior que zero, senão as notificações usam o tamanho padrão.
     // Em repouso a ilha fica sempre visível: uma cápsula só com o relógio,
     // solta da borda (floatGap). barSize chega até a base dessa cápsula.
-    readonly property int floatGap: 10
-    readonly property int restHeight: 34
-    readonly property int restWidth: 96
+    // 12 / 38 / 108: perto do vídeo (~14 / 40 / 110) sem crescer muito a
+    // área reservada no topo (barSize 50).
+    readonly property int floatGap: 12
+    readonly property int restHeight: 38
+    readonly property int restWidth: 108
     readonly property int barSize: floatGap + restHeight
     readonly property var screenBarSizes: {
         const sizes = ({})
@@ -90,26 +92,33 @@ Item {
     readonly property string cornerMode: cornerSharp ? "sharp" : cornerRounded ? "rounded" : "theme"
     readonly property string glassMode: glassOpaque ? "opaque" : glassGlassy ? "glassy" : "transparent"
 
-    // Opaco fecha. Vidro é o fosco de hoje. Transparente fica logo acima do
-    // ignore_alpha 0.3, senão o blur abre um buraco. Painel um pouco mais
-    // fechado, para o texto continuar legível.
-    readonly property real alphaRest: glassOpaque ? 1 : glassGlassy ? 0.4 : 0.34
-    readonly property real alphaBody: glassOpaque ? 1 : glassGlassy ? 0.58 : 0.42
+    // Um objeto só, quase preto, na cor de fundo do tema. Opaco fecha.
+    // Vidro deixa passar só um fio do blur; transparente abre um pouco mais
+    // e ainda fica bem acima do ignore_alpha 0.3, senão o blur abre um
+    // buraco. O painel é um tico mais fechado, para o texto ficar legível.
+    // Sem aro em opaco e vidro; o transparente guarda um fio de 1 px (fg
+    // 0.08) para a borda não sumir no papel de parede. Sem sombra.
+    readonly property bool glassTransparent: !glassOpaque && !glassGlassy
+    readonly property real alphaRest: glassOpaque ? 1 : glassGlassy ? 0.92 : 0.82
+    readonly property real alphaBody: glassOpaque ? 1 : glassGlassy ? 0.90 : 0.80
     readonly property color fillRest: Qt.rgba(bg.r, bg.g, bg.b, alphaRest)
     readonly property color fillBody: Qt.rgba(bg.r, bg.g, bg.b, alphaBody)
-    readonly property real rimAlphaRest: glassOpaque ? 0.22 : glassGlassy ? 0.34 : 0.5
-    readonly property real rimAlphaBody: glassOpaque ? 0.12 : glassGlassy ? 0.16 : 0.28
-    readonly property color rimRest: Qt.rgba(fg.r, fg.g, fg.b, rimAlphaRest)
-    readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, rimAlphaBody)
+    readonly property int rimWidth: glassTransparent ? 1 : 0
+    readonly property color rimRest: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
+    readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
 
-    // Reto: quina viva. Arredondado: cápsula (ou o cartão de 28 no painel).
-    // Tema: o raio que o Hyprland está usando.
+    // Repouso e hover: sempre uma cápsula de verdade (altura / 2), menos no
+    // Reto. Painel: cartão de 32 no Arredondado e num tema sem
+    // arredondamento; num tema arredondado, o dobro do raio das janelas,
+    // entre 16 e 32. Reto: quina viva.
     function shellRadius(h, panel) {
         if (cornerSharp)
             return 0
-        if (cornerRounded)
-            return panel ? Math.min(h / 2, 28) : h / 2
-        return Math.max(0, Math.min(h / 2, Commons.Style.cornerRadius))
+        if (!panel)
+            return h / 2
+        if (cornerRounded || Commons.Style.cornerRadius <= 0)
+            return Math.min(h / 2, 32)
+        return Math.min(h / 2, Math.max(16, Math.min(32, Commons.Style.cornerRadius * 2)))
     }
 
     function showCorners(mode) {
@@ -793,7 +802,20 @@ Item {
                 : isTarget && island.eventShown ? "hover"
                 : "rest"
             readonly property bool revealed: mode !== "rest"
-            readonly property bool dotVisible: !island.barHidden && indicatorSource.anyActive
+            // Ponto do repouso: só os estados ligados (notificação fica no sino).
+            readonly property bool dotVisible: !island.barHidden && indicatorSource.restDot
+            // A pílula em repouso ganha 12 px com o ponto, para o par
+            // ponto + relógio continuar no centro.
+            readonly property real restPillWidth: island.restWidth + (dotVisible ? 12 : 0)
+
+            // Hover nível 2: depois de 900 ms de hover contínuo a linha vira
+            // a cápsula larga de três colunas. Saiu do hover, volta ao nível 1.
+            property bool expanded: false
+            Timer {
+                interval: 900
+                running: win.mode === "hover" && win.hovered && !win.expanded
+                onTriggered: win.expanded = true
+            }
 
             // Estado (painel ou OSD) na tela; nulo em hover e repouso.
             readonly property Item modeItem: {
@@ -813,10 +835,11 @@ Item {
             }
             readonly property bool faceMode: mode === "osd" || mode === "notice"
             readonly property bool isPanel: island.views.indexOf(mode) >= 0
-            // A linha fica no hover e no topo do painel: a roda anda os painéis
-            // sem passar por cima das listas de dentro.
-            readonly property bool hasStrip: mode === "hover" || isPanel
-            readonly property int contentTop: isPanel ? Math.ceil(strip.implicitHeight + 8) : metrics.pad
+            // A linha só existe no hover. O painel é o cartão inteiro, sem
+            // linha em cima; a roda na borda de cima (panelWheelZone) ainda
+            // anda os painéis sem passar por cima das listas de dentro.
+            readonly property bool hasStrip: mode === "hover"
+            readonly property int contentTop: metrics.pad
             readonly property real targetWidth: mode === "rest" ? 12
                 : faceMode ? (modeItem ? modeItem.implicitWidth + 32 : 12)
                 : mode === "hover" ? Math.max(64, strip.implicitWidth)
@@ -837,9 +860,14 @@ Item {
             readonly property bool shrinking: phase < 2 || !revealed
             readonly property bool contentOn: phase === 2 && revealed && contentLatched
             // A faixa aparece quando a pílula já chegou perto do tamanho do hover.
-            // A altura do hover é a da linha (34), menor que a faixa de menu.
-            readonly property bool stripOn: phase === 2 && revealed && hasStrip
+            // A altura do hover é a da linha (46, ou 80 no nível 2).
+            // Depois de entrar, a linha fica: o nível 2 cresce a pílula de novo
+            // e a linha faz a própria troca, sem o relógio do repouso voltar.
+            readonly property bool stripReady: phase === 2 && revealed && hasStrip
                 && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8
+            property bool stripLatched: false
+            onStripReadyChanged: if (stripReady) stripLatched = true
+            readonly property bool stripOn: phase === 2 && revealed && hasStrip && (stripReady || stripLatched)
 
             function checkLatch() {
                 if (phase === 2 && revealed && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8)
@@ -861,6 +889,7 @@ Item {
                 } else {
                     // Conteúdo some primeiro, depois encolhe de volta ao relógio.
                     contentLatched = false
+                    stripLatched = false
                     if (phase === 2)
                         step("shrink", 120)
                     else
@@ -869,6 +898,10 @@ Item {
             }
 
             onModeChanged: {
+                if (mode !== "hover") {
+                    expanded = false
+                    stripLatched = false
+                }
                 contentLatched = false
                 Qt.callLater(checkLatch)
             }
@@ -1040,7 +1073,7 @@ Item {
             // pílula encolhe e o ponteiro cai no wallpaper no meio da troca.
             readonly property int inputWidth: revealed
                 ? Math.ceil(mode === "hover" ? Math.max(targetWidth, strip.hoverSpan) : targetWidth)
-                : hoverAllowed ? island.restWidth : 0
+                : hoverAllowed ? Math.ceil(restPillWidth) : 0
             readonly property int inputHeight: revealed ? Math.ceil(island.floatGap + targetHeight) : hoverAllowed ? island.floatGap + island.restHeight : 0
 
             mask: Region {
@@ -1132,7 +1165,7 @@ Item {
                     readonly property bool asDot: false
 
                     anchors.horizontalCenter: parent.horizontalCenter
-                    width: win.phase === 2 ? win.targetWidth : island.restWidth
+                    width: win.phase === 2 ? win.targetWidth : win.restPillWidth
                     height: win.phase === 2 ? win.targetHeight : island.restHeight
                     // Solta da borda. O vão entra na máscara para o hover não piscar.
                     y: island.floatGap
@@ -1145,21 +1178,22 @@ Item {
                     onWidthChanged: win.checkLatch()
                     onHeightChanged: win.checkLatch()
 
+                    // Morph: 200 ms crescendo, 160 ms encolhendo, sempre desacelerando.
                     Behavior on width {
                         enabled: win.animate
-                        SpringAnimation {
-                            spring: win.shrinking ? 12 : 6
-                            damping: 1
-                            epsilon: 0.25
+                        NumberAnimation {
+                            duration: Commons.Style.duration(win.shrinking ? 160 : 200)
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Commons.Style.easeOut
                         }
                     }
 
                     Behavior on height {
                         enabled: win.animate
-                        SpringAnimation {
-                            spring: win.shrinking ? 12 : 6
-                            damping: 1
-                            epsilon: 0.25
+                        NumberAnimation {
+                            duration: Commons.Style.duration(win.shrinking ? 160 : 200)
+                            easing.type: Easing.Bezier
+                            easing.bezierCurve: Commons.Style.easeOut
                         }
                     }
 
@@ -1178,12 +1212,12 @@ Item {
                     }
 
                     // Cápsula enquanto é baixa; cartão de canto contínuo quando abre um painel.
-                    // Cor do tema por cima do blur: cápsula mais aberta, painel mais fechado.
+                    // Fundo do tema por cima do blur; aro só no transparente.
                     ContinuousRect {
                         anchors.fill: parent
                         radius: island.shellRadius(height, win.isPanel)
                         color: win.isPanel ? island.fillBody : island.fillRest
-                        borderWidth: 1
+                        borderWidth: island.rimWidth
                         borderColor: win.isPanel ? island.rimBody : island.rimRest
 
                         Behavior on radius {
@@ -1198,33 +1232,43 @@ Item {
                     }
 
                     // ---- Repouso: relógio compacto + marquinha de indicador ----
+                    // Fica no centro da pílula (também na vertical) e só some
+                    // quando o relógio da linha já entrou no mesmo lugar: a
+                    // pílula nunca fica vazia no meio do morph.
                     Item {
                         id: restClock
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: 0
-                        width: island.restWidth
+                        y: Math.round((parent.height - height) / 2)
+                        width: parent.width
                         height: island.restHeight
-                        opacity: pill.atRest && !win.revealed ? 1 : 0
+                        opacity: (!win.revealed && pill.atRest) || (win.mode === "hover" && !win.stripOn) ? 1 : 0
                         visible: opacity > 0
                         Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(pill.atRest ? 160 : 90); easing.type: Easing.OutCubic }
+                            NumberAnimation { duration: Commons.Style.duration(pill.atRest ? 160 : 120); easing.type: Easing.OutCubic }
                         }
 
                         Text {
+                            id: restClockText
                             anchors.centerIn: parent
+                            // Com o ponto, o par ponto + relógio é que fica centrado.
+                            anchors.horizontalCenterOffset: win.dotVisible && !win.revealed ? 6 : 0
                             text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
                             textFormat: Text.PlainText
                             font.family: island.fontFamily
-                            font.pixelSize: 15
+                            font.pixelSize: 16
                             font.weight: Font.DemiBold
                             font.features: ({ "tnum": 1 })
                             color: island.fg
+
+                            Behavior on anchors.horizontalCenterOffset {
+                                NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
+                            }
                         }
 
                         // Indicador ativo (gravando, Não perturbe…): ponto na cor do aviso.
                         Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
-                            x: 10
+                            x: restClockText.x - 12
                             width: 6
                             height: 6
                             radius: 3
@@ -1241,10 +1285,11 @@ Item {
                         id: strip
 
                         // Preso ao centro da pílula (e a pílula ao centro da tela): o
-                        // relógio fica no centro exato mesmo enquanto a mola da
-                        // largura passa do alvo ao revelar.
+                        // relógio fica no centro exato enquanto a largura e a altura
+                        // animam, no mesmo ponto do relógio do repouso.
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: 0
+                        anchors.verticalCenter: parent.verticalCenter
+                        expanded: win.expanded
                         screenName: win.screenName
                         spaceModeTick: island.spaceModeTick
                         activeView: win.isTarget ? island.view : ""
@@ -1267,11 +1312,13 @@ Item {
                         visible: opacity > 0
                         enabled: win.stripOn
 
+                        // Entra em 160 ms enquanto o relógio do repouso sai em 120:
+                        // os dois relógios se cruzam no mesmo ponto.
                         Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? 180 : 120); easing.type: Easing.OutCubic }
+                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? win.metrics.msFadeIn : win.metrics.msFadeOut); easing.type: Easing.OutCubic }
                         }
                         Behavior on scale {
-                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? 180 : 120); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? win.metrics.msFadeIn : win.metrics.msFadeOut); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
                         }
 
                         onCategoryClicked: target => island.categoryClick(target, win.screenName)
@@ -1310,6 +1357,24 @@ Item {
                         onTapped: island.closeNotice()
                     }
 
+                    // Borda de cima do painel (o pad de 16 px, largura toda): a
+                    // roda anda os painéis, como fazia a linha. As listas de
+                    // dentro ficam abaixo e guardam a própria roda.
+                    Item {
+                        id: panelWheelZone
+                        x: 0
+                        y: 0
+                        width: parent.width
+                        height: win.metrics.pad
+                        visible: win.isPanel
+                        enabled: win.isPanel
+
+                        WheelHandler {
+                            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                            onWheel: event => strip.wheelPanels(event.angleDelta.y)
+                        }
+                    }
+
                     // ---- Rodapé: estado à esquerda, dicas à direita ----
                     PanelFooter {
                         id: footer
@@ -1333,7 +1398,7 @@ Item {
                     }
                 }
 
-                // ---- Dica da faixa ("Captura · 3"), por baixo da pílula ----
+                // ---- Dica da linha: o layout do workspace ativo, por baixo da pílula ----
                 Item {
                     id: tip
                     readonly property bool shown: strip.tooltipShown && win.stripOn && strip.tooltipX >= 0
@@ -1351,7 +1416,7 @@ Item {
                     width: tipText.implicitWidth + 20
                     height: 26
                     x: Math.max(4, Math.min(surface.width - width - 4, pill.x + strip.x + centerX - width / 2))
-                    y: pill.y + win.metrics.strip + 6
+                    y: pill.y + pill.height + 6
                     opacity: shown ? 1 : 0
                     visible: opacity > 0
 
@@ -1363,8 +1428,7 @@ Item {
                         anchors.fill: parent
                         radius: island.shellRadius(height, false)
                         color: island.fillBody
-                        borderWidth: 1
-                        borderColor: island.rimRest
+                        borderWidth: 0
                     }
 
                     Text {

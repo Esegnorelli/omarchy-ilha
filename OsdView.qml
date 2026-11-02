@@ -11,6 +11,9 @@ Item {
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
+    property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
+    property Metrics metrics: Metrics {}
 
     property bool active: false
     signal closeRequested()
@@ -112,13 +115,93 @@ Item {
 
     readonly property string glyph: glyphFor(iconKey, percent)
 
-    implicitWidth: hasProgress ? 300
-        : Math.min(420, Math.max(160, messageText.implicitWidth + (glyph !== "" ? 34 : 0) + 8))
+    // A mensagem é medida pelo TextMetrics (como no NoticeView): ligar a
+    // largura do Text no próprio implicitWidth, com elide, encolhe o texto.
+    readonly property int glyphBox: glyph !== "" ? 34 : 0
+    readonly property int messageBox: Math.min(420 - glyphBox - 8, Math.ceil(messageMetrics.advanceWidth) + 2)
+    // Progresso: cápsula de 220 × 28 com o ícone dentro, valor à direita.
+    readonly property int barWidth: 220
+    readonly property int barHeight: 28
+    readonly property int valueBox: 46
+
+    implicitWidth: hasProgress ? barWidth + 12 + valueBox
+        : Math.min(420, Math.max(160, messageBox + glyphBox + 8))
     implicitHeight: 36
 
+    TextMetrics {
+        id: messageMetrics
+        font.family: root.fontFamily
+        font.pixelSize: 14
+        font.weight: Font.DemiBold
+        text: root.rawMessage
+    }
+
+    // Com progresso: trilho em cápsula, preenchimento sólido no destaque e o
+    // ícone dentro dele, na tinta do fundo.
     Row {
         anchors.centerIn: parent
+        visible: root.hasProgress
         spacing: 12
+
+        Item {
+            id: bar
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.barWidth
+            height: root.barHeight
+
+            ContinuousRect {
+                anchors.fill: parent
+                radius: root.metrics.fit(height / 2)
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.10)
+            }
+
+            ContinuousRect {
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                height: parent.height
+                // Nunca menor que a altura: o ícone sempre tem onde ficar.
+                width: Math.max(height, parent.width * root.value / root.maxValue)
+                radius: root.metrics.fit(14)
+                color: root.isMuted ? root.muted : root.accent
+
+                Behavior on width {
+                    NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
+                }
+                Behavior on color {
+                    ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                }
+            }
+
+            Icon {
+                anchors.verticalCenter: parent.verticalCenter
+                x: 8
+                visible: root.glyph !== ""
+                name: root.glyph
+                size: 16
+                filled: !root.isMuted
+                color: root.bg
+            }
+        }
+
+        Text {
+            anchors.verticalCenter: parent.verticalCenter
+            width: root.valueBox
+            horizontalAlignment: Text.AlignRight
+            text: root.valueText
+            color: root.fg
+            font.family: root.fontFamily
+            font.pixelSize: 13
+            font.weight: Font.DemiBold
+            font.features: ({ "tnum": 1 })
+            textFormat: Text.PlainText
+        }
+    }
+
+    // Sem progresso: ícone e mensagem.
+    Row {
+        anchors.centerIn: parent
+        visible: !root.hasProgress
+        spacing: 10
 
         Icon {
             id: iconText
@@ -128,62 +211,21 @@ Item {
             name: root.glyph
             size: 22
             filled: !root.isMuted
-            color: root.isMuted ? Commons.Color.muted : root.fg
+            color: root.isMuted ? root.muted : root.fg
 
             Behavior on color {
                 ColorAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic }
             }
         }
 
-        // Com progresso: trilho e valor.
-        Item {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.hasProgress
-            width: 196
-            height: 8
-
-            ContinuousRect {
-                anchors.fill: parent
-                radius: height / 2
-                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.14)
-            }
-
-            ContinuousRect {
-                anchors.left: parent.left
-                anchors.verticalCenter: parent.verticalCenter
-                height: parent.height
-                width: Math.max(height, parent.width * root.value / root.maxValue)
-                visible: root.value > 0
-                radius: height / 2
-                color: root.isMuted ? Commons.Color.muted : root.accent
-
-                Behavior on width {
-                    NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                }
-            }
-        }
-
-        Text {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.hasProgress
-            width: 46
-            horizontalAlignment: Text.AlignRight
-            text: root.valueText
-            color: root.fg
-            font.pixelSize: 14
-            font.weight: Font.DemiBold
-            textFormat: Text.PlainText
-        }
-
-        // Sem progresso: a mensagem.
         Text {
             id: messageText
             anchors.verticalCenter: parent.verticalCenter
-            visible: !root.hasProgress
-            width: Math.min(implicitWidth, 420 - (root.glyph !== "" ? 34 : 0) - 8)
+            width: root.messageBox
             elide: Text.ElideRight
             text: root.rawMessage
             color: root.fg
+            font.family: root.fontFamily
             font.pixelSize: 14
             font.weight: Font.DemiBold
             textFormat: Text.PlainText

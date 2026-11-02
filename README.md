@@ -46,24 +46,24 @@ If Ilha fails to load, Omarchy falls back to `omarchy.bar` on its own.
 
 ## What you see
 
-The pill floats 10 px from the top edge, on the overlay layer, and does not reserve screen space. Windows do not move when it grows. It stays above fullscreen.
+The pill floats 12 px from the top edge, on the overlay layer, and does not reserve screen space. Windows do not move when it grows. It stays above fullscreen. The size it publishes to the shell (`barSize`) is 50.
 
 | State | What is on the pill |
 |---|---|
-| Rest | The clock, in a capsule. If something is on (recording, Do not disturb, stay awake, a reminder, …) a single mark sits with the time. |
-| Hover | One line: workspaces 1–5, the time, the appearance palette, and at most two live indicators. The pill width follows that line. |
-| Panel | The same line stays on top. One panel opens under it. |
+| Rest | The clock, in a true capsule of 108 × 38. If something is on (recording, Do not disturb, stay awake, a reminder, …) a single mark sits with the time. |
+| Hover | Level 1: the clock fixed at the centre, workspace dots on one side (the active one is an accent pill), network bars and battery on the other. |
+| Hover, held | Level 2, after about 0.9 s of hover: the pill widens to three columns. Left, the focused app over the workspace dots. Centre, a big clock over the date. Right, the notification status over network and battery. |
+| Panel | The same object morphs into one panel. There is no header line on top of it. |
 
-Move the pointer into the top-center strip (600 px) or onto the pill to open the line. Leave, and it returns to the clock. Nothing rotates on its own.
+Move the pointer into the top-center strip (600 px) or onto the pill to open the line. Keep it there and level 2 follows. Leave, and it returns to the clock. Nothing rotates on its own.
 
 | Place | Content | Click |
 |---|---|---|
-| Left | Workspaces 1–5 on this monitor. The active number uses the theme accent and shows the layout: a square for tiling, a circle for scrolling, a triangle for floating. Occupied numbers are bright. Empty numbers are quiet. | Click the active number to cycle those three layouts. Click another number to focus that workspace |
+| Left | Workspace dots for this monitor. The active one is an elongated pill in the theme accent. Occupied dots are bright. Empty dots are quiet. | Click a dot to focus that workspace |
 | Center | Time | Open Tempo |
-| Appearance | Palette, in the accent color | Open Estilo |
-| Right | Up to two live indicators, icon only | Turn it off, or open its panel |
+| Right | Network bars and battery, the battery filled in the accent | Open Controle |
 
-Apps, Controle, Captura, Ferramentas, and Energia are not drawn on the pill. Each one opens in the pill, one at a time. When more than two indicators are active, rest shows a dot and hover keeps the first two icons.
+Apps, Controle, Captura, Estilo, Ferramentas, and Energia are not drawn on the pill. The palette is gone from the line: Estilo stays on key `4` and on the wheel. Each panel opens in the pill, one at a time. When something is on, rest shows a single dot.
 
 ## Panels
 
@@ -73,11 +73,11 @@ Every panel uses the same 4-column grid, the same width, and a fixed height, so 
 |---|---|---|
 | 0 | Tempo | The month. Page Up and Page Down change it. Home returns to today |
 | 1 | Apps | App search. Arrows, Enter. Esc clears, then closes |
-| 2 | Controle | Microphone, Do not disturb, night light, stay awake, animations, game mode, Wi-Fi and Bluetooth when present, volume, the current network, speed test |
-| 3 | Captura | Region, screen, window, or scrolling screenshot. Recording with system audio and microphone. OCR, QR code, color picker |
-| 4 | Estilo | Themes are a compact strip: search, five cards, each with that theme's image and its palette, the middle one outlined. Arrows choose. Enter, or a click on the middle card, applies. Backgrounds are a carousel of that theme: search, five thumbnails, the chosen one raised and the neighbors lower and quieter. The name sits on the thumbnail. The background in use stays bright. Enter, or a click on the raised thumbnail, applies. A click on a neighbor only selects it. All themes hides the other controls. Esc clears the search, then returns. Next background, pick, colors from the wallpaper, corners, transparency, font |
-| 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins |
-| 6 | Energia | Lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
+| 2 | Controle | Capsule tiles (an icon circle that fills with the accent when on) and round tiles: microphone, Do not disturb, night light, stay awake, animations, game mode, Wi-Fi and Bluetooth when present. Volume, the current network, speed test. The chevron on the volume row opens the Sound subpage (outputs, input); a round `<` button or Esc returns |
+| 3 | Captura | Region, screen, window, or scrolling screenshot, and Smart at `V`. Recording with system audio and microphone. OCR, QR code, color picker |
+| 4 | Estilo | `/` starts a search, and the shortcut letters work immediately. Themes are a compact strip: five cards, each a flat swatch of that theme's colors, the middle one outlined. Arrows choose. Enter, or a click on the middle card, applies. Backgrounds are a carousel of that theme: search, five thumbnails, the chosen one raised and the neighbors lower and quieter. The name sits on the thumbnail. The background in use stays bright. Enter, or a click on the raised thumbnail, applies. A click on a neighbor only selects it. The wallpaper picker has a header and a footer with the name and `n/N · ↵ apply`. All themes hides the other controls. Esc clears the search, then returns. Next background, pick, colors from the wallpaper, corners, transparency, font |
+| 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins. The update check runs at most every 10 minutes and gives up after 30 seconds |
+| 6 | Energia | A row of rounded square buttons, icon and label: lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
 | — | Plugins | Search the shell plugins. Enter turns one on or off. Switching the bar asks for a second press. The wheel reaches it after Energia |
 | — | OSD | Volume, brightness, and other notices sent to the island |
 | — | Notification | Click the bell on the status line. The newest one opens inside the pill: icon, app, and summary on one line. It does not appear on its own. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
@@ -86,11 +86,11 @@ Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and networ
 
 ## Mouse and keyboard
 
-- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Scroll down goes forward. Scroll up goes back. The line stays at the top of an open panel so the wheel still hits it.
+- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Scroll down goes forward. Scroll up goes back. An open panel has no line on top, but the wheel on its top edge still cycles panels.
 - Lists and sliders keep their own wheel. Volume lives in Controle.
 - `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them.
 - Arrow keys move, Enter and Space activate.
-- Letters follow the grid: `Q W E R`, `A S D F`, `Z X C V`. The letter is drawn on the control. The same letters work on a QWERTY or ABNT2 keyboard.
+- Letters follow the grid: `Q W E R`, `A S D F`, `Z X C V`. The letter shows on the control in keyboard mode or on hover only. The focus outline appears only after you navigate with the keyboard. The same letters work on a QWERTY or ABNT2 keyboard.
 - In Estilo, `[` and `]` only highlight a font. Enter or a click applies it. Icon fonts stay out of the list.
 - Esc cancels a confirmation, then clears search, then closes.
 - A click outside closes the panel.
@@ -107,10 +107,10 @@ o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 Estilo applies to the pill at the click. The system command still runs after that.
 
 - **Theme.** The pill reads that theme's `colors.toml` (your overlay, then the stock theme) and recolors immediately. `omarchy theme set` is debounced by 280 ms, so a fast series of clicks does not stack theme switches. Wallpaper, terminals, and borders follow the command. If the system theme never arrives, the pill returns to the theme that is actually current.
-- **Corners.** Rounded keeps the capsule (a panel caps the radius at 28) and rounds the windows with it. Sharp squares the shell, the inner controls, and the windows, including terminals. Theme uses the current Hyprland radius. A no-gap desktop does not flatten a rounded choice. `omarchy hyprland corners`.
-- **Glass.** Opaque is solid. Glassy paints the theme at 0.4 on the capsule and 0.58 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.34 and 0.42, just above the point where that blur cuts a hole. The rim light follows. Buttons, cards, chips, and the calendar use that same alpha, so a selected control does not turn into a solid plate. The same choice sets window opacity through Omarchy itself; Ilha adds no window rules. `omarchy hyprland window transparency`.
+- **Corners.** Rounded uses capsules plus a panel corner of 32, and rounds the windows with it. Sharp squares the shell, the inner controls, and the windows, including terminals. Theme follows the current Hyprland rounding; a theme with rounding 0 falls back to the rounded look instead of squaring the island. A no-gap desktop does not flatten a rounded choice. `omarchy hyprland corners`.
+- **Glass.** Opaque is solid. Glassy paints the theme at 0.92 on the capsule and 0.90 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.82 and 0.80. There is no rim, except a 1 px hairline in Transparent. Buttons, cards, chips, and the calendar use the panel alpha, so a selected control does not turn into a solid plate. The exception is the small accent marks (active icon circles, slider fill, today, the active workspace, the battery): they stay solid accent even in glass. The same choice sets window opacity through Omarchy itself; Ilha adds no window rules. `omarchy hyprland window transparency`.
 - **Font.** The clicked family is used on the pill at once. `omarchy font set` still restarts the shell when it rewrites fontconfig.
-- **Motion.** The pill sizes with a critically damped spring, and fades are short. `omarchy toggle animations` off makes every change instant.
+- **Motion.** The pill morphs in a fixed 200 ms when it grows and 160 ms when it shrinks, with a decelerating curve, and the content crossfades. Moving between panels never closes and reopens the pill. `omarchy toggle animations` off makes every change instant.
 - **Color source.** The pill uses `Commons.Color` only. There is no private palette.
 
 Game mode, in Controle, is a separate action. Turning it on can disable animations, remove gaps, and set windows opaque, and turning it off puts back what it changed.
@@ -145,7 +145,7 @@ A replacement bar can show installed widgets, but a third-party widget that need
 |---|---|
 | `manifest.json` | Plugin id, version, and the `bar` entry |
 | `Island.qml` | One window per monitor, the pill, panels, and IPC |
-| `Strip.qml` | The status line: workspaces, clock, palette, indicators |
+| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, notification status |
 | `Indicators.qml` | Live status marks |
 | `ContinuousRect.qml` | Capsule and card |
 | `Metrics.qml` | Grid sizes, radii, durations |

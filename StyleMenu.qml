@@ -6,14 +6,15 @@ import qs.Commons as Commons
 
 // Estilo (spec §3.4): como o sistema parece.
 //
-//   TEMA            faixa: busca, imagem do tema, paleta, nome. ←→ escolhem, ↵ aplica
-//   FUNDO           busca e carrossel do tema no centro. A escolhida sobe; as
-//                   vizinhas ficam mais baixas e mais quietas. O nome fica na
-//                   miniatura. O fundo em uso não escurece. ←→ escolhem, ↵ e o
-//                   clique na levantada aplicam. O clique na vizinha só escolhe.
+//   TEMA            linha de busca e carrossel de amostras: o fundo do tema, a
+//                   paleta e o nome nas cores dele. ←→ escolhem, ↵ aplica. O
+//                   ponto de destaque marca o tema em uso. / abre a busca.
+//   FUNDO           carrossel do tema no centro. A escolhida fica inteira e
+//                   contornada; as vizinhas encolhem. Rodapé: arquivo e 1/13.
+//                   ←→ escolhem, ↵ e o clique na escolhida aplicam.
 //                   Q Próximo fundo · W Escolher fundo… · E Cores do fundo · R Todos os temas…
-//   TODOS OS TEMAS  a mesma faixa de temas, sem os outros controles.
-//                   O fundo continua o carrossel do tema no centro. Esc volta.
+//   TODOS OS TEMAS  grade de 4 colunas com todos os temas (←→ ±1, ↑↓ ±4),
+//                   sem os outros controles. O fundo segue o tema do cursor. Esc volta.
 //   JANELAS E FONTE Cantos (S D F) · Transparência (X C V) · Fonte ‹ chips › ([ ])
 //
 // Contrato de estado: active, fg/bg/accent/danger, metrics, keyboardMode,
@@ -48,8 +49,8 @@ Item {
 
     implicitWidth: metrics.content
     implicitHeight: grid.implicitHeight
-    // Largura da tela, para os carrosséis irem de ponta a ponta. O host liga.
-    property real screenSpan: metrics.content
+    // Fonte do Estilo (o host liga a mesma da ilha).
+    property string fontFamily: Commons.Style.fontFamily
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
@@ -61,6 +62,8 @@ Item {
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (!mods && (event.key === Qt.Key_BracketLeft || event.key === Qt.Key_BracketRight)) {
             // [ ] só escolhem a fonte e levam o foco até ela; Enter aplica.
+            // Em Todos os temas a fonte some: a tecla é consumida sem efeito.
+            if (!fontRow.visible) return true;
             if (!event.isAutoRepeat) {
                 const box = fontRow.focusItems()[0];
                 if (box) box.forceActiveFocus(Qt.TabFocusReason);
@@ -73,20 +76,32 @@ Item {
         if (root.typeWall(event)) return true;
         return grid.handleKey(event);
     }
-    // Com a faixa de temas focada, o que se digita filtra. Dígito com a
-    // busca vazia continua trocando de painel.
+    // Com a faixa focada, o que se digita filtra. Com a busca vazia, as
+    // letras dos atalhos (Q W E R, A S D F, Z X C V) e os dígitos continuam
+    // sendo atalhos; / arma a busca e aí tudo vira texto. Esc ou apagar a
+    // busca inteira desarma.
     function typeTheme(event) {
         if (!themeStrip.activeFocus) return false;
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (mods || event.isAutoRepeat) return false;
         if (event.key === Qt.Key_Backspace) {
-            if (root.themeQuery.length === 0) return false;
+            if (root.themeQuery.length === 0) {
+                if (!root.themeTyping) return false;
+                root.themeTyping = false;
+                return true;
+            }
             root.themeQuery = root.themeQuery.slice(0, -1);
             return true;
         }
         const text = event.text || "";
         if (text.length !== 1 || /[\u0000-\u001f]/.test(text)) return false;
-        if (/[0-9]/.test(text) && root.themeQuery.length === 0) return false;
+        if (text === "/" && !root.themeTyping) {
+            root.themeTyping = true;
+            return true;
+        }
+        const idle = root.themeQuery.length === 0 && !root.themeTyping;
+        if (idle && grid._letters[event.key] !== undefined) return false;
+        if (idle && /[0-9]/.test(text)) return false;
         if (root.themeQuery.length >= 32) return true;
         root.themeQuery += text;
         return true;
@@ -96,24 +111,36 @@ Item {
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (mods || event.isAutoRepeat) return false;
         if (event.key === Qt.Key_Backspace) {
-            if (root.wallQuery.length === 0) return false;
+            if (root.wallQuery.length === 0) {
+                if (!root.wallTyping) return false;
+                root.wallTyping = false;
+                return true;
+            }
             root.wallQuery = root.wallQuery.slice(0, -1);
             return true;
         }
         const text = event.text || "";
         if (text.length !== 1 || /[\u0000-\u001f]/.test(text)) return false;
-        if (/[0-9]/.test(text) && root.wallQuery.length === 0) return false;
+        if (text === "/" && !root.wallTyping) {
+            root.wallTyping = true;
+            return true;
+        }
+        const idle = root.wallQuery.length === 0 && !root.wallTyping;
+        if (idle && grid._letters[event.key] !== undefined) return false;
+        if (idle && /[0-9]/.test(text)) return false;
         if (root.wallQuery.length >= 32) return true;
         root.wallQuery += text;
         return true;
     }
     function handleEscape() {
-        if (wallStrip.activeFocus && wallQuery !== "") {
+        if (wallStrip.activeFocus && (wallQuery !== "" || wallTyping)) {
             wallQuery = ""
+            wallTyping = false
             return true
         }
-        if (themeQuery !== "") {
+        if (themeQuery !== "" || themeTyping) {
             themeQuery = ""
+            themeTyping = false
             return true
         }
         if (allThemesOpen) {
@@ -131,7 +158,11 @@ Item {
     property string themeQuery: ""
     // Busca da faixa de fundos, pelo nome do arquivo.
     property string wallQuery: ""
+    // / armou a busca: as letras dos atalhos viram texto até Esc ou a busca esvaziar.
+    property bool themeTyping: false
+    property bool wallTyping: false
     onWallQueryChanged: Qt.callLater(() => {
+        if (root.wallQuery === "") root.wallTyping = false;
         const listed = wallStrip.listed;
         if (!listed) return;
         if (root.wallQuery.trim() === "") {
@@ -146,6 +177,7 @@ Item {
         root.wallCursor = listed[0].index;
     })
     onThemeQueryChanged: Qt.callLater(() => {
+        if (root.themeQuery === "") root.themeTyping = false;
         const listed = themeStrip.listed;
         if (!listed || listed.length === 0) return;
         for (let i = 0; i < listed.length; i++)
@@ -167,7 +199,7 @@ Item {
                                              : [root.background, root.paletteStatus].filter(s => s !== "").join(" · ")
 
     // ---------- Estado lido do sistema ----------
-    property var themes: []          // [{ name, preview }]
+    property var themes: []          // [{ name, preview, colors, bg, fg }]
     property string currentTheme: ""
     property var fonts: []
     property string currentFont: ""
@@ -191,7 +223,8 @@ Item {
         return -1;
     }
 
-    // Todos os temas: os dois carrosséis ocupam a tela. O de baixo segue o tema do centro. Esc volta ao Estilo.
+    // Todos os temas: a faixa de temas vira uma grade de 4 colunas e os outros
+    // controles somem. Os fundos seguem o tema do cursor. Esc volta ao Estilo.
     property bool allThemesOpen: false
 
     onActiveChanged: {
@@ -200,6 +233,8 @@ Item {
             allThemesOpen = false
             themeQuery = ""
             wallQuery = ""
+            themeTyping = false
+            wallTyping = false
         }
         if (active) {
             refresh();
@@ -443,11 +478,13 @@ Item {
             "[ -d \"$d/backgrounds\" ] || continue; " +
             "p=$(find -L \"$d/backgrounds\" -maxdepth 1 -type f \\( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \\) -printf '%p\\n' 2>/dev/null | sort | head -n 1); " +
             "[ -n \"$p\" ] && break; done; fi; " +
-            "dots=''; if [ -n \"$toml\" ]; then dots=$(awk '" +
+            // A paleta, o fundo e o texto do tema saem numa linha; "-" marca o que falta.
+            "dots=''; tbg=''; tfg=''; if [ -n \"$toml\" ]; then pal=$(awk '" +
             "{ n=split($0, a, \"=\"); if (n < 2) next; key=a[1]; val=a[2]; gsub(/[ \\t\"]/, \"\", key); gsub(/[ \\t\"]/, \"\", val); if (val ~ /^#[0-9A-Fa-f]{6}$/) c[key]=val } " +
-            "END { n=split(\"red orange yellow green cyan blue magenta accent\", keys, \" \"); out=\"\"; for (i=1; i<=n; i++) if ((keys[i] in c) && !seen[c[keys[i]]]++) out=out (out==\"\" ? \"\" : \",\") c[keys[i]]; print out }' " +
-            "\"$toml\"); fi; " +
-            "printf '%s\\t%s\\t%s\\n' \"$n\" \"$p\" \"$dots\"; done"]
+            "END { n=split(\"red orange yellow green cyan blue magenta accent\", keys, \" \"); out=\"\"; for (i=1; i<=n; i++) if ((keys[i] in c) && !seen[c[keys[i]]]++) out=out (out==\"\" ? \"\" : \",\") c[keys[i]]; " +
+            "print (out==\"\" ? \"-\" : out), ((\"background\" in c) ? c[\"background\"] : \"-\"), ((\"foreground\" in c) ? c[\"foreground\"] : \"-\") }' " +
+            "\"$toml\"); set -- $pal; dots=$1; tbg=$2; tfg=$3; fi; " +
+            "printf '%s\\t%s\\t%s\\t%s\\t%s\\n' \"$n\" \"$p\" \"$dots\" \"$tbg\" \"$tfg\"; done"]
         stdout: StdioCollector {
             id: themeListOut
             onStreamFinished: {
@@ -458,7 +495,15 @@ Item {
                     for (const c of String(parts[2] || "").split(","))
                         if (/^#[0-9A-Fa-f]{6}$/.test(c) && colors.indexOf(c) < 0 && colors.length < 8)
                             colors.push(c);
-                    out.push({ name: parts[0], preview: parts.length > 1 ? parts[1] : "", colors: colors });
+                    // Fundo e texto do tema pintam a amostra; sem eles, a prévia entra.
+                    const hex = v => /^#[0-9A-Fa-f]{6}$/.test(String(v || "")) ? String(v) : "";
+                    out.push({
+                        name: parts[0],
+                        preview: parts.length > 1 ? parts[1] : "",
+                        colors: colors,
+                        bg: hex(parts[3]),
+                        fg: hex(parts[4])
+                    });
                 }
                 root.themes = out;
                 root.themesLoaded = true;
@@ -621,7 +666,7 @@ Item {
     }
 
     // ---------- Componentes internos ----------
-    // Legenda de 16 px (mesmo desenho da legenda do GridRow).
+    // Legenda de 16 px (mesmo desenho da legenda do GridRow): frase comum, 12 px.
     component Caption: Item {
         id: cap
         property string text: ""
@@ -637,12 +682,12 @@ Item {
             width: Math.min(implicitWidth, parent.width / 2)
             text: cap.text
             textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
-            font.weight: Font.DemiBold
-            font.capitalization: Font.AllUppercase
-            font.letterSpacing: 0.6
+            font.family: root.fontFamily
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            font.letterSpacing: 0
             elide: Text.ElideRight
-            color: root.muted
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.6)
         }
         Text {
             anchors.right: parent.right
@@ -652,314 +697,144 @@ Item {
             horizontalAlignment: Text.AlignRight
             text: cap.status
             textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
+            font.family: root.fontFamily
+            font.pixelSize: 12
             font.weight: cap.statusStrong ? Font.DemiBold : Font.Normal
             elide: Text.ElideRight
-            color: cap.statusStrong ? root.accent : root.muted
+            color: cap.statusStrong ? root.fg : root.muted
             Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
         }
     }
 
-    // Carrossel horizontal. O cartão do meio fica no centro; os vizinhos
-    // aparecem nas laterais, menores. ←→ e a roda andam. O clique e o ↵ aplicam.
-    component Filmstrip: Item {
-        id: film
+    // Amostra de um tema: o fundo do tema, a paleta em pontos e o nome na cor
+    // do texto dele. Sem cores no tema, a imagem de prévia entra no lugar.
+    // O contorno marca o cursor (destaque só com a faixa focada) e o ponto
+    // de 6 px marca o tema em uso.
+    component ThemeCard: Item {
+        id: tc
+        property var entry: null
+        property bool selected: false
+        property bool applied: false
+        property bool focused: false
+        signal tapped()
 
-        property var entries: []
-        property int cursor: -1
-        property string marked: ""
-        property bool loaded: false
-        property string emptyText: ""
-        property string loadingText: ""
-        signal cursorMoved(int index)
-        signal chosen(int index)
+        // Mesmo raio de Metrics.cardRadius (fit(20)).
+        readonly property real radius: root.metrics.fit(20)
+        readonly property bool swatch: !!(tc.entry && tc.entry.bg)
+        readonly property bool fallback: !tc.swatch && !!(tc.entry && tc.entry.preview)
 
-        readonly property int cardW: 260
-        readonly property int cardH: 118
-        readonly property int thumbH: 96
-        readonly property int pitch: cardW + 12
-        readonly property real inset: Math.max(0, (width - cardW) / 2)
-        property real span: root.allThemesOpen ? root.screenSpan : root.metrics.content
-
-        implicitWidth: span
-        implicitHeight: cardH
-        width: implicitWidth
-        height: implicitHeight
-        onWidthChanged: if (_ready) Qt.callLater(() => sync(false))
-        activeFocusOnTab: true
-        Accessible.role: Accessible.List
-
-        function move(d) {
-            const n = film.entries.length;
-            if (n === 0) return false;
-            const from = film.cursor < 0 ? 0 : film.cursor;
-            const to = from + d;
-            if (to < 0 || to >= n) return false;
-            film.cursorMoved(to);
-            return true;
-        }
-        function handleArrow(key) {
-            if (key === Qt.Key_Left) {
-                film.move(root.rtl ? 1 : -1);
-                return true;
-            }
-            if (key === Qt.Key_Right) {
-                film.move(root.rtl ? -1 : 1);
-                return true;
-            }
-            return false;
-        }
-        function activate() {
-            if (film.cursor < 0 || film.cursor >= film.entries.length) return false;
-            film.chosen(film.cursor);
-            return true;
-        }
-        function sync(animate) {
-            if (view.count === 0 || film.cursor < 0) return;
-            const i = Math.min(film.cursor, view.count - 1);
-            // O respiro das pontas deixa o primeiro e o último cartão
-            // chegarem no meio da tela.
-            if (view.headerItem)
-                view.headerItem.width = film.inset;
-            if (view.footerItem)
-                view.footerItem.width = film.inset;
-            view.highlightMoveDuration = animate ? Commons.Style.duration(220) : 0;
-            view.currentIndex = i;
-            Qt.callLater(() => {
-                if (view.count === 0) return;
-                if (view.headerItem)
-                    view.headerItem.width = film.inset;
-                if (view.footerItem)
-                    view.footerItem.width = film.inset;
-                view.positionViewAtIndex(Math.min(i, view.count - 1), ListView.Center);
-            });
-        }
-
-        property bool _ready: false
-        onCursorChanged: film.sync(film._ready)
-        onEntriesChanged: {
-            film._ready = false;
-            Qt.callLater(() => {
-                film.sync(false);
-                film._ready = true;
-            });
-        }
-
-        ListView {
-            id: view
+        // Base. O fio de 1 px só existe para uma amostra igual ao painel não sumir.
+        ContinuousRect {
             anchors.fill: parent
-            orientation: ListView.Horizontal
-            layoutDirection: root.rtl ? Qt.RightToLeft : Qt.LeftToRight
-            spacing: 12
-            clip: true
-            model: film.entries
-            reuseItems: true
-            cacheBuffer: Math.max(1200, film.span)
-            boundsBehavior: Flickable.StopAtBounds
-            snapMode: ListView.SnapOneItem
-            highlightRangeMode: ListView.StrictlyEnforceRange
-            preferredHighlightBegin: film.inset
-            preferredHighlightEnd: film.inset + film.cardW
-            highlightMoveDuration: Commons.Style.duration(220)
-            keyNavigationEnabled: false
-            header: Item { width: film.inset; height: 1 }
-            footer: Item { width: film.inset; height: 1 }
-
-            property bool userDrag: false
-            onDragStarted: view.userDrag = true
-            onFlickStarted: view.userDrag = true
-            onMovementEnded: {
-                if (!view.userDrag) return;
-                view.userDrag = false;
-                if (view.currentIndex >= 0 && view.currentIndex !== film.cursor)
-                    film.cursorMoved(view.currentIndex);
-            }
-
-            delegate: Item {
-                id: card
-                required property var modelData
-                required property int index
-                width: film.cardW
-                height: film.cardH
-                readonly property bool centered: index === film.cursor
-                readonly property bool marked: modelData.path
-                    ? modelData.path === film.marked
-                    : modelData.name === film.marked
-                readonly property bool keyboard: centered && film.activeFocus && root.keyboardMode
-
-                scale: centered ? 1 : 0.96
-                opacity: centered ? 1 : 0.62
-                transformOrigin: Item.Center
-                Behavior on scale { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-
-                Item {
-                    id: thumb
-                    width: parent.width
-                    height: film.thumbH
-
-                    ContinuousRect {
-                        anchors.fill: parent
-                        radius: root.metrics.rowRadius
-                        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
-                    }
-                    Icon {
-                        anchors.centerIn: parent
-                        visible: shot.status !== Image.Ready
-                        name: card.modelData.video ? "movie" : "image"
-                        size: 22
-                        color: root.muted
-                    }
-                    Item {
-                        id: shotSource
-                        anchors.fill: parent
-                        visible: false
-                        layer.enabled: shot.status === Image.Ready
-                        Image {
-                            id: shot
-                            anchors.fill: parent
-                            source: card.modelData.preview ? root.fileUrl(card.modelData.preview) : ""
-                            sourceSize.width: 520
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            cache: true
-                        }
-                    }
-                    ContinuousRect {
-                        id: shotMask
-                        anchors.fill: parent
-                        radius: root.metrics.rowRadius
-                        visible: false
-                        layer.enabled: true
-                        color: root.fg
-                    }
-                    MultiEffect {
-                        anchors.fill: parent
-                        visible: shot.status === Image.Ready
-                        source: shotSource
-                        maskEnabled: true
-                        maskSource: shotMask
-                        maskThresholdMin: 0.5
-                        maskSpreadAtMin: 1.0
-                        opacity: shot.status === Image.Ready ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msFadeIn); easing.type: Easing.OutCubic } }
-                    }
-                    ContinuousRect {
-                        anchors.fill: parent
-                        radius: root.metrics.rowRadius
-                        color: "transparent"
-                        borderWidth: 2
-                        borderColor: root.accent
-                        opacity: card.centered || card.marked ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-                    }
-                    ContinuousRect {
-                        anchors.top: parent.top
-                        anchors.right: parent.right
-                        anchors.margins: 6
-                        width: 18
-                        height: 18
-                        radius: root.metrics.fit(height / 2)
-                        color: root.accent
-                        opacity: card.marked ? 1 : 0
-                        scale: card.marked ? 1 : root.metrics.pressScale
-                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-                        Behavior on scale { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-                        Icon {
-                            anchors.centerIn: parent
-                            name: "check"
-                            size: 14
-                            weight: 600
-                            color: root.bg
-                        }
-                    }
-                    ContinuousRect {
-                        anchors.fill: parent
-                        anchors.margins: -(root.metrics.ring + 1)
-                        radius: root.metrics.corners === "sharp" ? 0 : root.metrics.rowRadius + root.metrics.ring + 1
-                        color: "transparent"
-                        borderWidth: root.metrics.ring
-                        borderColor: root.accent
-                        opacity: card.keyboard ? 1 : 0
-                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msPress); easing.type: Easing.OutCubic } }
-                    }
-                }
-
-                Text {
-                    anchors.top: thumb.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    height: 18
-                    verticalAlignment: Text.AlignBottom
-                    horizontalAlignment: Text.AlignHCenter
-                    text: card.modelData.name
-                    textFormat: Text.PlainText
-                    font.pixelSize: root.metrics.tileSublabel
-                    font.weight: card.marked ? Font.DemiBold : Font.Normal
-                    elide: Text.ElideRight
-                    color: card.marked || card.centered ? root.accent : root.muted
-                }
-
-                HoverHandler { cursorShape: Qt.PointingHandCursor }
-                TapHandler {
-                    onTapped: {
-                        film.cursorMoved(card.index);
-                        film.chosen(card.index);
-                    }
-                }
-            }
+            radius: tc.radius
+            color: tc.swatch ? tc.entry.bg : root.metrics.plate(root.bg, 0.9)
+            borderWidth: 1
+            borderColor: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
         }
 
-        Text {
-            anchors.centerIn: parent
-            visible: film.entries.length === 0
-            text: film.loaded ? film.emptyText : film.loadingText
-            textFormat: Text.PlainText
-            font.pixelSize: 13
-            color: root.muted
-        }
-
-        Repeater {
-            model: [
-                { dir: -1, icon: root.rtl ? "chevron_right" : "chevron_left", side: "left" },
-                { dir: 1, icon: root.rtl ? "chevron_left" : "chevron_right", side: "right" }
-            ]
-            Item {
-                required property var modelData
-                width: 28
+        // Prévia, só quando o tema não traz cores.
+        Item {
+            id: shotSource
+            anchors.fill: parent
+            visible: false
+            layer.enabled: tc.fallback && shot.status === Image.Ready
+            Image {
+                id: shot
+                anchors.fill: parent
+                source: tc.fallback ? root.fileUrl(tc.entry.preview) : ""
+                sourceSize.width: 260
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: true
+            }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
                 height: 28
-                y: (parent.height - height) / 2 - 9
-                x: modelData.side === "left" ? 12 : parent.width - width - 12
-                opacity: (filmHover.hovered || film.activeFocus) && film.entries.length > 1 ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
-                ContinuousRect {
-                    anchors.fill: parent
-                    radius: root.metrics.fit(height / 2)
-                    color: root.metrics.plate(root.bg, 0.78)
-                }
-                Icon {
-                    anchors.centerIn: parent
-                    name: modelData.icon
-                    size: 18
-                    color: root.fg
-                }
-                TapHandler { onTapped: film.move(modelData.dir) }
+                color: root.metrics.plate(root.bg, 0.72)
             }
+        }
+        ContinuousRect {
+            id: shotMask
+            anchors.fill: parent
+            radius: tc.radius
+            visible: false
+            layer.enabled: tc.fallback
+            color: root.fg
+        }
+        MultiEffect {
+            anchors.fill: parent
+            visible: tc.fallback && shot.status === Image.Ready
+            source: shotSource
+            maskEnabled: true
+            maskSource: shotMask
+            maskThresholdMin: 0.5
+            maskSpreadAtMin: 1
         }
 
-        HoverHandler { id: filmHover }
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => {
-                const dy = event.angleDelta.y + event.angleDelta.x;
-                if (dy === 0) return;
-                film.move(dy > 0 ? -1 : 1);
+        Row {
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: -8
+            spacing: 5
+            Repeater {
+                model: tc.entry && tc.entry.colors ? tc.entry.colors : []
+                Rectangle {
+                    required property string modelData
+                    width: 10
+                    height: 10
+                    radius: 5
+                    color: modelData
+                }
             }
         }
+        Text {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 8
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            horizontalAlignment: Text.AlignHCenter
+            text: tc.entry ? String(tc.entry.name || "") : ""
+            textFormat: Text.PlainText
+            font.family: root.fontFamily
+            font.pixelSize: 12
+            font.weight: Font.Medium
+            elide: Text.ElideRight
+            color: tc.swatch && tc.entry.fg ? tc.entry.fg : root.fg
+        }
+
+        // Tema em uso.
+        Rectangle {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 8
+            width: 6
+            height: 6
+            radius: 3
+            color: root.accent
+            opacity: tc.applied ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+        }
+
+        // Cursor.
+        ContinuousRect {
+            anchors.fill: parent
+            radius: tc.radius
+            color: "transparent"
+            borderWidth: 2
+            borderColor: tc.focused ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.35)
+            opacity: tc.selected ? 1 : 0
+            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+        }
+
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: tc.tapped() }
     }
 
-    // Fundos do tema no centro. A miniatura escolhida sobe; as vizinhas
-    // descem e esmaecem. O nome fica na foto. Sem aro. A pílula não estica.
+    // Fundos do tema no centro. A escolhida fica inteira e contornada; as
+    // vizinhas encolhem e esmaecem. O nome do arquivo vai no rodapé.
     component WallPicker: Item {
         id: picker
 
@@ -972,10 +847,11 @@ Item {
         signal cursorMoved(int index)
         signal chosen(int index)
 
-        readonly property int thumbW: 100
-        readonly property int thumbH: 56
-        readonly property int gap: 8
-        readonly property int lift: 10
+        readonly property int thumbW: 128
+        readonly property int thumbH: 72
+        readonly property int gap: 12
+        readonly property int header: 24
+        readonly property int footerH: 16
         readonly property int thumbRadius: root.metrics.fit(10)
         readonly property var listed: {
             const q = root.wallQuery.trim().toLowerCase();
@@ -996,6 +872,8 @@ Item {
             return -1;
         }
         readonly property int focusPos: picker.listedPos < 0 ? 0 : picker.listedPos
+        readonly property var focusEntry: picker.listed.length > 0 && picker.focusPos < picker.listed.length
+                                          ? picker.listed[picker.focusPos].entry : null
         property bool settle: false
 
         function move(d) {
@@ -1021,63 +899,57 @@ Item {
         Component.onCompleted: Qt.callLater(() => { picker.settle = true; })
 
         implicitWidth: root.metrics.content
-        implicitHeight: 32 + 8 + 1 + 8 + thumbH + lift + 8
+        implicitHeight: header + 8 + row.height + 6 + footerH
         width: implicitWidth
         height: implicitHeight
         activeFocusOnTab: true
         Accessible.role: Accessible.List
         Accessible.name: strings.t("style.section.background")
 
-        ContinuousRect {
-            id: searchBox
-            y: 0
-            width: parent.width - 72
-            height: 32
-            radius: root.metrics.fit(height / 2)
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
-            Icon {
+        // Cabeçalho: a seção (ou a busca) à esquerda, o tema à direita.
+        Item {
+            id: headerRow
+            width: parent.width
+            height: picker.header
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                x: 10
-                name: "search"
-                size: 16
-                color: root.muted
+                width: Math.min(implicitWidth, parent.width * 0.55)
+                text: root.wallQuery !== "" ? "⌕ " + root.wallQuery
+                      : root.wallTyping ? "⌕ " + strings.t("style.wallSearch")
+                      : strings.t("style.section.background")
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                color: picker.activeFocus && !(root.wallTyping && root.wallQuery === "") ? root.fg : root.muted
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
             }
             Text {
+                anchors.right: parent.right
+                anchors.rightMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                x: 32
-                width: parent.width - 40
-                text: root.wallQuery !== "" ? root.wallQuery : strings.t("style.wallSearch")
+                width: Math.min(implicitWidth, parent.width * 0.4)
+                horizontalAlignment: Text.AlignRight
+                text: root.wallTheme + (root.pendingWallpaper !== "" ? " · " + strings.t("style.applying") : "")
                 textFormat: Text.PlainText
-                font.pixelSize: root.metrics.captionText
+                font.family: root.fontFamily
+                font.pixelSize: 13
                 elide: Text.ElideRight
-                color: root.wallQuery !== "" ? root.fg : root.muted
+                color: root.muted
             }
             TapHandler { onTapped: picker.forceActiveFocus(Qt.MouseFocusReason) }
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 2
-            anchors.verticalCenter: searchBox.verticalCenter
-            text: !picker.loaded ? ""
-                  : root.pendingWallpaper !== "" ? strings.t("style.applying")
-                  : picker.listed.length === 0 ? "0/0"
-                  : ((picker.listedPos < 0 ? 1 : picker.listedPos + 1) + "/" + picker.listed.length)
-            textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
-            color: root.muted
-        }
-        Rectangle {
-            y: searchBox.height + 8
-            width: parent.width
-            height: 1
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.16)
         }
 
         Item {
             id: row
-            y: 32 + 8 + 1 + 8
+            y: picker.header + 8
             width: parent.width
-            height: picker.thumbH + picker.lift
+            // Folga de 4 px em cima e embaixo para o contorno da escolhida.
+            height: picker.thumbH + 8
             clip: true
 
             readonly property real centerX: width / 2
@@ -1100,8 +972,10 @@ Item {
                     width: picker.thumbW
                     height: picker.thumbH
                     x: row.centerX + distance * row.step * (root.rtl ? -1 : 1) - width / 2
-                    y: isSelected ? 0 : picker.lift
+                    y: (row.height - height) / 2
                     z: 100 - absDistance
+                    scale: absDistance === 0 ? 1 : absDistance === 1 ? 0.82 : 0.68
+                    transformOrigin: Item.Center
                     opacity: {
                         if (isActive || absDistance === 0) return 1;
                         if (absDistance === 1) return 0.75;
@@ -1109,8 +983,8 @@ Item {
                         return 0;
                     }
                     visible: opacity > 0.01
-                    Behavior on x { enabled: picker.settle; NumberAnimation { duration: Commons.Style.duration(260); easing.type: Easing.OutCubic } }
-                    Behavior on y { enabled: picker.settle; NumberAnimation { duration: Commons.Style.duration(260); easing.type: Easing.OutCubic } }
+                    Behavior on x { enabled: picker.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
+                    Behavior on scale { enabled: picker.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
                     Behavior on opacity { enabled: picker.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
 
                     Item {
@@ -1126,45 +1000,17 @@ Item {
                             id: shot
                             anchors.fill: parent
                             source: thumb.near && thumb.entry && thumb.entry.preview ? root.fileUrl(thumb.entry.preview) : ""
-                            sourceSize.width: 200
+                            sourceSize.width: 256
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             cache: true
                         }
                         Icon {
                             anchors.centerIn: parent
-                            anchors.verticalCenterOffset: -8
                             visible: shot.status !== Image.Ready
                             name: thumb.entry && thumb.entry.video ? "movie" : "image"
                             size: 18
                             color: root.muted
-                        }
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            height: 28
-                            visible: !thumb.isActive
-                            gradient: Gradient {
-                                GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0) }
-                                GradientStop { position: 1; color: Qt.rgba(0, 0, 0, thumb.isSelected ? 0.72 : 0.55) }
-                            }
-                        }
-                        Text {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: 6
-                            anchors.rightMargin: 6
-                            anchors.bottomMargin: 4
-                            text: thumb.entry ? String(thumb.entry.name || "") : ""
-                            textFormat: Text.PlainText
-                            elide: Text.ElideRight
-                            color: "white"
-                            style: thumb.isActive ? Text.Outline : Text.Normal
-                            styleColor: Qt.rgba(0, 0, 0, 0.55)
-                            font.pixelSize: thumb.isSelected ? 12 : 11
-                            font.weight: thumb.isSelected ? Font.DemiBold : Font.Medium
                         }
                     }
                     ContinuousRect {
@@ -1183,6 +1029,28 @@ Item {
                         maskThresholdMin: 0.5
                         maskSpreadAtMin: 1
                     }
+                    // Fundo em uso.
+                    Rectangle {
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.margins: 8
+                        width: 6
+                        height: 6
+                        radius: 3
+                        color: root.accent
+                        visible: thumb.isActive
+                    }
+                    // Escolhida: contorno de destaque, apagado sem foco.
+                    ContinuousRect {
+                        anchors.fill: parent
+                        anchors.margins: -2
+                        radius: root.metrics.corners === "sharp" ? 0 : picker.thumbRadius + 2
+                        color: "transparent"
+                        borderWidth: 2
+                        borderColor: root.accent
+                        opacity: thumb.isSelected ? (picker.activeFocus ? 1 : 0.4) : 0
+                        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                    }
                     HoverHandler { cursorShape: Qt.PointingHandCursor }
                     TapHandler {
                         onTapped: {
@@ -1199,7 +1067,42 @@ Item {
                 visible: picker.listed.length === 0
                 text: picker.loaded ? picker.emptyText : picker.loadingText
                 textFormat: Text.PlainText
-                font.pixelSize: root.metrics.captionText
+                font.family: root.fontFamily
+                font.pixelSize: 13
+                color: root.muted
+            }
+        }
+
+        // Rodapé: o arquivo da escolhida e a contagem.
+        Item {
+            y: row.y + row.height + 6
+            width: parent.width
+            height: picker.footerH
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                width: parent.width - countText.implicitWidth - 16
+                text: picker.focusEntry ? String(picker.focusEntry.path || "").split("/").pop() : ""
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 11
+                elide: Text.ElideMiddle
+                color: root.muted
+            }
+            Text {
+                id: countText
+                anchors.right: parent.right
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                text: !picker.loaded || picker.listed.length === 0 ? ""
+                      : ((picker.listedPos < 0 ? 1 : picker.listedPos + 1) + "/" + picker.listed.length
+                         + " · " + strings.t("style.wallApply"))
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 11
+                font.features: ({ "tnum": 1 })
                 color: root.muted
             }
         }
@@ -1214,7 +1117,8 @@ Item {
         }
     }
 
-    // Faixa de temas: busca, a imagem do tema, a paleta e o nome. Enter aplica.
+    // Faixa de temas: linha de busca e o carrossel de amostras. Em Todos os
+    // temas vira uma grade de 4 colunas. Enter aplica.
     component ThemePicker: Item {
         id: themes
 
@@ -1227,11 +1131,20 @@ Item {
         signal cursorMoved(int index)
         signal chosen(int index)
 
-        readonly property int cardW: 100
+        readonly property int cardW: 112
         readonly property int cardH: 72
-        readonly property int gap: 8
-        readonly property int slots: 5
-        readonly property int cardRadius: root.metrics.fit(10)
+        readonly property int gap: 10
+        readonly property int header: 32
+        // Grade de Todos os temas: 4 colunas, no máximo 4 linhas à vista.
+        readonly property bool gridMode: root.allThemesOpen
+        readonly property int columns: 4
+        readonly property int cellH: 64
+        readonly property real cellW: (width - (columns - 1) * gap) / columns
+        readonly property int rowCount: Math.ceil(themes.listed.length / columns)
+        readonly property int rowsShown: Math.max(1, Math.min(4, rowCount))
+        readonly property real gridH: rowsShown * cellH + (rowsShown - 1) * gap
+        readonly property real bodyH: gridMode ? gridH : cardH
+
         readonly property var listed: {
             const q = root.themeQuery.trim().toLowerCase();
             const src = themes.entries || [];
@@ -1248,24 +1161,32 @@ Item {
                 if (themes.listed[i].index === themes.cursor) return i;
             return -1;
         }
+        readonly property int focusPos: themes.listedPos < 0 ? 0 : themes.listedPos
+        property bool settle: false
 
-        function slotItem(slot) {
-            const pos = themes.listedPos < 0 ? 0 : themes.listedPos;
-            const i = pos - 2 + slot;
-            if (i < 0 || i >= themes.listed.length) return null;
-            return themes.listed[i];
-        }
-        function move(d) {
-            if (themes.listed.length === 0) return false;
-            const pos = themes.listedPos < 0 ? 0 : themes.listedPos;
-            const to = pos + d;
+        function moveTo(to) {
             if (to < 0 || to >= themes.listed.length) return false;
             themes.cursorMoved(themes.listed[to].index);
             return true;
         }
+        function move(d) {
+            if (themes.listed.length === 0) return false;
+            return themes.moveTo(themes.focusPos + d);
+        }
         function handleArrow(key) {
             if (key === Qt.Key_Left) return themes.move(root.rtl ? 1 : -1);
             if (key === Qt.Key_Right) return themes.move(root.rtl ? -1 : 1);
+            if (!themes.gridMode || themes.listed.length === 0) return false;
+            const pos = themes.focusPos;
+            const n = themes.listed.length;
+            const c = themes.columns;
+            if (key === Qt.Key_Up) return themes.moveTo(pos - c);
+            if (key === Qt.Key_Down) {
+                // Última linha incompleta: desce para o último tema.
+                if (pos + c < n) return themes.moveTo(pos + c);
+                if (Math.floor(pos / c) < Math.floor((n - 1) / c)) return themes.moveTo(n - 1);
+                return false;
+            }
             return false;
         }
         function activate() {
@@ -1274,152 +1195,201 @@ Item {
             themes.chosen(themes.listed[pos].index);
             return true;
         }
+        // Mantém a linha do cursor à vista na grade.
+        function revealCursor() {
+            if (!themes.gridMode) return;
+            const top = Math.floor(themes.focusPos / themes.columns) * (themes.cellH + themes.gap);
+            const bottom = top + themes.cellH;
+            const maxY = Math.max(0, gridView.contentHeight - gridView.height);
+            let y = gridView.contentY;
+            if (top < y) y = top;
+            else if (bottom > y + gridView.height) y = bottom - gridView.height;
+            const to = Math.max(0, Math.min(maxY, y));
+            if (Math.abs(to - gridView.contentY) < 0.5) return;
+            // Só a rolagem pelo teclado anima; arrastar a grade segue o dedo.
+            if (!themes.settle) {
+                gridView.contentY = to;
+                return;
+            }
+            gridScroll.stop();
+            gridScroll.from = gridView.contentY;
+            gridScroll.to = to;
+            gridScroll.start();
+        }
+        NumberAnimation {
+            id: gridScroll
+            target: gridView
+            property: "contentY"
+            duration: Commons.Style.duration(200)
+            easing.type: Easing.OutCubic
+        }
+        onFocusPosChanged: Qt.callLater(themes.revealCursor)
+        onGridModeChanged: Qt.callLater(themes.revealCursor)
+
+        Component.onCompleted: Qt.callLater(() => { themes.settle = true; })
 
         implicitWidth: root.metrics.content
-        implicitHeight: 32 + 8 + cardH + 8 + 16
+        implicitHeight: header + 8 + bodyH
         width: implicitWidth
         height: implicitHeight
         activeFocusOnTab: true
         Accessible.role: Accessible.List
         Accessible.name: strings.t("style.gallery")
 
-        ContinuousRect {
-            id: searchBox
-            y: 0
-            width: 220
-            height: 32
-            radius: root.metrics.fit(height / 2)
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
-            Icon {
+        // Linha de busca, sem placa: seção, lupa e texto, / e a contagem.
+        Item {
+            id: searchLine
+            width: parent.width
+            height: themes.header
+
+            Text {
+                id: sectionText
+                anchors.left: parent.left
+                anchors.leftMargin: 2
                 anchors.verticalCenter: parent.verticalCenter
-                x: 10
+                text: strings.t("style.section.theme")
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                color: themes.activeFocus ? root.fg : root.muted
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+            }
+            Icon {
+                id: searchIcon
+                anchors.left: sectionText.right
+                anchors.leftMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
                 name: "search"
                 size: 16
                 color: root.muted
             }
             Text {
+                anchors.left: searchIcon.right
+                anchors.leftMargin: 8
+                anchors.right: slashBadge.left
+                anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
-                x: 32
-                width: parent.width - 40
                 text: root.themeQuery !== "" ? root.themeQuery : strings.t("style.themeSearch")
                 textFormat: Text.PlainText
-                font.pixelSize: root.metrics.captionText
+                font.family: root.fontFamily
+                font.pixelSize: 13
                 elide: Text.ElideRight
                 color: root.themeQuery !== "" ? root.fg : root.muted
+                opacity: root.themeQuery !== "" || root.themeTyping ? 1 : 0.7
             }
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 2
-            anchors.verticalCenter: searchBox.verticalCenter
-            text: !themes.loaded ? ""
-                  : root.pendingTheme !== "" ? strings.t("style.applying")
-                  : themes.listed.length === 0 ? "0/0"
-                  : ((themes.listedPos < 0 ? 1 : themes.listedPos + 1) + "/" + themes.listed.length)
-            textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
-            color: root.muted
+            KeyBadge {
+                id: slashBadge
+                anchors.right: themeCount.left
+                anchors.rightMargin: 10
+                anchors.verticalCenter: parent.verticalCenter
+                letter: "/"
+                keyboardMode: root.keyboardMode
+                strong: root.themeTyping
+                fg: root.fg
+                bg: root.bg
+                accent: root.accent
+                muted: root.muted
+                metrics: root.metrics
+            }
+            Text {
+                id: themeCount
+                anchors.right: parent.right
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                text: !themes.loaded ? ""
+                      : root.pendingTheme !== "" ? strings.t("style.applying")
+                      : themes.listed.length === 0 ? "0/0"
+                      : ((themes.listedPos < 0 ? 1 : themes.listedPos + 1) + "/" + themes.listed.length)
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 13
+                font.features: ({ "tnum": 1 })
+                color: root.muted
+            }
+            TapHandler { onTapped: themes.forceActiveFocus(Qt.MouseFocusReason) }
         }
 
-        Row {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: 32 + 8
-            spacing: themes.gap
+        // Carrossel: o cartão do cursor no centro, os vizinhos deslizam.
+        Item {
+            id: carousel
+            y: themes.header + 8
+            width: parent.width
+            height: themes.cardH
+            visible: !themes.gridMode
+            clip: true
+
             Repeater {
-                model: themes.slots
-                Item {
-                    id: slot
+                model: themes.gridMode ? [] : themes.listed
+                ThemeCard {
+                    id: card
                     required property int index
-                    readonly property var item: themes.slotItem(index)
-                    readonly property bool center: index === 2 && slot.item !== null
+                    required property var modelData
+                    readonly property int dist: Math.abs(index - themes.focusPos)
+
+                    entry: modelData.entry
+                    selected: dist === 0
+                    applied: !!(entry && entry.name === themes.marked)
+                    focused: themes.activeFocus
                     width: themes.cardW
                     height: themes.cardH
-                    opacity: slot.item === null ? 0 : 1
+                    x: carousel.width / 2 + (index - themes.focusPos) * (themes.cardW + themes.gap) * (root.rtl ? -1 : 1) - themes.cardW / 2
+                    z: 100 - dist
+                    visible: dist <= 3
+                    opacity: [1, 0.8, 0.45][Math.min(dist, 2)]
+                    scale: dist === 0 ? 1 : 0.94
+                    transformOrigin: Item.Center
+                    Behavior on x { enabled: themes.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
+                    Behavior on scale { enabled: themes.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
+                    Behavior on opacity { enabled: themes.settle; NumberAnimation { duration: Commons.Style.duration(200); easing.type: Easing.OutCubic } }
 
-                    ContinuousRect {
-                        anchors.fill: parent
-                        radius: themes.cardRadius
-                        color: root.metrics.plate(root.bg, 0.82)
-                        borderWidth: slot.center ? 2 : 1
-                        borderColor: slot.center ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.16)
+                    onTapped: {
+                        themes.forceActiveFocus(Qt.MouseFocusReason);
+                        if (card.selected) themes.chosen(card.modelData.index);
+                        else themes.cursorMoved(card.modelData.index);
                     }
-                    Item {
-                        id: shotSource
-                        anchors.fill: parent
-                        visible: false
-                        layer.enabled: slot.item !== null && shot.status === Image.Ready
-                        Image {
-                            id: shot
-                            anchors.fill: parent
-                            source: slot.item && slot.item.entry.preview ? root.fileUrl(slot.item.entry.preview) : ""
-                            sourceSize.width: 220
-                            fillMode: Image.PreserveAspectCrop
-                            asynchronous: true
-                            cache: true
-                        }
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            height: 36
-                            gradient: Gradient {
-                                GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0) }
-                                GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0.72) }
-                            }
-                        }
-                    }
-                    ContinuousRect {
-                        id: shotMask
-                        anchors.fill: parent
-                        radius: themes.cardRadius
-                        visible: false
-                        layer.enabled: true
-                        color: root.fg
-                    }
-                    MultiEffect {
-                        anchors.fill: parent
-                        visible: slot.item !== null && shot.status === Image.Ready
-                        source: shotSource
-                        maskEnabled: true
-                        maskSource: shotMask
-                        maskThresholdMin: 0.5
-                        maskSpreadAtMin: 1
-                    }
-                    Row {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 22
-                        spacing: 3
-                        Repeater {
-                            model: slot.item && slot.item.entry.colors ? slot.item.entry.colors : []
-                            Rectangle {
-                                required property string modelData
-                                width: 8
-                                height: 8
-                                radius: 4
-                                color: modelData
-                            }
-                        }
-                    }
-                    Text {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 6
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        horizontalAlignment: Text.AlignHCenter
-                        text: slot.item ? String(slot.item.entry.name || "") : ""
-                        textFormat: Text.PlainText
-                        font.pixelSize: root.metrics.captionText
-                        elide: Text.ElideRight
-                        color: shot.status === Image.Ready ? "white" : (slot.center ? root.fg : root.muted)
-                    }
-                    TapHandler {
-                        enabled: slot.item !== null
+                }
+            }
+        }
+
+        // Todos os temas: grade de 4 colunas que rola até o cursor.
+        Flickable {
+            id: gridView
+            y: themes.header + 8
+            width: parent.width
+            height: themes.gridH
+            visible: themes.gridMode
+            clip: true
+            contentWidth: width
+            contentHeight: themeGrid.height
+            interactive: contentHeight > height
+            boundsBehavior: Flickable.StopAtBounds
+
+            Grid {
+                id: themeGrid
+                width: parent.width
+                columns: themes.columns
+                spacing: themes.gap
+                layoutDirection: root.rtl ? Qt.RightToLeft : Qt.LeftToRight
+
+                Repeater {
+                    model: themes.gridMode ? themes.listed : []
+                    ThemeCard {
+                        id: cell
+                        required property int index
+                        required property var modelData
+
+                        entry: modelData.entry
+                        selected: index === themes.focusPos
+                        applied: !!(entry && entry.name === themes.marked)
+                        focused: themes.activeFocus
+                        width: themes.cellW
+                        height: themes.cellH
+
                         onTapped: {
-                            if (slot.center) themes.chosen(slot.item.index);
-                            else themes.cursorMoved(slot.item.index);
+                            themes.forceActiveFocus(Qt.MouseFocusReason);
+                            if (cell.selected) themes.chosen(cell.modelData.index);
+                            else themes.cursorMoved(cell.modelData.index);
                         }
                     }
                 }
@@ -1427,28 +1397,23 @@ Item {
         }
 
         Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 2
-            anchors.bottom: parent.bottom
-            width: parent.width * 0.6
-            text: !themes.loaded ? themes.loadingText
-                  : themes.listed.length === 0 ? themes.emptyText : ""
+            x: 0
+            y: themes.header + 8
+            width: parent.width
+            height: themes.bodyH
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            visible: !themes.loaded || themes.listed.length === 0
+            text: !themes.loaded ? themes.loadingText : themes.emptyText
             textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
+            font.family: root.fontFamily
+            font.pixelSize: 13
             elide: Text.ElideRight
-            color: root.muted
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 2
-            anchors.bottom: parent.bottom
-            text: themes.listedPos < 0 ? "" : strings.t("style.wallApply")
-            textFormat: Text.PlainText
-            font.pixelSize: root.metrics.captionText
             color: root.muted
         }
 
         WheelHandler {
+            enabled: !themes.gridMode
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
             onWheel: event => {
                 const dy = event.angleDelta.y + event.angleDelta.x;
@@ -1482,6 +1447,8 @@ Item {
                 loaded: root.themesLoaded
                 emptyText: strings.t("style.themesEmpty")
                 loadingText: strings.t("style.themesLoading")
+                // Saiu da faixa sem digitar nada: a busca desarma.
+                onActiveFocusChanged: if (!activeFocus && root.themeQuery === "") root.themeTyping = false
                 onCursorMoved: index => {
                     root.galleryUserMoved = true;
                     root.galleryCursor = index;
@@ -1493,7 +1460,7 @@ Item {
             }
         }
 
-        // ----- Fundos do tema em vista: a escolhida sobe, largura da pílula -----
+        // ----- Fundos do tema em vista: a escolhida no centro, largura da pílula -----
         Item {
             id: wallBlock
             width: root.metrics.content
@@ -1510,6 +1477,7 @@ Item {
                 loaded: root.wallsLoaded
                 emptyText: strings.t("style.backgroundsEmpty")
                 loadingText: root.pendingWallpaper !== "" ? strings.t("style.applying") : strings.t("style.backgroundsLoading")
+                onActiveFocusChanged: if (!activeFocus && root.wallQuery === "") root.wallTyping = false
                 onCursorMoved: index => {
                     root.wallUserMoved = true;
                     root.wallCursor = index;
@@ -1570,7 +1538,8 @@ Item {
                 variant: "segmented"
                 keyRow: cornersBlock.autoKeyRow
                 label: strings.t("style.corners")
-                value: currentIndex >= 0 ? options[currentIndex].label : ""
+                // O segmento ligado já diz o modo: sem repetir à direita.
+                value: ""
                 current: root.corners
                 options: [
                     { value: "theme", label: strings.t("style.corners.theme") },
@@ -1594,7 +1563,7 @@ Item {
             visible: !root.allThemesOpen
             variant: "segmented"
             label: strings.t("style.transparency")
-            value: currentIndex >= 0 ? options[currentIndex].label : ""
+            value: ""
             current: root.transparency
             options: [
                 { value: "opaque", label: strings.t("style.transparency.opaque") },
@@ -1618,7 +1587,8 @@ Item {
             visible: !root.allThemesOpen
             variant: "chips"
             label: strings.t("style.font")
-            value: root.currentFont
+            // Só avisa que falta o ↵ enquanto a fonte marcada não foi aplicada.
+            value: root.pendingFont !== "" && root.pendingFont !== root.currentFont ? strings.t("style.wallApply") : ""
             current: root.pendingFont !== "" ? root.pendingFont : root.currentFont
             stepPreview: true
             options: root.fonts.map(f => ({ value: f, label: f, font: f }))

@@ -2,13 +2,14 @@ import QtQuick
 import qs.Commons as Commons
 
 // Rodapé de 20 px de todo painel (spec §3.1): estado à esquerda, dicas de
-// teclado à direita, ambos 11 px muted. As dicas cedem espaço ao estado.
+// teclado à direita, 11 px na fonte do tema: estado em muted, dicas em fg a 45%.
+// As dicas cedem espaço ao estado.
 //
 // API pública:
 //   status: string    estado ao vivo ("Bateria 82% · carregando", "Pronto"…)
 //   hints: string     dica do painel ("Q–F alternar · −/= volume · M mudo")
 //   alert: bool       estado em danger (por exemplo um confirm armado)
-//   fg, danger, muted, metrics
+//   fg, danger, muted, metrics, fontFamily
 Item {
     id: footer
 
@@ -19,6 +20,7 @@ Item {
     property color fg: Commons.Color.bar.text
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     implicitWidth: metrics.content
@@ -34,6 +36,7 @@ Item {
         width: Math.min(implicitWidth, footer.width - 2 - (hintsText.text !== "" ? Math.min(hintsText.implicitWidth, footer.width * 0.55) + 16 : 0))
         text: footer.status
         textFormat: Text.PlainText
+        font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText
         font.weight: footer.alert ? Font.DemiBold : Font.Normal
         elide: Text.ElideRight
@@ -50,9 +53,9 @@ Item {
         horizontalAlignment: Text.AlignRight
         text: footer.hints
         textFormat: Text.PlainText
+        font.family: footer.fontFamily
         font.pixelSize: footer.metrics.footerText
         elide: Text.ElideLeft
-        color: footer.muted
-        opacity: 0.85
+        color: Qt.rgba(footer.fg.r, footer.fg.g, footer.fg.b, 0.45)
     }
 }

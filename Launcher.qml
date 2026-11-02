@@ -2,9 +2,9 @@ import QtQuick
 import Quickshell
 import qs.Commons as Commons
 
-// Apps (spec §3.4): campo de busca de 40 px + 8 + lista de altura fixa
-// (8 linhas de 40 = 320; rola quando há mais). Sem resultado, o aviso fica
-// centrado no bloco. A altura nunca muda: 368.
+// Apps (spec §3.4): linha de busca de 40 px + 8 + lista de altura fixa
+// (6 linhas de 52 = 312; rola quando há mais). Sem resultado, o aviso fica
+// centrado no bloco. A altura nunca muda: 360.
 //
 // Teclas no campo: ↑↓ e Tab/⇧Tab escolhem, ↵ abre, Esc limpa a busca
 // (o 2º Esc sobe para o host e fecha). Alt+dígito e Ctrl+Tab sobem para o
@@ -22,6 +22,8 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    // Fonte do Estilo (o host liga quando a propriedade existe).
+    property string fontFamily: Commons.Style.fontFamily
 
     // `open` (semântica antiga) e `active` (contrato de estado) fazem o mesmo.
     property bool open: false
@@ -37,8 +39,8 @@ Item {
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
-    readonly property int visibleRows: 8
-    readonly property int rowHeight: 40
+    readonly property int visibleRows: 6
+    readonly property int rowHeight: metrics.listRow
     readonly property int searchHeight: 40
     readonly property int listHeight: visibleRows * rowHeight
 
@@ -116,6 +118,8 @@ Item {
         input.text = "";
         root.query = "";
         root.selectedIndex = 0;
+        list.currentIndex = 0;
+        list.positionViewAtBeginning();
         input.forceActiveFocus();
     }
 
@@ -129,25 +133,33 @@ Item {
         e.execute();
     }
 
-    // ---------- Campo de busca (40) ----------
+    // ---------- Linha de busca (40) ----------
+    // Sem placa nem borda: só a lupa, o texto e um fio de 1 px embaixo.
     ContinuousRect {
         id: searchBox
         width: root.implicitWidth
         height: root.searchHeight
-        radius: height / 2
-        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
-        borderWidth: input.activeFocus ? root.metrics.ring - 1 : 0
-        borderColor: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55)
+        radius: root.metrics.fit(height / 2)
+        color: "transparent"
+        borderWidth: 0
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+        }
 
         Icon {
             id: searchIcon
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             name: "search"
-            size: 20
+            size: 18
             filled: input.text.length > 0
-            color: root.accent
+            color: input.text.length > 0 ? root.fg : root.muted
         }
 
         TextInput {
@@ -160,7 +172,8 @@ Item {
             color: root.fg
             selectionColor: root.accent
             selectedTextColor: root.bg
-            font.pixelSize: 14
+            font.family: root.fontFamily
+            font.pixelSize: 15
             clip: true
             onTextChanged: root.query = text
             Accessible.role: Accessible.EditableText
@@ -199,14 +212,15 @@ Item {
                 text: strings.t("launcher.placeholder")
                 textFormat: Text.PlainText
                 color: root.muted
-                font.pixelSize: 14
+                font.family: root.fontFamily
+                font.pixelSize: 15
                 elide: Text.ElideRight
                 visible: input.text.length === 0
             }
         }
     }
 
-    // ---------- Lista (8 × 40, fixa) ----------
+    // ---------- Lista (6 × 52, fixa) ----------
     ListView {
         id: list
         y: root.searchHeight + root.metrics.gap
@@ -225,21 +239,32 @@ Item {
         preferredHighlightBegin: 0
         preferredHighlightEnd: height
 
-        // Seleção: pílula em accent 18% com uma barrinha que desliza junto.
+        // A roda rolou a seleção para fora: escolhe a primeira linha à vista,
+        // para o Enter nunca abrir um app escondido.
+        onMovementEnded: {
+            if (count === 0) return;
+            const top = root.selectedIndex * root.rowHeight;
+            if (top >= contentY - 1 && top + root.rowHeight <= contentY + height + 1) return;
+            const i = indexAt(10, contentY + root.rowHeight / 2);
+            if (i >= 0) root.selectedIndex = i;
+        }
+
+        // Seleção: placa neutra um pouco mais clara, com a barrinha de accent
+        // que desliza junto.
         highlight: Item {
             width: list.width
             height: root.rowHeight
             ContinuousRect {
                 anchors.fill: parent
                 radius: root.metrics.rowRadius
-                color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, root.metrics.alphaPill)
+                color: root.metrics.plate(root.fg, root.metrics.alphaHover)
             }
             ContinuousRect {
                 x: 4
                 anchors.verticalCenter: parent.verticalCenter
                 width: 3
                 height: 16
-                radius: 1.5
+                radius: root.metrics.fit(1.5)
                 color: root.accent
             }
         }
@@ -267,15 +292,16 @@ Item {
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.launch(row.index) }
 
-            Item {
+            // Ícone do app numa placa de 36, como no desenho da lista.
+            ContinuousRect {
                 id: iconBox
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                width: 24
-                height: 24
-                scale: row.selected ? 1.06 : 1
-                Behavior on scale { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut } }
+                width: 36
+                height: 36
+                radius: root.metrics.fit(10)
+                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
 
                 readonly property string src: {
                     const v = String(row.modelData.icon || "");
@@ -287,10 +313,12 @@ Item {
 
                 Image {
                     id: img
-                    anchors.fill: parent
+                    anchors.centerIn: parent
+                    width: 22
+                    height: 22
                     source: iconBox.src
-                    sourceSize.width: 48
-                    sourceSize.height: 48
+                    sourceSize.width: 44
+                    sourceSize.height: 44
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     asynchronous: true
@@ -303,49 +331,40 @@ Item {
                     name: "apps"
                     size: 20
                     filled: row.selected
-                    color: row.selected ? root.accent : root.fg
+                    color: root.fg
                 }
             }
 
-            Text {
-                id: nameText
+            // Nome em cima, descrição apagada embaixo.
+            Column {
                 anchors.left: iconBox.right
                 anchors.leftMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, row.width - 120)
-                textFormat: Text.PlainText
-                text: String(row.modelData.name || "")
-                color: row.selected ? root.accent : root.fg
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-                font.pixelSize: 13
-                font.weight: row.selected ? Font.DemiBold : Font.Normal
-                elide: Text.ElideRight
-            }
-
-            Text {
-                anchors.left: nameText.right
-                anchors.leftMargin: 10
-                anchors.right: enterIcon.left
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: String(row.modelData.genericName || "")
-                color: root.muted
-                font.pixelSize: 12
-                elide: Text.ElideRight
-            }
-
-            // ↵ na linha escolhida.
-            Icon {
-                id: enterIcon
                 anchors.right: parent.right
-                anchors.rightMargin: 14
+                anchors.rightMargin: 16
                 anchors.verticalCenter: parent.verticalCenter
-                name: "keyboard_return"
-                size: 16
-                color: root.accent
-                opacity: row.selected ? 1 : 0
-                Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                spacing: 1
+
+                Text {
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    text: String(row.modelData.name || "")
+                    color: root.fg
+                    font.family: root.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+                Text {
+                    id: descText
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    text: String(row.modelData.genericName || row.modelData.comment || "")
+                    visible: text.length > 0
+                    color: root.muted
+                    font.family: root.fontFamily
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
             }
         }
 
@@ -357,7 +376,7 @@ Item {
             y: list.y + list.visibleArea.yPosition * list.height
             width: 3
             height: Math.max(20, list.visibleArea.heightRatio * list.height)
-            radius: width / 2
+            radius: root.metrics.fit(width / 2)
             color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaPill)
         }
     }
@@ -379,6 +398,7 @@ Item {
             text: strings.t("launcher.empty")
             textFormat: Text.PlainText
             color: root.muted
+            font.family: root.fontFamily
             font.pixelSize: 13
         }
     }

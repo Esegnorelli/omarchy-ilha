@@ -8,6 +8,7 @@ import qs.Commons as Commons
 //   A Sair     · S Reiniciar · D Desligar        (confirm: dois toques)
 // Suspender e hibernar ficam esmaecidos no lugar quando o sistema não deixa
 // (com o motivo na sublinha); a grade nunca muda de forma.
+// Cada ação é um botão quadrado arredondado (ícone + nome), 88 de altura.
 //
 // Contrato com o host: active, fg/bg/accent/danger, metrics, keyboardMode,
 // closeRequested(), navigate(target), footerStatus, footerHints, footerAlert,
@@ -152,13 +153,20 @@ Item {
         // Linha Q W E: preserva a sessão.
         GridRow {
             columns: 3
+            tileHeight: 88
             Tile {
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "lock"
                 label: strings.t("power.lock")
                 closesIsland: true
                 onActivated: root.runClosed(["omarchy", "system", "lock"])
             }
             Tile {
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "bedtime"
                 label: strings.t("power.suspend")
                 available: root.suspendAvailable
@@ -167,6 +175,9 @@ Item {
                 onActivated: root.runClosed(["systemctl", "suspend"])
             }
             Tile {
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "ac_unit"
                 label: strings.t("power.hibernate")
                 available: root.hibernateAvailable
@@ -179,8 +190,12 @@ Item {
         // Linha A S D: encerra a sessão, pede dois toques.
         GridRow {
             columns: 3
+            tileHeight: 88
             Tile {
                 id: logoutTile
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "logout"
                 label: strings.t("power.logout")
                 kind: "confirm"
@@ -189,6 +204,9 @@ Item {
             }
             Tile {
                 id: rebootTile
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "restart_alt"
                 label: strings.t("power.reboot")
                 kind: "confirm"
@@ -197,6 +215,9 @@ Item {
             }
             Tile {
                 id: shutdownTile
+                iconFace: true
+                faceIconSize: 28
+                cornerRadius: root.metrics.cardRadius
                 icon: "power_settings_new"
                 label: strings.t("power.shutdown")
                 kind: "confirm"

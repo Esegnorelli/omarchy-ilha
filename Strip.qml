@@ -2,13 +2,18 @@ import QtQuick
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
-import Quickshell.Services.Pipewire
+import Quickshell.Networking
+import Quickshell.Services.UPower
 import qs.Commons as Commons
 
 // Faixa do topo da ilha. No hover (o caminho vivo) é uma linha só, sem vão:
-// workspaces à esquerda, a hora no meio, no máximo dois avisos à direita.
-// Os workspaces são os números 1–5. O ativo traz a marca do layout:
-// quadrado mosaico, círculo lado a lado, triângulo flutuante.
+// pontos dos workspaces à esquerda, a hora no centro exato, rede, bateria e
+// no máximo dois avisos à direita. O workspace ativo é uma pílula alongada
+// no destaque; o nome do layout sai na dica e no nome acessível.
+//
+// Nível 2 (expanded, depois de ~1 s de hover): cápsula larga de três
+// colunas. Esquerda: app focado sobre os pontos. Centro: hora grande e data.
+// Direita: estado das notificações sobre rede e bateria.
 //
 // As três zonas de largura fixa só existem no caminho de menus, que está
 // fechado. Elas não desenham os seis destinos juntos.
@@ -18,6 +23,8 @@ import qs.Commons as Commons
 //   activeView: string        painel aberto ("" = nenhum): pílula + cursor (caret)
 //   menuMode: bool            painel aberto: repousar 150 ms num ícone troca de painel
 //   keyboardMode, altHeld     mostram os dígitos (0–6) dos ícones
+//   expanded: bool            hover nível 2 (640 × 80, três colunas)
+//   readonly centerClock      o relógio central do nível 1 (o Island alinha o do repouso)
 //   indicatorSource           a instância de Indicators que lê o sistema
 //   strings                   Commons.Translations da ilha
 //   now: date                 hora do relógio
@@ -29,6 +36,8 @@ import qs.Commons as Commons
 //   categoryDwelled(target)   repouso de 150 ms noutro ícone (só em menuMode)
 //   workspaceClicked()        trocou de workspace (o host fecha)
 //   indicatorNavigate(target) indicador ou "+N" pediu um painel
+//   noticeRequested()         toque no sino / no estado das notificações
+//   panelWheel(step)          roda: +1 próximo painel, -1 o anterior
 Item {
     id: strip
 
@@ -41,6 +50,7 @@ Item {
     property var shell: null
     property var strings: null
     property var now: new Date()
+    property bool expanded: false
 
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
@@ -61,14 +71,18 @@ Item {
     // A faixa de hover não é um menu. Os seis destinos não aparecem nela.
     readonly property bool menus: false
 
-    implicitWidth: menus ? metrics.content : Math.ceil(stateRow.implicitWidth + 28)
-    implicitHeight: menus ? metrics.strip : 34
+    // Nível 1: o relógio no centro exato e os dois grupos a 14 px dele; a
+    // largura cobre o lado maior dos dois, mais 18 px de folga de cada lado.
+    // Nível 2: 640 × 80.
+    implicitWidth: menus ? metrics.content
+        : expanded ? 640
+        : Math.ceil(stateClock.implicitWidth + 2 * (Math.max(leftGroup.implicitWidth, rightGroup.implicitWidth) + 14) + 36)
+    implicitHeight: menus ? metrics.strip : expanded ? 80 : 46
     // A máscara de hover usa a largura final, para a pílula encolher sem o
     // ponteiro cair no papel de parede.
     readonly property real hoverSpan: implicitWidth
-    // No painel a linha ocupa a faixa de cima inteira, para a roda pegar
-    // mesmo com o ponteiro um pouco ao lado do relógio.
-    width: activeView !== "" ? parent.width : implicitWidth
+    readonly property Item centerClock: stateClock
+    width: implicitWidth
     height: implicitHeight
 
     function tr(key) { return strip.strings ? strip.strings.t(key) : key }
@@ -135,25 +149,6 @@ Item {
         return i < 0 ? "" : categories[i].digit
     }
 
-    // ---- Áudio (roda sobre o Controle = volume ±5%) ----
-    readonly property var sink: Pipewire.defaultAudioSink
-    PwObjectTracker { objects: strip.sink ? [strip.sink] : [] }
-    readonly property bool sinkReady: sink !== null && sink.audio !== null
-    property real wheelAccum: 0
-
-    function wheelVolume(delta) {
-        if (!sinkReady)
-            return
-        wheelAccum += delta
-        const steps = wheelAccum > 0 ? Math.floor(wheelAccum / 120) : Math.ceil(wheelAccum / 120)
-        if (steps === 0)
-            return
-        wheelAccum -= steps * 120
-        const next = Math.max(0, Math.min(1, Math.round((sink.audio.volume + steps * 0.05) * 100) / 100))
-        sink.audio.volume = next
-        volumeFlash.restart()
-    }
-
     // Uma volta da roda troca um painel. O resto do gesto fica para a próxima.
     property real panelWheelAccum: 0
 
@@ -180,24 +175,35 @@ Item {
         onTriggered: strip.tipReady = true
     }
 
-    Timer {
-        id: volumeFlash
-        interval: 1200
+    // Na linha de hover a única dica é o layout do workspace ativo
+    // (hoverTarget "layout"), posta pela pílula do workspace.
+    property real layoutTipX: -1
+
+    function layoutTip(item, on) {
+        if (menus)
+            return
+        if (on) {
+            const p = item.mapToItem(strip, item.width / 2, 0)
+            layoutTipX = p.x
+            hoverTarget = "layout"
+            tipReady = false
+            tipTimer.restart()
+        } else if (hoverTarget === "layout") {
+            tipTimer.stop()
+            tipReady = false
+            hoverTarget = ""
+        }
     }
 
-    readonly property bool volumeShown: volumeFlash.running && sinkReady
-    readonly property bool tooltipShown: volumeShown || (tipReady && hoverTarget !== "" && !menuMode)
-    readonly property real tooltipX: !menus ? width / 2
-        : volumeShown ? centerOf("control") : centerOf(hoverTarget)
+    readonly property bool tooltipShown: tipReady && hoverTarget !== "" && !menuMode && tooltipText !== ""
+    readonly property real tooltipX: hoverTarget === "layout" ? layoutTipX
+        : !menus ? width / 2 : centerOf(hoverTarget)
     readonly property string tooltipText: {
-        if (volumeShown) {
-            const pct = Math.round(sink.audio.volume * 100)
-            return fmt(sink.audio.muted ? "strip.volumeMuted" : "strip.volume", Commons.I18n.formatNumber(pct))
-        }
         if (hoverTarget === "")
             return ""
-        return fmt(hoverTarget === "control" ? "strip.tooltipVolume" : "strip.tooltip",
-            nameOf(hoverTarget), digitOf(hoverTarget))
+        if (hoverTarget === "layout")
+            return layoutName(spaceMode)
+        return fmt("strip.tooltip", nameOf(hoverTarget), digitOf(hoverTarget))
     }
 
     // ---- Repouso (dwell): só em menuMode; descer o ponteiro cancela ----
@@ -238,7 +244,7 @@ Item {
                 return
             const p = point.position
             const t = strip.targetAt(p.x, p.y)
-            if (t !== strip.hoverTarget) {
+            if (strip.menus && t !== strip.hoverTarget) {
                 strip.hoverTarget = t
                 strip.tipReady = false
                 if (t !== "")
@@ -422,8 +428,83 @@ Item {
         const name = prettyApp(focusedToplevel)
         if (name !== "")
             return name
-        const ws = monitorObj ? monitorObj.activeWorkspace : null
-        return ws ? fmt("strip.desktop", String(ws.name)) : ""
+        return tr("strip.desktop")
+    }
+
+    // Classe do app focado, para achar o ícone no .desktop.
+    readonly property string appClass: {
+        const t = focusedToplevel
+        if (!t)
+            return ""
+        return t.wayland && t.wayland.appId ? String(t.wayland.appId)
+            : (t.lastIpcObject && t.lastIpcObject["class"] ? String(t.lastIpcObject["class"]) : "")
+    }
+    readonly property string appIcon: {
+        if (appClass === "")
+            return ""
+        const entry = DesktopEntries.heuristicLookup(appClass)
+        const name = entry && entry.icon ? String(entry.icon) : ""
+        return name !== "" ? Quickshell.iconPath(name, true) : ""
+    }
+
+    // ---- Rede (Quickshell.Networking, o mesmo critério do Controle) ----
+    readonly property var netDevices: Networking.devices ? Networking.devices.values : []
+    function findDevice(type) {
+        const devices = strip.netDevices || []
+        let fallback = null
+        for (let i = 0; i < devices.length; i++) {
+            const d = devices[i]
+            if (!d || d.type !== type)
+                continue
+            if (d.connected)
+                return d
+            if (!fallback)
+                fallback = d
+        }
+        return fallback
+    }
+    function connectedNetwork(device) {
+        if (!device || !device.networks)
+            return null
+        const list = device.networks.values || []
+        for (let i = 0; i < list.length; i++)
+            if (list[i] && list[i].connected)
+                return list[i]
+        return null
+    }
+    readonly property var wiredDevice: findDevice(DeviceType.Wired)
+    readonly property var wifiDevice: findDevice(DeviceType.Wifi)
+    readonly property var wifiNetwork: connectedNetwork(wifiDevice)
+    readonly property string netKind: {
+        if (wiredDevice && wiredDevice.connected) return "ethernet"
+        if (wifiNetwork || (wifiDevice && wifiDevice.connected)) return "wifi"
+        return "disconnected"
+    }
+    // Barras acesas (0–4). Sinal desconhecido com Wi-Fi conectado: cheio.
+    readonly property int netBars: {
+        if (netKind !== "wifi")
+            return 0
+        const strength = wifiNetwork && wifiNetwork.signalStrength > 0 ? wifiNetwork.signalStrength : 0
+        return strength > 0 ? Math.max(1, Math.min(4, Math.ceil(strength * 4))) : 4
+    }
+
+    // ---- Bateria (UPower) ----
+    readonly property var battery: UPower.displayDevice
+    readonly property bool hasBattery: !!(battery && battery.isLaptopBattery)
+    readonly property real batteryLevel: hasBattery ? Math.max(0, Math.min(1, battery.percentage)) : 0
+    readonly property bool charging: hasBattery && (battery.state === UPowerDeviceState.Charging
+        || battery.state === UPowerDeviceState.FullyCharged
+        || battery.state === UPowerDeviceState.PendingCharge)
+    readonly property bool batteryLow: hasBattery && batteryLevel < 0.15 && !charging
+
+    readonly property int notificationCount: indicatorSource ? indicatorSource.notificationCount : 0
+    readonly property bool dndOn: !!(indicatorSource && indicatorSource.dnd)
+    readonly property string noticeText: {
+        if (notificationCount > 0) {
+            const form = strip.strings ? strip.strings.tn("strip.notifications", notificationCount) : "%1"
+            return form.indexOf("%1") >= 0 ? form.arg(Commons.I18n.formatNumber(notificationCount)) : form
+        }
+        return tr("strip.caughtUp")
     }
 
     // ================= zoneC: relógio =================
@@ -552,20 +633,10 @@ Item {
                     onTapped: strip.categoryClicked(slotItem.modelData.target)
                 }
 
-                // Rolar sobre o Controle ajusta o volume.
-                WheelHandler {
-                    enabled: slotItem.modelData.target === "control"
-                    target: null
-                    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-                    onWheel: event => strip.wheelVolume(event.angleDelta.y)
-                }
             }
         }
     }
 
-    // Hover: a linha do vídeo de outubro. Uma pílula, três grupos colados.
-    // O ativo cresce numa cápsula com halo; ocupado é ponto claro; vazio é
-    // ponto quieto. A hora abre o Tempo. No máximo dois avisos, só o ícone.
     // Bloco de workspaces deste monitor (1–10, 11–20, …), o mesmo arquivo
     // que a barra do Omarchy lê.
     property var workspaceBlocks: ({})
@@ -757,133 +828,27 @@ Item {
             indicatorSource.activate(key)
     }
 
-    Row {
+    // ================= Hover nível 1 =================
+    // O relógio no centro exato; os grupos se penduram nele a 14 px.
+    Item {
         id: stateRow
-        visible: !strip.menus
-        anchors.centerIn: parent
-        spacing: 12
+        visible: !strip.menus && opacity > 0
+        enabled: !strip.menus && !strip.expanded
+        anchors.fill: parent
+        opacity: strip.expanded ? 0 : 1
 
-        Row {
-            id: spaceRow
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 1
-
-            Repeater {
-                model: strip.spaceCount
-
-                Item {
-                    id: wsDot
-                    required property int index
-                    readonly property int wsId: strip.workspaceBlock * 10 + index + 1
-                    readonly property int slot: (wsId - 1) % 10 + 1
-                    readonly property var ws: strip.workspaceById(wsId)
-                    readonly property bool current: {
-                        const mon = strip.monitorObj
-                        return mon && mon.activeWorkspace && mon.activeWorkspace.id === wsId
-                    }
-                    readonly property bool occupied: ws && ws.toplevels
-                        && ws.toplevels.values.length > 0
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 14
-                    height: 22
-
-                    Accessible.role: Accessible.Button
-                    Accessible.name: wsDot.current && strip.layoutName(strip.spaceMode) !== ""
-                        ? String(slot) + ", " + strip.layoutName(strip.spaceMode)
-                        : String(slot)
-
-                    // Marca do layout só no número ativo. Quadrado, círculo e
-                    // triângulo são o modo, então o círculo não segue o canto.
-                    Item {
-                        anchors.centerIn: parent
-                        width: 16
-                        height: 16
-                        visible: wsDot.current
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 14
-                            height: 14
-                            radius: 2
-                            color: strip.accent
-                            opacity: strip.spaceMode === "dwindle" ? 0.45 : 0
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                        }
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 14
-                            height: 14
-                            radius: 7
-                            color: strip.accent
-                            opacity: strip.spaceMode === "scrolling" ? 0.45 : 0
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                        }
-                        Canvas {
-                            id: modeTri
-                            anchors.centerIn: parent
-                            width: 14
-                            height: 12
-                            opacity: strip.spaceMode === "floating" ? 0.9 : 0
-                            visible: opacity > 0.01
-                            onPaint: {
-                                const ctx = getContext("2d")
-                                ctx.clearRect(0, 0, width, height)
-                                ctx.fillStyle = strip.accent
-                                ctx.beginPath()
-                                ctx.moveTo(width / 2, 1)
-                                ctx.lineTo(width - 1, height - 1)
-                                ctx.lineTo(1, height - 1)
-                                ctx.closePath()
-                                ctx.fill()
-                            }
-                            onWidthChanged: requestPaint()
-                            onHeightChanged: requestPaint()
-                            Component.onCompleted: requestPaint()
-                            Connections {
-                                target: strip
-                                function onAccentChanged() { modeTri.requestPaint() }
-                            }
-                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic } }
-                        }
-                    }
-
-                    Text {
-                        anchors.centerIn: parent
-                        text: String(wsDot.slot)
-                        textFormat: Text.PlainText
-                        font.family: strip.fontFamily
-                        font.pixelSize: 13
-                        font.weight: wsDot.current ? Font.DemiBold : Font.Medium
-                        font.features: ({ "tnum": 1 })
-                        color: wsDot.current ? strip.accent
-                            : Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, wsDot.occupied ? 0.9 : 0.38)
-
-                        Behavior on color {
-                            ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
-                        }
-                    }
-
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-
-                    TapHandler {
-                        onTapped: {
-                            if (wsDot.current) strip.cycleSpace()
-                            else strip.focusSpace(wsDot.wsId)
-                        }
-                    }
-                }
-            }
+        Behavior on opacity {
+            NumberAnimation { duration: Commons.Style.duration(strip.expanded ? strip.metrics.msFadeOut : strip.metrics.msFadeIn); easing.type: Easing.OutCubic }
         }
 
         Text {
             id: stateClock
-            anchors.verticalCenter: parent.verticalCenter
+            anchors.centerIn: parent
             text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
             textFormat: Text.PlainText
             color: strip.fg
             font.family: strip.fontFamily
-            font.pixelSize: 15
+            font.pixelSize: 16
             font.weight: Font.DemiBold
             font.features: ({ "tnum": 1 })
 
@@ -894,74 +859,382 @@ Item {
             TapHandler { onTapped: strip.categoryClicked("calendar") }
         }
 
-        // Aparência: sempre aqui. A cor é a do tema; o toque abre o Estilo.
-        Item {
-            id: lookSlot
+        Row {
+            id: leftGroup
+            anchors.right: stateClock.left
+            anchors.rightMargin: 14
             anchors.verticalCenter: parent.verticalCenter
-            width: 18
-            height: 18
 
-            Accessible.role: Accessible.Button
-            Accessible.name: strip.tr("island.style")
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: 18
-                height: 18
-                radius: strip.metrics.fit(9)
-                color: strip.accent
-                opacity: strip.activeView === "style" ? 0.28 : 0
-
-                Behavior on opacity {
-                    NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
-                }
-            }
-
-            Icon {
-                anchors.centerIn: parent
-                name: "palette"
-                size: 15
-                filled: strip.activeView === "style"
-                color: strip.accent
-            }
-
-            HoverHandler { cursorShape: Qt.PointingHandCursor }
-            TapHandler { onTapped: strip.categoryClicked("style") }
+            SpaceDots { host: strip }
         }
 
         Row {
-            id: statusRow
-            visible: strip.statusMarks.length > 0
+            id: rightGroup
+            anchors.left: stateClock.right
+            anchors.leftMargin: 14
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
 
-            Repeater {
-                model: strip.statusMarks
+            NetGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+            BatteryGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+
+            StatusMarks { anchors.verticalCenter: parent.verticalCenter; host: strip }
+        }
+    }
+
+    // ================= Hover nível 2 =================
+    // Três colunas ancoradas (folga 22, linhas a 6 px), em fade cruzado com
+    // a linha de cima enquanto a pílula cresce.
+    Item {
+        id: wideRow
+        visible: !strip.menus && opacity > 0
+        enabled: !strip.menus && strip.expanded
+        anchors.fill: parent
+        opacity: strip.expanded ? 1 : 0
+
+        Behavior on opacity {
+            NumberAnimation { duration: Commons.Style.duration(strip.expanded ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
+        }
+
+        // Esquerda: app focado sobre os pontos dos workspaces.
+        Column {
+            anchors.left: parent.left
+            anchors.leftMargin: 22
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+
+            Row {
+                spacing: 8
 
                 Item {
-                    id: markSlot
-                    required property var modelData
-                    readonly property string markKey: modelData.key
-
                     anchors.verticalCenter: parent.verticalCenter
                     width: 16
                     height: 16
 
-                    Accessible.role: Accessible.Button
-                    Accessible.name: strip.tr("indicators.face." + markKey)
+                    Image {
+                        id: appImage
+                        anchors.fill: parent
+                        source: strip.appIcon
+                        sourceSize.width: 32
+                        sourceSize.height: 32
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        smooth: true
+                        visible: source !== "" && status === Image.Ready
+                    }
 
                     Icon {
                         anchors.centerIn: parent
-                        name: markSlot.modelData.icon
+                        visible: !appImage.visible
+                        name: "apps"
                         size: 15
-                        filled: true
-                        color: markSlot.modelData.tint
+                        color: strip.muted
                     }
+                }
 
-                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                    TapHandler { onTapped: strip.activateMark(markSlot.markKey) }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(implicitWidth, 180)
+                    text: strip.appLabel
+                    color: strip.fg
+                    font.family: strip.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                    textFormat: Text.PlainText
                 }
             }
+
+            SpaceDots { host: strip }
+        }
+
+        // Centro: hora grande e a data, mais apagada, na mesma linha de base.
+        Row {
+            anchors.centerIn: parent
+            spacing: 10
+
+            Text {
+                id: wideClock
+                anchors.verticalCenter: parent.verticalCenter
+                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
+                textFormat: Text.PlainText
+                color: strip.fg
+                font.family: strip.fontFamily
+                font.pixelSize: 26
+                font.weight: Font.DemiBold
+                font.features: ({ "tnum": 1 })
+
+                Accessible.role: Accessible.Button
+                Accessible.name: strip.tr("island.time")
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: strip.categoryClicked("calendar") }
+            }
+
+            Text {
+                anchors.baseline: wideClock.baseline
+                text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "ddd, d MMM")
+                textFormat: Text.PlainText
+                color: Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, 0.6)
+                font.family: strip.fontFamily
+                font.pixelSize: 13
+            }
+        }
+
+        // Direita: notificações sobre rede e bateria.
+        Column {
+            anchors.right: parent.right
+            anchors.rightMargin: 22
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 6
+
+            Row {
+                id: noticeLine
+                anchors.right: parent.right
+                spacing: 6
+
+                Accessible.role: Accessible.Button
+                Accessible.name: strip.noticeText
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: strip.noticeText
+                    color: Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, 0.85)
+                    font.family: strip.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.Medium
+                    font.features: ({ "tnum": 1 })
+                    textFormat: Text.PlainText
+                }
+
+                Icon {
+                    anchors.verticalCenter: parent.verticalCenter
+                    name: strip.notificationCount === 0 && strip.dndOn ? "notifications_off" : "notifications"
+                    size: 15
+                    filled: strip.notificationCount > 0
+                    color: Qt.rgba(strip.fg.r, strip.fg.g, strip.fg.b, 0.85)
+                }
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: strip.noticeRequested() }
+            }
+
+            Row {
+                anchors.right: parent.right
+                spacing: 8
+
+                NetGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+                BatteryGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+                // As mesmas marcas do nível 1: o toque para desligar não some
+                // quando a pílula cresce.
+                StatusMarks { anchors.verticalCenter: parent.verticalCenter; host: strip }
+            }
+        }
+    }
+
+    // ---- Peças da linha (componentes: os dois níveis usam as mesmas) ----
+    // Componentes inline não enxergam os ids de fora: tudo passa por host.
+
+    // Marcas de estado vivas (gravando, não perturbe, acordado…): tocar
+    // desliga ou abre o dono. Até duas, nos dois níveis de hover.
+    component StatusMarks: Row {
+        id: marks
+        property var host: null
+        visible: host && host.statusMarks.length > 0
+        spacing: 8
+
+        Repeater {
+            model: marks.host ? marks.host.statusMarks : []
+
+            Item {
+                id: markSlot
+                required property var modelData
+                readonly property string markKey: modelData.key
+
+                anchors.verticalCenter: parent.verticalCenter
+                width: 16
+                height: 16
+
+                Accessible.role: Accessible.Button
+                Accessible.name: marks.host.tr("indicators.face." + markKey)
+
+                Icon {
+                    anchors.centerIn: parent
+                    name: markSlot.modelData.icon
+                    size: 15
+                    filled: true
+                    color: markSlot.modelData.tint
+                }
+
+                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                TapHandler { onTapped: marks.host.activateMark(markSlot.markKey) }
+            }
+        }
+    }
+
+    // Pontos dos workspaces: o ativo é uma pílula alongada no destaque;
+    // ocupado é ponto claro, vazio é ponto quieto. Tocar troca; tocar no
+    // ativo percorre os layouts (o nome sai na dica).
+    component SpaceDots: Row {
+        id: dots
+        property var host: null
+        spacing: 4
+
+        Repeater {
+            model: dots.host ? dots.host.spaceCount : 0
+
+            Item {
+                id: wsDot
+                required property int index
+                readonly property var host: dots.host
+                readonly property int wsId: host.workspaceBlock * 10 + index + 1
+                readonly property int slot: (wsId - 1) % 10 + 1
+                readonly property var ws: host.workspaceById(wsId)
+                readonly property bool current: {
+                    const mon = host.monitorObj
+                    return !!(mon && mon.activeWorkspace && mon.activeWorkspace.id === wsId)
+                }
+                readonly property bool occupied: !!(ws && ws.toplevels && ws.toplevels.values.length > 0)
+
+                anchors.verticalCenter: parent.verticalCenter
+                width: 10
+                height: 22
+
+                Accessible.role: Accessible.Button
+                Accessible.name: current && host.layoutName(host.spaceMode) !== ""
+                    ? String(slot) + ", " + host.layoutName(host.spaceMode)
+                    : String(slot)
+
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: wsDot.current ? 8 : 6
+                    height: wsDot.current ? 18 : 10
+                    radius: width / 2
+                    color: wsDot.current ? wsDot.host.accent
+                        : Qt.rgba(wsDot.host.fg.r, wsDot.host.fg.g, wsDot.host.fg.b, wsDot.occupied ? 0.55 : 0.22)
+
+                    Behavior on width {
+                        NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                    }
+                    Behavior on height {
+                        NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                    }
+                    Behavior on color {
+                        ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                    }
+                }
+
+                HoverHandler {
+                    cursorShape: Qt.PointingHandCursor
+                    onHoveredChanged: wsDot.host.layoutTip(wsDot, hovered && wsDot.current)
+                }
+
+                TapHandler {
+                    onTapped: {
+                        if (wsDot.current) wsDot.host.cycleSpace()
+                        else wsDot.host.focusSpace(wsDot.wsId)
+                    }
+                }
+            }
+        }
+    }
+
+    // Rede: quatro barras (acesas em fg, apagadas em fg 0.25); cabo vira o
+    // ícone "lan"; sem rede, as quatro apagadas.
+    component NetGlyph: Item {
+        id: net
+        property var host: null
+        readonly property bool wired: !!host && host.netKind === "ethernet"
+
+        width: wired ? 15 : bars.width
+        height: 15
+
+        Accessible.role: Accessible.StaticText
+        Accessible.name: net.host ? net.host.netKind : ""
+
+        Icon {
+            anchors.centerIn: parent
+            visible: net.wired
+            name: "lan"
+            size: 15
+            color: net.host ? net.host.fg : "transparent"
+        }
+
+        Row {
+            id: bars
+            visible: !net.wired
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 1
+            spacing: 2
+
+            Repeater {
+                model: 4
+
+                Rectangle {
+                    required property int index
+                    anchors.bottom: parent.bottom
+                    width: 3
+                    height: 4 + index * 3
+                    radius: net.host ? net.host.metrics.fit(1.5) : 1.5
+                    color: !net.host ? "transparent"
+                        : index < net.host.netBars ? net.host.fg
+                        : Qt.rgba(net.host.fg.r, net.host.fg.g, net.host.fg.b, 0.25)
+
+                    Behavior on color {
+                        ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                    }
+                }
+            }
+        }
+    }
+
+    // Bateria: contorno de 22 × 11, preenchimento sólido no destaque
+    // (urgente abaixo de 15% sem carregar) e o pino de 2 × 5.
+    component BatteryGlyph: Item {
+        id: batt
+        property var host: null
+
+        visible: !!host && host.hasBattery
+        width: 25
+        height: 11
+
+        Accessible.role: Accessible.StaticText
+        Accessible.name: batt.host && batt.host.hasBattery
+            ? Commons.I18n.formatNumber(Math.round(batt.host.batteryLevel * 100)) + "%" : ""
+
+        ContinuousRect {
+            id: battShell
+            x: 0
+            width: 22
+            height: 11
+            radius: batt.host ? batt.host.metrics.fit(3.5) : 3.5
+            color: "transparent"
+            borderWidth: 1
+            borderColor: batt.host ? Qt.rgba(batt.host.fg.r, batt.host.fg.g, batt.host.fg.b, 0.35) : "transparent"
+        }
+
+        ContinuousRect {
+            x: 2
+            anchors.verticalCenter: battShell.verticalCenter
+            width: batt.host ? Math.max(0, (battShell.width - 4) * batt.host.batteryLevel) : 0
+            height: battShell.height - 4
+            radius: batt.host ? batt.host.metrics.fit(2) : 2
+            visible: width > 0.5
+            color: !batt.host ? "transparent" : batt.host.batteryLow ? batt.host.danger : batt.host.accent
+
+            Behavior on width {
+                NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+            }
+        }
+
+        Rectangle {
+            x: 23
+            anchors.verticalCenter: battShell.verticalCenter
+            width: 2
+            height: 5
+            radius: batt.host ? batt.host.metrics.fit(1) : 1
+            color: batt.host ? Qt.rgba(batt.host.fg.r, batt.host.fg.g, batt.host.fg.b, 0.35) : "transparent"
         }
     }
 

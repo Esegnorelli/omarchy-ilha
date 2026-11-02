@@ -8,13 +8,16 @@ import Quickshell.Services.UPower
 import qs.Commons as Commons
 
 // Controle (spec §3.4, painel 2): ligar, ajustar, conectar.
-//   Q Microfone · W Não perturbe · E Luz noturna · R Manter acordado
-//   A Animações · S Modo jogo · D Wi-Fi* · F Bluetooth*
-//   Cada um é um ícone com o nome numa linha. Ligado pinta o cartão.
-//     (sem Wi-Fi e sem BT: Modo jogo vai até c4; só um deles: ele vai até c4)
-//   Volume: LabeledRow com slider (−/= ±5%, M mudo; tocar no rótulo = mudo)
+//   Duas linhas de 60 px: duas cápsulas (círculo do ícone + nome + estado) e
+//   dois círculos (só o ícone; nome e estado no rodapé com o hover).
+//   Q Wi-Fi* · W Não perturbe · E Microfone · R Manter acordado
+//   A Bluetooth* · S Modo jogo · D Luz noturna · F Animações
+//     (* sem Wi-Fi a vaga vira Proteção de tela; sem Bluetooth, Suspensão)
+//   Ligado acende só o círculo do ícone em accent; o corpo fica neutro.
+//   Som: LabeledRow "bar" de 80 px (−/= ±5%, M mudo; tocar no ícone = mudo;
+//     › ou Enter na barra abre a subpágina Som: saídas e entrada)
 //   Rede: InfoRow (interface · tipo, IPv4) com C QR do Wi-Fi* e V Velocidade
-//     (sem Wi-Fi: Velocidade ocupa c3–c4)
+//     (fora do Wi-Fi: Velocidade ocupa c3–c4)
 //   Rodapé: bateria (notebook) e o resumo do que está ligado, ou "Tudo normal".
 // A altura é a mesma em qualquer máquina: o microfone ausente fica cinza no lugar.
 //
@@ -41,6 +44,11 @@ Item {
     property bool active: false
     property Metrics metrics: Metrics {}
     property bool keyboardMode: false
+    // Fonte do Estilo (o host passa a mesma da ilha).
+    property string fontFamily: Commons.Style.fontFamily
+
+    // Subpágina aberta: "" = grade principal, "sound" = saídas e entrada.
+    property string page: ""
 
     // Pede ao host para recolher a ilha.
     signal closeRequested()
@@ -48,11 +56,19 @@ Item {
     signal navigate(string target)
 
     implicitWidth: metrics.content
-    implicitHeight: grid.implicitHeight
+    // A altura segue a página visível, e o host acompanha.
+    implicitHeight: page === "sound" ? soundPage.implicitHeight : grid.implicitHeight
 
     Commons.Translations {
         id: strings
         directory: Qt.resolvedUrl("i18n")
+    }
+
+    // Texto do catálogo; enquanto a chave não existir, cai no texto embutido.
+    function tr(key, pt, en) {
+        const v = strings.t(key, "");
+        if (v !== "") return v;
+        return String(strings.language || "").toLowerCase().indexOf("pt") === 0 ? pt : en;
     }
 
     // Troca %1, %2... numa passada só (um SSID com "%2" não é trocado de novo).
@@ -221,9 +237,36 @@ Item {
     readonly property bool sinkMuted: sinkReady ? sink.audio.muted : false
     readonly property bool hasMic: source !== null && source.audio !== null
     readonly property bool micMuted: hasMic ? source.audio.muted : true
+    readonly property real micVolume: hasMic ? source.audio.volume : 0
 
+    function setMicVolume(v) {
+        if (!root.hasMic) return;
+        const cap = Math.max(1, root.micVolume);
+        root.source.audio.volume = Math.max(0, Math.min(cap, v));
+    }
+
+    // Saídas reais (sem streams nem os medidores do próprio shell).
+    readonly property var sinks: {
+        const nodes = Pipewire.nodes ? Pipewire.nodes.values : [];
+        return nodes.filter(n => n && n.audio && n.isSink && !n.isStream
+                                 && !Commons.AudioNodes.isShellLevelMeter(n.name));
+    }
+    function sinkName(n) {
+        return n ? String(n.description || n.nickname || n.name || "") : "";
+    }
+    function isDefaultSink(n) {
+        return !!n && !!root.sink && n.id === root.sink.id;
+    }
+    function selectSink(n) {
+        if (n) Pipewire.preferredDefaultAudioSink = n;
+    }
+
+    // Nunca corta um volume acima de 100% (o pavucontrol deixa passar):
+    // o teto é o maior entre 100% e o atual.
     function setVolume(v) {
-        if (root.sinkReady) root.sink.audio.volume = Math.max(0, Math.min(1, v));
+        if (!root.sinkReady) return;
+        const cap = Math.max(1, root.volume);
+        root.sink.audio.volume = Math.max(0, Math.min(cap, v));
     }
     function toggleSinkMute() {
         if (root.sinkReady) root.sink.audio.muted = !root.sink.audio.muted;
@@ -528,6 +571,8 @@ Item {
             if (!gameBusy) gmExistsProc.running = true;
         } else {
             rereadTimer.stop();
+            // Reabrir o Controle sempre começa na grade.
+            page = "";
         }
     }
     Component.onCompleted: if (active) { refreshToggles(); gmExistsProc.running = true; }
@@ -560,17 +605,43 @@ Item {
         if (nightOn) out.push(strings.t("control.nightlight"));
         if (stayAwake) out.push(strings.t("control.stayAwake"));
         if (gameModeOn) out.push(strings.t("control.gameMode"));
+        if (!animationsOn) out.push(strings.t("control.animations") + " " + strings.t("control.animationsOff").toLowerCase());
         if (hasMic && micMuted) out.push(strings.t("control.footer.micMuted"));
         return out;
     }
+    // Os círculos não têm texto: com o hover, o nome e o estado vão ao rodapé.
+    readonly property string hoverNote: micTile.noteShown ? micTile.hoverNote
+                                      : awakeTile.noteShown ? awakeTile.hoverNote
+                                      : nightTile.noteShown ? nightTile.hoverNote
+                                      : animTile.noteShown ? animTile.hoverNote
+                                      : ""
     readonly property string footerStatus: {
+        if (root.page === "" && root.hoverNote !== "") return root.hoverNote;
         const parts = [];
         if (batteryText !== "") parts.push(batteryText);
         if (activeNames.length > 0) parts.push(activeNames.join(", "));
         return parts.length > 0 ? parts.join(" · ") : strings.t("control.footer.allNormal");
     }
-    readonly property bool footerAlert: batteryLow
-    readonly property string footerHints: strings.t("hint.toggle")
+    readonly property bool footerAlert: batteryLow && !(root.page === "" && root.hoverNote !== "")
+    readonly property string footerHints: root.page === "sound"
+        ? root.tr("hint.subpage", "↑↓ escolher · Enter usar · Esc voltar", "↑↓ choose · Enter select · Esc back")
+        : root.tr("hint.toggleMore", "Q–F alternar · −/= volume · M mudo · Enter no som: mais",
+                  "Q–F toggle · −/= volume · M mute · Enter on sound: more")
+
+    // ---------- Subpágina Som ----------
+    // Linha marcada pelo teclado na lista de saídas (começa na saída padrão).
+    property int soundIndex: -1
+    function openSound() {
+        root.page = "sound";
+    }
+    onPageChanged: {
+        if (page === "sound") {
+            let i = -1;
+            for (let k = 0; k < root.sinks.length; k++)
+                if (root.isDefaultSink(root.sinks[k])) { i = k; break; }
+            root.soundIndex = i;
+        }
+    }
 
     // ---------- Teclado ----------
     function handleKey(event) {
@@ -590,9 +661,38 @@ Item {
                 return true;
             }
         }
+        if (root.page === "sound") return root.handleSoundKey(event);
         return grid.handleKey(event);
     }
-    function handleEscape() { return grid.handleEscape(); }
+    function handleSoundKey(event) {
+        if (event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier | Qt.ShiftModifier)) return false;
+        const k = event.key;
+        const n = root.sinks.length;
+        if (k === Qt.Key_Up || k === Qt.Key_Down) {
+            if (n === 0) return true;
+            const d = k === Qt.Key_Down ? 1 : -1;
+            root.soundIndex = root.soundIndex < 0 ? (d > 0 ? 0 : n - 1)
+                                                  : Math.max(0, Math.min(n - 1, root.soundIndex + d));
+            return true;
+        }
+        if (k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Space) {
+            if (event.isAutoRepeat) return true;
+            if (root.soundIndex >= 0 && root.soundIndex < n) root.selectSink(root.sinks[root.soundIndex]);
+            return true;
+        }
+        if (k === Qt.Key_Left) {
+            root.page = "";
+            return true;
+        }
+        return false;
+    }
+    function handleEscape() {
+        if (root.page !== "") {
+            root.page = "";
+            return true;
+        }
+        return grid.handleEscape();
+    }
     function focusFirst() { return grid.focusFirst(); }
 
     // ---------- Layout ----------
@@ -601,14 +701,54 @@ Item {
         metrics: root.metrics
         strings: strings
         keyboardMode: root.keyboardMode
+        fontFamily: root.fontFamily
         fg: root.fg
         bg: root.bg
         accent: root.accent
         danger: root.danger
 
+        // As duas páginas se cruzam em fade; só a visível conta para o foco.
+        opacity: root.page === "" ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.page === "" ? root.metrics.msFadeIn : root.metrics.msFadeOut); easing.type: Easing.OutCubic } }
+
         GridRow {
+            tileHeight: root.metrics.capsuleTile
+
             Tile {
-                iconFace: true
+                visible: root.hwWifi
+                shape: "capsule"
+                kind: "toggle"
+                on: root.wifiOn
+                icon: root.wifiOn ? "wifi" : "wifi_off"
+                label: strings.t("control.wifi")
+                sublabel: !root.wifiOn ? strings.t("control.off")
+                          : (root.wifiSsid !== "" ? root.wifiSsid : strings.t("control.noConnection"))
+                onActivated: root.toggleWifi()
+            }
+            // Sem Wi-Fi na máquina, a vaga vira um toggle útil.
+            Tile {
+                visible: !root.hwWifi
+                shape: "capsule"
+                kind: "toggle"
+                on: root.screensaverOn
+                icon: "screenshot_monitor"
+                label: strings.t("control.screensaver")
+                sublabel: root.screensaverOn ? strings.t("control.on") : strings.t("control.off")
+                onActivated: root.toggleScreensaver()
+            }
+            Tile {
+                shape: "capsule"
+                kind: "toggle"
+                on: root.dndOn
+                icon: root.dndOn ? "notifications_off" : "notifications"
+                label: strings.t("control.dnd")
+                sublabel: root.dndOn ? strings.t("control.dndOn") : strings.t("control.off")
+                onActivated: root.toggleDnd()
+            }
+            Tile {
+                id: micTile
+                shape: "round"
                 kind: "toggle"
                 on: root.hasMic && !root.micMuted
                 available: root.hasMic
@@ -619,25 +759,8 @@ Item {
                 onActivated: root.toggleMic()
             }
             Tile {
-                iconFace: true
-                kind: "toggle"
-                on: root.dndOn
-                icon: root.dndOn ? "notifications_off" : "notifications"
-                label: strings.t("control.dnd")
-                sublabel: root.dndOn ? strings.t("control.dndOn") : strings.t("control.off")
-                onActivated: root.toggleDnd()
-            }
-            Tile {
-                iconFace: true
-                kind: "toggle"
-                on: root.nightOn
-                icon: "dark_mode"
-                label: strings.t("control.nightlight")
-                sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
-                onActivated: root.toggleNight()
-            }
-            Tile {
-                iconFace: true
+                id: awakeTile
+                shape: "round"
                 kind: "toggle"
                 on: root.stayAwake
                 icon: "coffee"
@@ -648,39 +771,11 @@ Item {
         }
 
         GridRow {
-            Tile {
-                iconFace: true
-                kind: "toggle"
-                on: root.animationsOn
-                icon: "animation"
-                label: strings.t("control.animations")
-                sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
-                onActivated: root.toggleAnimations()
-            }
-            Tile {
-                iconFace: true
-                kind: "toggle"
-                on: root.gameModeOn
-                busy: root.gameBusy
-                icon: "sports_esports"
-                label: strings.t("control.gameMode")
-                sublabel: root.gameModeOn ? strings.t("control.gameModeOn") : strings.t("control.off")
-                onActivated: root.toggleGameMode()
-            }
-            Tile {
-                visible: root.hwWifi
-                iconFace: true
-                kind: "toggle"
-                on: root.wifiOn
-                icon: root.wifiOn ? "wifi" : "wifi_off"
-                label: strings.t("control.wifi")
-                sublabel: !root.wifiOn ? strings.t("control.off")
-                          : (root.wifiSsid !== "" ? root.wifiSsid : strings.t("control.noConnection"))
-                onActivated: root.toggleWifi()
-            }
+            tileHeight: root.metrics.capsuleTile
+
             Tile {
                 visible: root.hwBluetooth
-                iconFace: true
+                shape: "capsule"
                 kind: "toggle"
                 on: root.btOn
                 icon: root.btOn ? "bluetooth" : "bluetooth_disabled"
@@ -691,21 +786,10 @@ Item {
                              : strings.t("control.on"))
                 onActivated: root.toggleBluetooth()
             }
-            // Sem Wi-Fi ou Bluetooth na máquina, as vagas viram toggles úteis
-            // em vez de esticar o vizinho.
-            Tile {
-                visible: !root.hwWifi
-                iconFace: true
-                kind: "toggle"
-                on: root.screensaverOn
-                icon: "screenshot_monitor"
-                label: strings.t("control.screensaver")
-                sublabel: root.screensaverOn ? strings.t("control.on") : strings.t("control.off")
-                onActivated: root.toggleScreensaver()
-            }
+            // Sem Bluetooth na máquina, a vaga vira a Suspensão.
             Tile {
                 visible: !root.hwBluetooth
-                iconFace: true
+                shape: "capsule"
                 kind: "toggle"
                 on: root.suspendOn
                 icon: "bedtime"
@@ -713,20 +797,53 @@ Item {
                 sublabel: root.suspendOn ? strings.t("control.suspendOn") : strings.t("control.off")
                 onActivated: root.toggleSuspend()
             }
+            Tile {
+                shape: "capsule"
+                kind: "toggle"
+                on: root.gameModeOn
+                busy: root.gameBusy
+                icon: "sports_esports"
+                label: strings.t("control.gameMode")
+                sublabel: root.gameModeOn ? strings.t("control.gameModeOn") : strings.t("control.off")
+                onActivated: root.toggleGameMode()
+            }
+            Tile {
+                id: nightTile
+                shape: "round"
+                kind: "toggle"
+                on: root.nightOn
+                icon: "nightlight"
+                label: strings.t("control.nightlight")
+                sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
+                onActivated: root.toggleNight()
+            }
+            Tile {
+                id: animTile
+                shape: "round"
+                kind: "toggle"
+                on: root.animationsOn
+                icon: "animation"
+                label: strings.t("control.animations")
+                sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
+                onActivated: root.toggleAnimations()
+            }
         }
 
         LabeledRow {
-            variant: "slider"
+            variant: "bar"
             icon: !root.sinkReady || root.sinkMuted || root.volume === 0 ? "volume_off"
                   : root.volume < 0.5 ? "volume_down" : "volume_up"
-            label: strings.t("control.volume")
+            label: root.tr("control.sound", "Som", "Sound")
             value: !root.sinkReady ? strings.t("control.noOutput")
                    : root.sinkMuted ? strings.t("control.micMuted")
                    : strings.t("control.percent").arg(Math.round(root.volume * 100))
             sliderValue: Math.min(1, root.volume)
+            stepBase: root.volume
             dimmed: !root.sinkReady || root.sinkMuted
+            hasMore: true
             onMoved: v => root.setVolume(v)
             onLabelTapped: root.toggleSinkMute()
+            onMoreTapped: root.openSound()
         }
 
         InfoRow {
@@ -743,20 +860,198 @@ Item {
                     : root.netAddress !== "" ? root.netAddress : strings.t("control.net.noAddress")
 
             Tile {
-                visible: root.hwWifi
+                visible: root.hwWifi && root.netKind === "wifi"
                 // Dois botões de 122 px: só o texto cabe (como na spec).
                 label: strings.t("control.net.wifiQr")
-                available: root.shell !== null && root.netKind === "wifi"
+                available: root.shell !== null
                 closesIsland: true
                 onActivated: root.openWifiQr()
             }
             Tile {
                 stretch: true
-                icon: root.hwWifi ? "" : "speed"
+                icon: "speed"
                 label: strings.t("control.net.speedTest")
                 available: root.shell !== null && root.netKind !== "disconnected"
                 closesIsland: true
                 onActivated: root.openSpeedTest()
+            }
+        }
+    }
+
+    // Legenda de seção da página Som (frase, 12 Medium, fg a 60%).
+    component Caption: Text {
+        width: parent ? parent.width : 0
+        height: root.metrics.caption
+        leftPadding: 2
+        verticalAlignment: Text.AlignVCenter
+        textFormat: Text.PlainText
+        font.family: root.fontFamily
+        font.pixelSize: 12
+        font.weight: Font.Medium
+        elide: Text.ElideRight
+        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.6)
+    }
+
+    // ---------- Página Som: saídas e entrada ----------
+    Column {
+        id: soundPage
+        width: root.metrics.content
+        spacing: root.metrics.gap
+        opacity: root.page === "sound" ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.page === "sound" ? root.metrics.msFadeIn : root.metrics.msFadeOut); easing.type: Easing.OutCubic } }
+
+        // Cabeçalho: ‹ redondo e o título.
+        Item {
+            width: parent.width
+            height: 32
+            IconButton {
+                id: backButton
+                solid: true
+                size: 32
+                iconSize: 18
+                icon: "chevron_left"
+                label: root.tr("grid.back", "Voltar", "Back")
+                fg: root.fg
+                accent: root.accent
+                fontFamily: root.fontFamily
+                onTapped: root.page = ""
+            }
+            Text {
+                anchors.left: backButton.right
+                anchors.leftMargin: 12
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: root.tr("control.sound", "Som", "Sound")
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                color: root.fg
+            }
+        }
+
+        Column {
+            width: parent.width
+            spacing: root.metrics.captionGap
+
+            Caption { text: root.tr("control.output", "Saída", "Output") }
+
+            Column {
+                width: parent.width
+                spacing: 4
+
+                Repeater {
+                    model: root.sinks
+                    delegate: Item {
+                        id: sinkRow
+                        required property var modelData
+                        required property int index
+                        readonly property bool current: root.isDefaultSink(modelData)
+                        readonly property bool marked: root.soundIndex === index && root.keyboardMode
+                        width: parent.width
+                        height: 44
+                        Accessible.role: Accessible.RadioButton
+                        Accessible.name: root.sinkName(modelData)
+                        Accessible.checked: current
+
+                        // Seleção e hover: preenchimento neutro, nunca accent.
+                        ContinuousRect {
+                            anchors.fill: parent
+                            radius: root.metrics.fit(height / 2)
+                            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b,
+                                           sinkRow.marked || sinkTap.pressed ? root.metrics.alphaPressed
+                                           : sinkHover.hovered ? root.metrics.alphaHover
+                                           : sinkRow.current ? root.metrics.alphaIdle : 0)
+                            Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                        }
+                        Icon {
+                            id: sinkIcon
+                            x: 14
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "volume_up"
+                            size: 18
+                            color: root.fg
+                        }
+                        Text {
+                            anchors.left: sinkIcon.right
+                            anchors.leftMargin: 12
+                            anchors.right: sinkCheck.left
+                            anchors.rightMargin: 8
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.sinkName(sinkRow.modelData)
+                            textFormat: Text.PlainText
+                            font.family: root.fontFamily
+                            font.pixelSize: 13
+                            font.weight: sinkRow.current ? Font.DemiBold : Font.Normal
+                            elide: Text.ElideRight
+                            color: root.fg
+                        }
+                        Icon {
+                            id: sinkCheck
+                            anchors.right: parent.right
+                            anchors.rightMargin: 14
+                            anchors.verticalCenter: parent.verticalCenter
+                            name: "check"
+                            size: 18
+                            color: root.accent
+                            opacity: sinkRow.current ? 1 : 0
+                            Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                        }
+                        HoverHandler { id: sinkHover; cursorShape: Qt.PointingHandCursor }
+                        TapHandler {
+                            id: sinkTap
+                            onTapped: {
+                                root.soundIndex = sinkRow.index;
+                                root.selectSink(sinkRow.modelData);
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    visible: root.sinks.length === 0
+                    width: parent.width
+                    height: 44
+                    leftPadding: 14
+                    verticalAlignment: Text.AlignVCenter
+                    text: strings.t("control.noOutput")
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: 13
+                    color: root.fg
+                    opacity: 0.38
+                }
+            }
+        }
+
+        Column {
+            width: parent.width
+            spacing: root.metrics.captionGap
+
+            Caption { text: root.tr("control.input", "Entrada", "Input") }
+
+            LabeledRow {
+                variant: "bar"
+                metrics: root.metrics
+                strings: strings
+                fontFamily: root.fontFamily
+                fg: root.fg
+                bg: root.bg
+                accent: root.accent
+                danger: root.danger
+                icon: root.hasMic && !root.micMuted ? "mic" : "mic_off"
+                label: root.hasMic ? (root.source.description || root.source.nickname || strings.t("control.microphone"))
+                                   : strings.t("control.noMic")
+                value: !root.hasMic ? ""
+                       : root.micMuted ? strings.t("control.micMuted")
+                       : strings.t("control.percent").arg(Math.round(root.micVolume * 100))
+                sliderValue: Math.min(1, root.micVolume)
+                stepBase: root.micVolume
+                dimmed: !root.hasMic || root.micMuted
+                onMoved: v => root.setMicVolume(v)
+                onLabelTapped: root.toggleMic()
             }
         }
     }

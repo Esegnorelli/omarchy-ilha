@@ -56,7 +56,9 @@ Item {
     }
 
     // ---------- Rodapé ----------
-    readonly property string footerStatus: updatesChecking ? strings.t("tools.updates.checking")
+    // Na primeira verificação o rodapé fica vazio: o tile já mostra o giro.
+    readonly property string footerStatus: firstCheck ? ""
+                                         : updatesChecking ? strings.t("tools.updates.checking")
                                          : hasUpdates ? fmt(strings.tn("tools.footer.updates", updateLines.length),
                                                             [Commons.I18n.formatNumber(updateLines.length)])
                                          : updatesExit >= 0 ? strings.t("tools.updates.upToDate")
@@ -135,7 +137,15 @@ Item {
     property int updatesExit: -1
     property string updatesText: ""
     readonly property var updateLines: updatesText.split("\n").map(l => l.trim()).filter(l => l.length > 0)
-    readonly property bool hasUpdates: !updatesChecking && updatesExit === 0 && updateLines.length > 0
+    // O resultado anterior continua valendo enquanto uma nova verificação
+    // roda (sem piscar "Verificando…" a cada abertura).
+    readonly property bool hasUpdates: updatesExit === 0 && updateLines.length > 0
+    // Só a primeira verificação (ainda sem resultado) mostra a espera.
+    readonly property bool firstCheck: updatesChecking && updatesExit === -1
+    // Início da última verificação (ms epoch): no máximo uma a cada 10 min.
+    property real lastCheck: 0
+    // A última verificação terminou sem resposta (erro ou tempo esgotado).
+    property bool updatesFailed: false
 
     // Deixa as linhas da verificação mais legíveis (e curtas: cabem na
     // 3ª linha do tile largo).
@@ -153,19 +163,32 @@ Item {
 
     Process {
         id: updatesProc
-        command: ["omarchy", "update", "available"]
+        // Com limite de tempo: rede lenta não deixa o tile girando para sempre.
+        command: ["timeout", "30", "omarchy-update-available"]
         stdout: StdioCollector {
+            id: updatesOut
             waitForEnd: true
-            onStreamFinished: root.updatesText = text
         }
         onExited: (exitCode, exitStatus) => {
-            root.updatesExit = exitCode;
+            // 0 = há atualizações, 1 = em dia. Outro código (erro, timeout)
+            // não é resposta: volta para "desconhecido".
+            if (exitCode === 0 || exitCode === 1) {
+                root.updatesText = updatesOut.text;
+                root.updatesExit = exitCode;
+                root.updatesFailed = false;
+            } else {
+                root.updatesText = "";
+                root.updatesExit = -1;
+                root.updatesFailed = true;
+            }
             root.updatesChecking = false;
         }
     }
 
     function refreshUpdates() {
         if (!root.checkUpdates || updatesProc.running) return;
+        if (root.lastCheck > 0 && Date.now() - root.lastCheck < 600000) return;
+        root.lastCheck = Date.now();
         root.updatesChecking = true;
         updatesProc.running = true;
     }
@@ -188,24 +211,28 @@ Item {
         // Linha Q W E R: menus e seletores do Omarchy.
         GridRow {
             Tile {
+                iconFace: true
                 icon: "content_paste"
                 label: strings.t("tools.clipboard")
                 closesIsland: true
                 onActivated: root.launch(["omarchy", "menu", "clipboard"])
             }
             Tile {
+                iconFace: true
                 icon: "mood"
                 label: strings.t("tools.emoji")
                 closesIsland: true
                 onActivated: root.launch(["omarchy", "menu", "emoji"])
             }
             Tile {
+                iconFace: true
                 icon: "keyboard"
                 label: strings.t("tools.keybindings")
                 closesIsland: true
                 onActivated: root.launch(["omarchy", "menu", "keybindings"])
             }
             Tile {
+                iconFace: true
                 icon: "menu"
                 label: strings.t("tools.omarchyMenu")
                 closesIsland: true
@@ -217,16 +244,19 @@ Item {
         // Linha A S D: histórico, sobre e atualizações (D ocupa c3–c4).
         GridRow {
             Tile {
+                iconFace: true
                 icon: "notifications"
                 label: strings.t("tools.notifications")
-                sublabel: root.notificationCount > 0
-                          ? root.fmt(strings.tn("tools.notifications.onScreen", root.notificationCount),
-                                     [Commons.I18n.formatNumber(root.notificationCount)])
-                          : strings.t("tools.notifications.history")
+                sublabel: strings.t("tools.notifications.history")
+                // Quantas estão na tela agora: selo no canto do disco.
+                badgeText: root.notificationCount <= 0 ? ""
+                           : root.notificationCount > 9 ? "9+"
+                           : Commons.I18n.formatNumber(root.notificationCount)
                 closesIsland: true
                 onActivated: root.showNotificationHistory()
             }
             Tile {
+                iconFace: true
                 icon: "info"
                 label: strings.t("tools.about")
                 closesIsland: true
@@ -234,31 +264,37 @@ Item {
             }
             Tile {
                 span: 2
-                icon: root.hasUpdates ? "system_update" : root.updatesChecking ? "sync" : "check_circle"
+                icon: root.hasUpdates ? "update" : root.firstCheck ? "sync" : "check_circle"
+                spinIcon: root.firstCheck
                 label: strings.t("tools.updates.title")
                 on: root.hasUpdates
-                sublabel: root.updatesChecking ? strings.t("tools.updates.checkingShort")
+                sublabel: root.firstCheck ? strings.t("tools.updates.checkingShort")
                           : root.hasUpdates ? root.fmt(strings.tn("tools.updates.pendingAction", root.updateLines.length),
                                                        [Commons.I18n.formatNumber(root.updateLines.length)])
+                          : root.updatesFailed ? strings.t("tools.updates.unknown")
                           : strings.t("tools.updates.upToDate")
-                // Sempre há uma 3ª linha, para o tile manter o mesmo layout
-                // em todos os estados.
+                // 3ª linha: o que há para atualizar (monoespaçado) ou a dica;
+                // vazia só enquanto a primeira verificação roda.
                 detail: root.hasUpdates ? root.describeUpdate(root.updateLines[0])
+                        : root.firstCheck ? ""
                         : strings.t("tools.updates.runHint")
+                detailMono: root.hasUpdates
                 closesIsland: true
                 // Mesmo caminho que o próprio Omarchy usa para atualizar.
                 onActivated: root.launch(["omarchy-launch-floating-terminal-with-presentation", "omarchy-update"])
             }
         }
 
-        // Z: a lista de plugins fica na própria ilha.
+        // Z: a lista de plugins fica na própria ilha. Linha baixa (altura de
+        // um InfoRow) com seta, porque abre outra página.
         GridRow {
+            tileHeight: root.metrics.info
             Tile {
                 span: 4
                 icon: "extension"
                 label: strings.t("tools.plugins")
                 sublabel: strings.t("tools.plugins.sub")
-                detail: strings.t("tools.plugins.detail")
+                trailingIcon: "chevron_right"
                 onActivated: root.navigate("plugins")
             }
         }

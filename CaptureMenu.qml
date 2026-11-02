@@ -7,7 +7,7 @@ import qs.Commons as Commons
 //   PRINT     Q Região · W Tela inteira · E Janela · R Rolagem
 //   GRAVAÇÃO  A Gravar região · S Gravar tela · D Som do sistema · F Mic na gravação
 //             (gravando: A+S viram "Parar gravação 00:42" em danger, c1–c2; D/F indisponíveis)
-//   EXTRAIR   Z Texto (OCR) · X QR code · C Conta-gotas
+//   EXTRAIR   Z Texto (OCR) · X QR code · C Conta-gotas · V Print inteligente
 // ⇧Q = A e ⇧W = S. Tudo que gera pixels fecha a ilha antes (350 ms).
 //
 // Contrato de estado: active, closeRequested(), navigate(target), fg/bg/accent/danger,
@@ -282,6 +282,13 @@ Item {
                 label: strings.t("capture.picker")
                 closesIsland: true
                 onActivated: root.runAfterClose(["hyprpicker", "-a"])
+            }
+            Tile {
+                iconFace: true
+                icon: "screenshot_monitor"
+                label: strings.t("capture.smart")
+                closesIsland: true
+                onActivated: root.screenshot("smart")
             }
         }
     }

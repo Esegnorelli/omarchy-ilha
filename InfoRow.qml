@@ -1,16 +1,18 @@
 import QtQuick
 import qs.Commons as Commons
 
-// Linha de informação de 56 px (spec §3.2): ícone, título e detalhe em c1–c2;
-// até 2 botões compactos (Tile { compact: true }, 32 px) em c3–c4, um por
+// Linha de informação de 56 px (spec §3.2): ícone num círculo de 36 px, título
+// e detalhe em c1–c2; até 2 botões compactos em cápsula (Tile { compact: true },
+// 32 px) em c3–c4, um por
 // coluna. Com um só botão visível e stretch: true ele ocupa c3–c4; sem stretch
 // fica em c4. A letra de cada botão é a da coluna onde começa.
 //
 // API pública:
 //   icon, title, detail: string   (detail em muted; textos externos sempre PlainText)
 //   alert: bool                   ícone em danger (por exemplo sem conexão)
+//   fontFamily: string            fonte do tema (repassada aos botões)
 //   keyRow: int                   -2 automático, -1, 0/1/2
-//   keyboardMode, strings, fg, bg, accent, danger, muted, metrics   repassados aos botões
+//   keyboardMode, focusVisible, strings, fg, bg, accent, danger, muted, metrics   repassados aos botões
 //   filhos: Tile { onActivated: … }   (os botões; compact é ligado aqui; só os 2 últimos visíveis contam)
 // Funções:
 //   focusItems() → [Item]         botões visíveis
@@ -25,12 +27,14 @@ Item {
     property int keyRow: -2
 
     property bool keyboardMode: false
+    property bool focusVisible: false
     property var strings: null
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    property string fontFamily: Commons.Style.fontFamily
     property Metrics metrics: Metrics {}
 
     property int autoKeyRow: -1
@@ -68,7 +72,7 @@ Item {
                 info._wired.push(c);
                 c.visibleChanged.connect(info.relayout);
                 if (c.stretchChanged) c.stretchChanged.connect(info.relayout);
-                for (const p of ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "strings"])
+                for (const p of ["fg", "bg", "accent", "danger", "muted", "metrics", "keyboardMode", "focusVisible", "strings", "fontFamily"])
                     if (p in c) c[p] = Qt.binding(() => info[p]);
                 if ("compact" in c) c.compact = true;
             }
@@ -103,24 +107,32 @@ Item {
 
     ContinuousRect {
         anchors.fill: parent
-        radius: info.metrics.rowRadius
+        radius: info.metrics.cardRadius
         color: Qt.rgba(info.fg.r, info.fg.g, info.fg.b, info.metrics.alphaIdle)
     }
 
     Row {
-        x: 14
+        x: 12
         width: info.metrics.colX(2, 4) - x - info.metrics.gap
         anchors.verticalCenter: parent.verticalCenter
         spacing: 12
 
-        Icon {
+        ContinuousRect {
             id: infoIcon
             visible: info.icon !== ""
             anchors.verticalCenter: parent.verticalCenter
-            name: info.icon
-            size: info.metrics.tileIcon
-            color: info.alert ? info.danger : info.fg
-            Behavior on color { ColorAnimation { duration: Commons.Style.duration(info.metrics.msState); easing.type: Easing.OutCubic } }
+            width: 36
+            height: 36
+            radius: info.metrics.fit(18)
+            color: Qt.rgba(info.fg.r, info.fg.g, info.fg.b, 0.10)
+
+            Icon {
+                anchors.centerIn: parent
+                name: info.icon
+                size: info.metrics.tileIcon
+                color: info.alert ? info.danger : info.fg
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(info.metrics.msState); easing.type: Easing.OutCubic } }
+            }
         }
         Column {
             anchors.verticalCenter: parent.verticalCenter
@@ -130,6 +142,7 @@ Item {
                 width: parent.width
                 text: info.title
                 textFormat: Text.PlainText
+                font.family: info.fontFamily
                 font.pixelSize: info.metrics.tileLabel
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
@@ -140,6 +153,7 @@ Item {
                 visible: text !== ""
                 text: info.detail
                 textFormat: Text.PlainText
+                font.family: info.fontFamily
                 font.pixelSize: info.metrics.tileSublabel
                 elide: Text.ElideRight
                 color: info.muted

@@ -46,24 +46,24 @@ Se a Ilha não carregar, o Omarchy volta sozinho para `omarchy.bar`.
 
 ## O que aparece
 
-A pílula flutua a 10 px da borda de cima, na camada de overlay, e não reserva espaço. As janelas não se mexem quando ela cresce. Ela fica por cima de tela cheia.
+A pílula flutua a 12 px da borda de cima, na camada de overlay, e não reserva espaço. As janelas não se mexem quando ela cresce. Ela fica por cima de tela cheia. O tamanho que ela publica para o shell (`barSize`) é 50.
 
 | Estado | O que está na pílula |
 |---|---|
-| Repouso | O relógio, numa cápsula. Se algo estiver ligado (gravação, Não perturbe, manter acordado, lembrete…), uma marca fica junto da hora. |
-| Hover | Uma linha: workspaces 1–5, a hora, a paleta de aparência e no máximo dois avisos ligados. A largura acompanha essa linha. |
-| Painel | A mesma linha continua no topo. Um painel abre embaixo dela. |
+| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Se algo estiver ligado (gravação, Não perturbe, manter acordado, lembrete…), uma marca fica junto da hora. |
+| Hover | Nível 1: o relógio fixo no centro, os pontos dos workspaces de um lado (o ativo é uma pílula na cor de destaque), barras de rede e bateria do outro. |
+| Hover parado | Nível 2, depois de uns 0,9 s de hover: a pílula alarga em três colunas. À esquerda, o app em foco sobre os pontos dos workspaces. No centro, um relógio grande sobre a data. À direita, o estado das notificações sobre rede e bateria. |
+| Painel | O mesmo objeto vira um painel. Não há linha de cabeçalho em cima dele. |
 
-O ponteiro na faixa central de cima (600 px) ou na própria pílula abre a linha. Ao sair, volta o relógio. Nada troca sozinho.
+O ponteiro na faixa central de cima (600 px) ou na própria pílula abre a linha. Parado ali, vem o nível 2. Ao sair, volta o relógio. Nada troca sozinho.
 
 | Lugar | Conteúdo | Toque |
 |---|---|---|
-| Esquerda | Workspaces 1–5 deste monitor. O ativo usa a cor do tema e mostra o layout: quadrado para mosaico, círculo para rolagem, triângulo para flutuante. Os ocupados são números claros. Os vazios são números quietos. | O clique no número ativo percorre esses três layouts. O clique noutro número foca esse workspace |
+| Esquerda | Pontos dos workspaces deste monitor. O ativo é uma pílula alongada na cor de destaque do tema. Os ocupados são claros. Os vazios são quietos. | O clique num ponto foca esse workspace |
 | Meio | Hora | Abre o Tempo |
-| Aparência | Paleta, na cor do tema | Abre o Estilo |
-| Direita | Até dois avisos ligados, só o ícone | Desliga o aviso, ou abre o painel dele |
+| Direita | Barras de rede e bateria, a bateria preenchida na cor de destaque | Abre o Controle |
 
-Apps, Controle, Captura, Ferramentas e Energia não ficam desenhados na pílula. Cada um abre nela, um de cada vez. Com mais de dois avisos, o repouso mostra um ponto e o hover fica com os dois primeiros ícones.
+Apps, Controle, Captura, Estilo, Ferramentas e Energia não ficam desenhados na pílula. A paleta saiu da linha: o Estilo continua na tecla `4` e na roda. Cada painel abre nela, um de cada vez. Com algo ligado, o repouso mostra um único ponto.
 
 ## Painéis
 
@@ -73,11 +73,11 @@ Todos usam a mesma grade de 4 colunas, a mesma largura e altura fixa, então a p
 |---|---|---|
 | 0 | Tempo | O mês. Page Up e Page Down trocam o mês. Home volta para hoje |
 | 1 | Apps | Busca de aplicativos. Setas, Enter. Esc limpa e depois fecha |
-| 2 | Controle | Microfone, Não perturbe, luz noturna, manter acordado, animações, modo jogo, Wi-Fi e Bluetooth quando existem, volume, a rede atual, teste de velocidade |
-| 3 | Captura | Print de região, tela, janela ou rolagem. Gravação com som do sistema e microfone. OCR, QR code, conta-gotas |
-| 4 | Estilo | Os temas são uma faixa compacta: busca, cinco cartões com a imagem do tema e a paleta, o do meio com aro. As setas escolhem. Enter, ou o clique no cartão do meio, aplica. Os fundos são um carrossel desse tema: busca, cinco miniaturas, a escolhida sobe e as vizinhas ficam mais baixas e mais quietas. O nome fica na miniatura. O fundo em uso continua claro. Enter, ou o clique na miniatura levantada, aplica. Um clique na vizinha só seleciona. Todos os temas esconde os outros controles. Esc limpa a busca e depois volta. Próximo fundo, escolher, cores do fundo, cantos, transparência, fonte |
-| 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins |
-| 6 | Energia | Bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
+| 2 | Controle | Blocos em cápsula (um círculo de ícone que se enche com a cor de destaque quando ligado) e blocos redondos: microfone, Não perturbe, luz noturna, manter acordado, animações, modo jogo, Wi-Fi e Bluetooth quando existem. Volume, a rede atual, teste de velocidade. A seta da linha de volume abre a subpágina Som (saídas, entrada); um botão redondo `<` ou Esc volta |
+| 3 | Captura | Print de região, tela, janela ou rolagem, e Inteligente no `V`. Gravação com som do sistema e microfone. OCR, QR code, conta-gotas |
+| 4 | Estilo | `/` começa uma busca, e as letras de atalho funcionam na hora. Os temas são uma faixa compacta: cinco cartões, cada um uma amostra lisa das cores do tema, o do meio com aro. As setas escolhem. Enter, ou o clique no cartão do meio, aplica. Os fundos são um carrossel desse tema: busca, cinco miniaturas, a escolhida sobe e as vizinhas ficam mais baixas e mais quietas. O nome fica na miniatura. O fundo em uso continua claro. Enter, ou o clique na miniatura levantada, aplica. Um clique na vizinha só seleciona. O seletor de fundos tem um cabeçalho e um rodapé com o nome e `n/N · ↵ aplicar`. Todos os temas esconde os outros controles. Esc limpa a busca e depois volta. Próximo fundo, escolher, cores do fundo, cantos, transparência, fonte |
+| 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins. A busca de atualizações roda no máximo a cada 10 minutos e desiste depois de 30 segundos |
+| 6 | Energia | Uma fileira de botões quadrados arredondados, ícone e nome: bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
 | — | Plugins | Busca os plugins do shell. Enter liga ou desliga. Trocar a barra pede um segundo toque. A roda chega nele depois da Energia |
 | — | OSD | Volume, brilho e outros avisos enviados para a ilha |
 | — | Notificação | O clique no sino da linha abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Ela não aparece sozinha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
@@ -86,11 +86,11 @@ Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede a
 
 ## Mouse e teclado
 
-- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Para baixo avança. Para cima volta. A linha continua no topo do painel aberto para a roda seguir nela.
+- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins. Para baixo avança. Para cima volta. O painel aberto não tem linha no topo, mas a roda na borda de cima dele continua trocando os painéis.
 - Listas e controles deslizantes guardam a própria roda. O volume fica no Controle.
 - `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem.
 - Setas movem o foco. Enter e Espaço ativam.
-- As letras seguem a grade: `Q W E R`, `A S D F`, `Z X C V`. A letra aparece no controle. As mesmas letras valem no QWERTY e no ABNT2.
+- As letras seguem a grade: `Q W E R`, `A S D F`, `Z X C V`. A letra aparece no controle só no modo teclado ou no hover. O contorno de foco só aparece depois de navegar pelo teclado. As mesmas letras valem no QWERTY e no ABNT2.
 - No Estilo, `[` e `]` só destacam a fonte. Enter ou o clique aplicam. Fontes de ícones ficam fora da lista.
 - Esc cancela uma confirmação, depois limpa a busca, depois fecha.
 - Um clique fora fecha o painel.
@@ -107,10 +107,10 @@ o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 O Estilo chega na pílula no clique. O comando do sistema continua depois.
 
 - **Tema.** A pílula lê o `colors.toml` daquele tema (a sua camada, depois o tema de fábrica) e recolore na hora. O `omarchy theme set` espera 280 ms, então uma sequência rápida de cliques não empilha trocas. Papel de parede, terminais e bordas seguem o comando. Se o tema do sistema não chegar, a pílula volta para o tema que está valendo.
-- **Cantos.** Arredondado mantém a cápsula (um painel limita o raio em 28) e arredonda as janelas junto. Reto deixa a casca, os controles internos e as janelas com quina viva, inclusive o terminal. Tema usa o raio atual do Hyprland. Um desktop sem vão não achata a escolha arredondada. `omarchy hyprland corners`.
-- **Vidro.** Opaco é sólido. Vidro pinta o tema a 0.4 na cápsula e 0.58 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Transparente fica em 0.34 e 0.42, logo acima do ponto em que esse blur abre um buraco. O fio da borda acompanha. Botões, cartões, chips e o calendário usam esse mesmo alfa, então um controle escolhido não vira uma placa sólida. A mesma escolha define a opacidade das janelas pelo próprio Omarchy; a Ilha não acrescenta regras de janela. `omarchy hyprland window transparency`.
+- **Cantos.** Arredondado usa cápsulas e um canto de painel de 32, e arredonda as janelas junto. Reto deixa a casca, os controles internos e as janelas com quina viva, inclusive o terminal. Tema segue o arredondamento atual do Hyprland; um tema com arredondamento 0 cai no visual arredondado em vez de deixar a ilha reta. Um desktop sem vão não achata a escolha arredondada. `omarchy hyprland corners`.
+- **Vidro.** Opaco é sólido. Vidro pinta o tema a 0.92 na cápsula e 0.90 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Transparente fica em 0.82 e 0.80. Não há fio de borda, a não ser uma linha de 1 px no Transparente. Botões, cartões, chips e o calendário usam o alfa do painel, então um controle escolhido não vira uma placa sólida. A exceção são as pequenas marcas de destaque (círculos de ícone ativos, preenchimento dos controles deslizantes, hoje, o workspace ativo, a bateria): elas ficam na cor de destaque sólida mesmo no vidro. A mesma escolha define a opacidade das janelas pelo próprio Omarchy; a Ilha não acrescenta regras de janela. `omarchy hyprland window transparency`.
 - **Fonte.** A família escolhida entra na pílula na hora. O `omarchy font set` ainda reinicia o shell quando reescreve o fontconfig.
-- **Movimento.** O tamanho da pílula usa uma mola sem quique, e os fades são curtos. Com `omarchy toggle animations` desligado, tudo aparece na hora.
+- **Movimento.** A pílula muda de forma em 200 ms fixos quando cresce e 160 ms quando encolhe, numa curva que desacelera, e o conteúdo troca com um fade cruzado. Passar de um painel para outro nunca fecha e reabre a pílula. Com `omarchy toggle animations` desligado, tudo aparece na hora.
 - **Cor.** A pílula usa só `Commons.Color`. Não há paleta própria.
 
 O modo jogo, no Controle, é outra ação. Ligar pode desligar animações, tirar os vãos e deixar as janelas opacas. Desligar devolve o que ele mudou.
@@ -145,7 +145,7 @@ Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro 
 |---|---|
 | `manifest.json` | Id, versão e a entrada `bar` |
 | `Island.qml` | Uma janela por monitor, a pílula, os painéis e o IPC |
-| `Strip.qml` | A linha de status: workspaces, relógio, paleta, avisos |
+| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, estado das notificações |
 | `Indicators.qml` | Marcas de status ao vivo |
 | `ContinuousRect.qml` | Cápsula e cartão |
 | `Metrics.qml` | Medidas da grade, raios, durações |

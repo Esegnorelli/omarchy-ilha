@@ -73,7 +73,7 @@ Item {
             width: root.appBox
             elide: Text.ElideRight
             text: root.app
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.62)
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.6)
             font.family: root.fontFamily
             font.pixelSize: 13
             font.weight: Font.Medium

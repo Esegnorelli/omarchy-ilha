@@ -19,6 +19,8 @@ Item {
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
+    // Fonte do Estilo (o host liga quando a propriedade existe).
+    property string fontFamily: Commons.Style.fontFamily
 
     property bool active: false
     property var shell: null
@@ -30,8 +32,9 @@ Item {
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
-    readonly property int visibleRows: 8
-    readonly property int rowHeight: 40
+    // 40 + 8 + 6 × 52 = 360, a mesma altura do Apps.
+    readonly property int visibleRows: 6
+    readonly property int rowHeight: metrics.listRow
     readonly property int searchHeight: 40
     readonly property int listHeight: visibleRows * rowHeight
 
@@ -83,6 +86,25 @@ Item {
         return true;
     }
     function focusFirst() { input.forceActiveFocus(); return true; }
+
+    // Abre sempre do topo, com a busca limpa e a 1ª linha escolhida.
+    function reset() {
+        input.text = "";
+        root.query = "";
+        root.armedId = "";
+        root.selectedIndex = 0;
+        list.currentIndex = 0;
+        list.positionViewAtBeginning();
+        input.forceActiveFocus();
+    }
+    // A lista recriou as linhas: devolve a seleção para a vista.
+    function syncList() {
+        Qt.callLater(() => {
+            if (list.count === 0) return;
+            list.currentIndex = root.selectedIndex;
+            list.positionViewAtIndex(root.selectedIndex, ListView.Contain);
+        });
+    }
 
     function safeId(id) {
         const s = String(id || "");
@@ -172,6 +194,7 @@ Item {
             root.busyId = "";
         if (root.selectedIndex >= root.filtered.length)
             root.selectedIndex = Math.max(0, root.filtered.length - 1);
+        root.syncList();
     }
 
     function refresh() {
@@ -185,9 +208,7 @@ Item {
     function select(delta) {
         const n = root.filtered.length;
         if (n === 0) return;
-        const next = root.selectedIndex + delta;
-        if (next < 0 || next >= n) return;
-        root.selectedIndex = next;
+        root.selectedIndex = (root.selectedIndex + delta + n) % n;
     }
 
     function activate(index) {
@@ -224,7 +245,8 @@ Item {
         list.currentIndex = root.selectedIndex;
         list.positionViewAtIndex(root.selectedIndex, ListView.Contain);
     }
-    onActiveChanged: if (active) root.refresh()
+    onFilteredChanged: root.syncList()
+    onActiveChanged: if (active) { root.reset(); root.refresh(); }
     Component.onCompleted: if (active) root.refresh()
 
     Timer {
@@ -258,19 +280,27 @@ Item {
         width: root.implicitWidth
         height: root.searchHeight
         radius: root.metrics.fit(height / 2)
-        color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
-        borderWidth: input.activeFocus ? root.metrics.ring - 1 : 0
-        borderColor: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.55)
+        // Linha de busca sem placa nem borda: um fio de 1 px embaixo.
+        color: "transparent"
+        borderWidth: 0
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: parent.bottom
+            height: 1
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.08)
+        }
 
         Icon {
             id: searchIcon
             anchors.left: parent.left
-            anchors.leftMargin: 14
+            anchors.leftMargin: 6
             anchors.verticalCenter: parent.verticalCenter
             name: "search"
-            size: 20
+            size: 18
             filled: input.text.length > 0
-            color: root.accent
+            color: input.text.length > 0 ? root.fg : root.muted
         }
 
         TextInput {
@@ -283,7 +313,8 @@ Item {
             color: root.fg
             selectionColor: root.accent
             selectedTextColor: root.bg
-            font.pixelSize: 14
+            font.family: root.fontFamily
+            font.pixelSize: 15
             clip: true
             onTextChanged: root.query = text
             Accessible.role: Accessible.EditableText
@@ -320,7 +351,8 @@ Item {
             text: strings.t("plugins.search")
             textFormat: Text.PlainText
             color: root.muted
-            font.pixelSize: 14
+            font.family: root.fontFamily
+            font.pixelSize: 15
             elide: Text.ElideRight
             visible: input.text.length === 0
         }
@@ -344,13 +376,24 @@ Item {
         preferredHighlightBegin: 0
         preferredHighlightEnd: height
 
+        // A roda rolou a seleção para fora: escolhe a primeira linha à vista,
+        // para o Enter nunca agir numa linha escondida.
+        onMovementEnded: {
+            if (count === 0) return;
+            const top = root.selectedIndex * root.rowHeight;
+            if (top >= contentY - 1 && top + root.rowHeight <= contentY + height + 1) return;
+            const i = indexAt(10, contentY + root.rowHeight / 2);
+            if (i >= 0) root.selectedIndex = i;
+        }
+
+        // Seleção: a mesma placa neutra e a barrinha do Apps.
         highlight: Item {
             width: list.width
             height: root.rowHeight
             ContinuousRect {
                 anchors.fill: parent
                 radius: root.metrics.rowRadius
-                color: Qt.rgba(root.accent.r, root.accent.g, root.accent.b, root.metrics.alphaPill)
+                color: root.metrics.plate(root.fg, root.metrics.alphaHover)
             }
             ContinuousRect {
                 x: 4
@@ -370,89 +413,174 @@ Item {
             readonly property bool on: root.shownEnabled(modelData)
             readonly property bool inUse: root.isBar(modelData) && on
             readonly property bool busy: root.busyId === modelData.id
+            readonly property bool armed: root.armedId === modelData.id
 
             width: list.width
             height: root.rowHeight
             opacity: busy ? root.metrics.opacityBusy : 1
 
+            // Placa do hover (neutra) e, armada, a tinta de perigo.
             ContinuousRect {
                 anchors.fill: parent
                 radius: root.metrics.rowRadius
-                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
-                opacity: hover.hovered && !row.selected ? 1 : 0
+                color: row.armed ? root.metrics.plate(root.danger, 0.16)
+                     : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
+                opacity: row.armed || (hover.hovered && !row.selected) ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
             }
 
             HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
             TapHandler { onTapped: root.activate(row.index) }
 
-            Icon {
+            // Tipo num círculo de 32: accent sólido quando ligado.
+            ContinuousRect {
                 id: mark
                 anchors.left: parent.left
                 anchors.leftMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                width: 22
-                height: 22
-                name: row.busy ? "sync" : root.kindIcon(modelData.kinds)
-                size: 20
-                filled: row.selected || row.on
-                color: row.selected ? root.accent : root.fg
+                width: 32
+                height: 32
+                radius: root.metrics.fit(16)
+                color: row.on ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
+                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+
+                Icon {
+                    id: markIcon
+                    anchors.centerIn: parent
+                    name: row.busy ? "sync" : root.kindIcon(row.modelData.kinds)
+                    size: 18
+                    filled: row.on
+                    color: row.on ? root.bg : root.muted
+
+                    // Gira enquanto o comando roda.
+                    RotationAnimator on rotation {
+                        running: row.busy && row.visible
+                        from: 0
+                        to: 360
+                        duration: 900
+                        loops: Animation.Infinite
+                        onRunningChanged: if (!running) markIcon.rotation = 0
+                    }
+                }
             }
 
-            Text {
-                id: nameText
+            // Nome em cima, tipo apagado embaixo.
+            Column {
                 anchors.left: mark.right
                 anchors.leftMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, row.width - 210)
-                text: modelData.name
-                textFormat: Text.PlainText
-                color: row.selected ? root.accent : root.fg
-                font.pixelSize: 13
-                font.weight: row.selected || row.on ? Font.DemiBold : Font.Normal
-                elide: Text.ElideRight
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-            }
-
-            Text {
-                anchors.left: nameText.right
-                anchors.leftMargin: 10
                 anchors.right: status.left
-                anchors.rightMargin: 10
+                anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.kindText(modelData.kinds)
-                textFormat: Text.PlainText
-                color: root.muted
-                font.pixelSize: 12
-                elide: Text.ElideRight
+                spacing: 1
+
+                Text {
+                    width: parent.width
+                    text: row.modelData.name
+                    textFormat: Text.PlainText
+                    color: row.on ? root.fg : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.7)
+                    font.family: root.fontFamily
+                    font.pixelSize: 13
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                }
+                Text {
+                    width: parent.width
+                    text: root.kindText(row.modelData.kinds)
+                    visible: text.length > 0
+                    textFormat: Text.PlainText
+                    color: root.muted
+                    font.family: root.fontFamily
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                }
             }
 
+            // À direita: a confirmação (armada), "Em uso" (barra ativa) ou o interruptor.
             Item {
                 id: status
                 anchors.right: parent.right
-                anchors.rightMargin: 12
+                anchors.rightMargin: 14
                 anchors.verticalCenter: parent.verticalCenter
-                width: row.inUse ? inUseText.implicitWidth : 18
-                height: 18
+                width: row.armed ? Math.min(confirmText.implicitWidth, 160)
+                     : row.inUse ? inUseText.implicitWidth : 36
+                height: 20
 
+                Text {
+                    id: confirmText
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width
+                    visible: row.armed
+                    text: strings.t("plugins.confirmBar")
+                    textFormat: Text.PlainText
+                    color: root.danger
+                    font.family: root.fontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
                 Text {
                     id: inUseText
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: row.inUse
+                    visible: row.inUse && !row.armed
                     text: strings.t("plugins.inUse")
                     textFormat: Text.PlainText
                     color: root.accent
+                    font.family: root.fontFamily
                     font.pixelSize: 11
                     font.weight: Font.DemiBold
                 }
-                Icon {
-                    anchors.centerIn: parent
-                    visible: !row.inUse
-                    name: row.on ? "check" : "radio_button_unchecked"
-                    size: 16
-                    color: row.on ? root.accent : root.muted
+                // Interruptor 36 × 20: trilho accent ligado, fg 14% desligado.
+                ContinuousRect {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: !row.inUse && !row.armed
+                    width: 36
+                    height: 20
+                    radius: root.metrics.fit(10)
+                    color: row.on ? root.accent : Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.14)
+                    Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+
+                    ContinuousRect {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: row.on ? 19 : 3
+                        width: 14
+                        height: 14
+                        radius: root.metrics.fit(7)
+                        color: row.on ? root.bg : root.fg
+                        Behavior on x { NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+                    }
                 }
             }
+        }
+    }
+
+    // Lendo a lista: ícone girando e o aviso, centrados no bloco.
+    Column {
+        anchors.centerIn: list
+        visible: !root.loaded
+        spacing: 8
+        Icon {
+            anchors.horizontalCenter: parent.horizontalCenter
+            name: "sync"
+            size: 28
+            color: root.muted
+            RotationAnimator on rotation {
+                running: !root.loaded && root.visible
+                from: 0
+                to: 360
+                duration: 900
+                loops: Animation.Infinite
+            }
+        }
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: strings.t("plugins.loading")
+            textFormat: Text.PlainText
+            color: root.muted
+            font.family: root.fontFamily
+            font.pixelSize: 13
         }
     }
 
@@ -462,6 +590,7 @@ Item {
         text: strings.t("plugins.countNone")
         textFormat: Text.PlainText
         color: root.muted
+        font.family: root.fontFamily
         font.pixelSize: 13
     }
 }

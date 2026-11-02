@@ -10,13 +10,16 @@ import qs.Commons as Commons
 //   col, gap, content, pad, width         grade de 4 colunas: 4·128 + 3·8 = 536; ilha 568
 //   strip, zoneL, zoneC, zoneR, iconSlot   faixa fixa do topo (216 | 104 | 216, 6 × 36), 50 px
 //   tile, compact, slim, info              alturas: tile 72, botão compacto 32, LabeledRow 44, InfoRow 56
-//   caption, captionGap, footer            legenda 16 + 4; rodapé 20
-//   tileRadius, rowRadius                  14 e 12 (pílula = altura / 2)
+//   capsuleTile, listRow                   tile cápsula/redondo 60; linha de lista 52
+//   caption, captionGap, footer            legenda 16 + 6; rodapé 20
+//   tileRadius, rowRadius, cardRadius      18, 16 e 20 (cápsula = altura / 2), sempre via fit()
+//   plateAlpha                             teto do fundo dos controles: 1 | 0.90 | 0.80 (= alphaBody)
 //   padTop, padBottom, chrome              8 acima, 8 + rodapé + 12 abaixo; chrome = 94 + linhas
 //   panelMax                               teto de altura de um painel (700)
 //   colX(c, columns), spanWidth(s, columns)  posição e largura em px de colunas (columns = 4 ou 3)
 //   panelHeight(rowsHeight)                altura total da ilha para um painel
 //   alpha*, opacity*                       níveis de tinta derivados de fg/accent
+//                                          (cartão: idle 0.06, hover 0.10, pressionado/foco 0.14)
 //   ms*                                    durações base (sempre passar por Commons.Style.duration)
 QtObject {
     // ---------- Grade ----------
@@ -45,8 +48,10 @@ QtObject {
     readonly property int segment: 36                          // segmentos do LabeledRow
     readonly property int slim: 44                             // LabeledRow
     readonly property int info: 56                             // InfoRow
+    readonly property int capsuleTile: 60                      // tile cápsula e redondo
+    readonly property int listRow: 52                          // linhas do lançador e dos plugins
     readonly property int caption: 16
-    readonly property int captionGap: 4
+    readonly property int captionGap: 6
     readonly property int captionText: 11
     readonly property int footer: 20
     readonly property int footerText: 11
@@ -54,13 +59,15 @@ QtObject {
     readonly property int ring: 2
 
     // Cantos do Estilo. Arredondado guarda o desenho da grade. Reto fecha
-    // tudo em quina viva. Tema acompanha o raio das janelas, e um tema
-    // reto também fecha a ilha.
+    // tudo em quina viva. Tema acompanha o raio das janelas como teto; um
+    // tema sem arredondamento (0) fica com o desenho da grade, para não
+    // fechar tudo em quina.
     property string corners: "rounded"
     // Opaco fecha. Vidro e transparente limitam o fundo dos controles ao
-    // mesmo alfa da pílula, para um botão não virar uma placa sólida.
+    // mesmo alfa do corpo do painel (alphaBody do Island), para um botão
+    // não virar uma placa mais sólida que a própria ilha.
     property string glass: "transparent"
-    readonly property real plateAlpha: glass === "opaque" ? 1 : glass === "glassy" ? 0.58 : 0.42
+    readonly property real plateAlpha: glass === "opaque" ? 1 : glass === "glassy" ? 0.90 : 0.80
     function plate(color, alpha) {
         const c = color
         if (!c)
@@ -74,14 +81,14 @@ QtObject {
         const n = Math.max(0, Number(radius) || 0)
         if (corners === "sharp")
             return 0
-        if (corners === "rounded")
+        if (corners === "rounded" || themeCorner <= 0)
             return n
-        if (themeCorner <= 0)
-            return 0
         return Math.min(n, themeCorner)
     }
-    readonly property int tileRadius: fit(14)
-    readonly property int rowRadius: fit(12)
+    readonly property int tileRadius: fit(18)
+    readonly property int rowRadius: fit(16)
+    // Cartões grandes: Som, InfoRow, botões da Energia, cartões de tema e wallpaper.
+    readonly property int cardRadius: fit(20)
 
     // ---------- Chrome do painel ----------
     readonly property int padTop: 8
@@ -93,6 +100,7 @@ QtObject {
     // ---------- Tinta (alfa sobre fg/accent) ----------
     readonly property real alphaIdle: 0.06
     readonly property real alphaHover: 0.10
+    readonly property real alphaPressed: 0.14
     readonly property real alphaPill: 0.18
     readonly property real opacityBusy: 0.6
     readonly property real opacityUnavailable: 0.35
