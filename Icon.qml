@@ -22,7 +22,13 @@ Text {
     // O preenchimento usa contornos sobrepostos; o render padrão (distance
     // field) deixa buracos neles, o nativo desenha sólido.
     renderType: Text.NativeRendering
-    font.family: "Material Symbols Rounded"
+    // A fonte vem com o plugin (fonts/, só os ícones usados): o Omarchy não
+    // instala Material Symbols, e sem ela cada ícone vira o próprio nome.
+    FontLoader {
+        id: symbols
+        source: Qt.resolvedUrl("fonts/MaterialSymbolsRounded.ttf")
+    }
+    font.family: symbols.status === FontLoader.Ready ? symbols.name : "Material Symbols Rounded"
     font.pixelSize: size
     font.variableAxes: ({ "FILL": root.fill, "wght": root.weight, "opsz": Math.max(20, Math.min(48, root.size)) })
     horizontalAlignment: Text.AlignHCenter
