@@ -1,6 +1,6 @@
 # Ilha
 
-Barra flutuante para o [Omarchy](https://omarchy.org). Em repouso é o relógio. Com o ponteiro, vira a linha dos workspaces, e um clique abre a linha completa. Seis telas abrem dentro da mesma pílula: Central de controle, Apps, Mídia, Temas, Papéis de parede e Energia.
+Barra flutuante para o [Omarchy](https://omarchy.org). Em repouso é só a hora. Com o ponteiro, vira cinco ícones, e cada um abre uma tela dentro da mesma pílula: Apps, Temas e papéis de parede, Mídia, Central de controle e Energia.
 
 English documentation: [README.md](README.md).
 
@@ -69,11 +69,11 @@ Com a barra escondida (`omarchy toggle bar`), a pílula (e os 48 px, com `reserv
 | Estado | O que está na pílula |
 |---|---|
 | Repouso | Só a hora, numa cápsula de 32 px de altura, a 10 px da borda de cima. Durante uma gravação, uma marca vermelha e o tempo gravado ficam ao lado. |
-| Ícones | O ponteiro está na pílula. As seis telas como ícones, numa cápsula de 236 × 42. |
+| Ícones | O ponteiro está na pílula. As cinco telas como ícones, numa cápsula de 200 × 42. |
 | Nível 2 | Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) ou um toque na marca de gravação. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
 | Aviso ao vivo | Algo acabou de ligar. Uma linha curta, de 40 px de altura. |
 | OSD | `ilha osd`, a pergunta da resolução ou o aviso de reinício. 40 px de altura. |
-| Tela | Uma das seis telas, na mesma forma. |
+| Tela | Uma das cinco telas, na mesma forma. |
 
 ### Repouso
 
@@ -83,7 +83,7 @@ A única exceção é a gravação, por privacidade: uma marca vermelha e o temp
 
 ### Ícones
 
-O ponteiro na pílula, no vão acima dela ou na faixa de cima transforma o relógio em seis ícones: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. É a mesma ordem do Alt+1–6. Um toque num ícone abre a tela dele. A Mídia está sempre lá; sem player, abre "Nada tocando". Saia por 250 ms e a pílula volta para o relógio.
+O ponteiro na pílula, no vão acima dela ou na faixa de cima transforma o relógio em cinco ícones: Apps, Temas (com os papéis de parede), Mídia, Central de controle, Energia. É a mesma ordem do Alt+1–5. Um toque num ícone abre a tela dele. A Mídia está sempre lá; sem player, abre "Nada tocando". Saia por 250 ms e a pílula volta para o relógio.
 
 Um clique no relógio (uma tela de toque não tem hover), o botão direito ou um toque longo (0,5 s) também mostram os ícones. Abertos assim, eles fecham sozinhos 2,6 s depois se o ponteiro nunca chegar neles, ou 0,7 s depois que o ponteiro sai. Eles não abrem com uma tela aberta nem com a barra escondida.
 
@@ -143,11 +143,11 @@ As notificações comuns nunca aparecem na pílula. Os cartões do próprio Omar
 
 ## Telas
 
-Seis telas, numa ordem só: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. O seletor, o Alt+1–6, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
+Cinco telas, numa ordem só: Apps, Temas (com os papéis de parede), Mídia, Central de controle, Energia. O seletor, o Alt+1–5, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
 
 ### Navegação
 
-Embaixo de toda tela aberta fica uma cápsula pequena, presa à borda de baixo da tela: Voltar e as seis telas na ordem acima, com a aberta marcada na cor de destaque. Um clique num ícone troca para aquela tela. O Voltar vai, nesta ordem: para fora de uma página ou popover da Central de controle, para a tela em que você estava antes ou, sem para onde voltar, fecha a ilha. Alt+← e o botão "voltar" do mouse fazem o mesmo. Fechar a ilha limpa o histórico. Nos idiomas da direita para a esquerda a cápsula espelha, e o Voltar fica à direita.
+Embaixo de toda tela aberta fica uma cápsula pequena, presa à borda de baixo da tela: Voltar e as cinco telas na ordem acima, com a aberta marcada na cor de destaque. Um clique num ícone troca para aquela tela. O Voltar vai, nesta ordem: para fora de uma página ou popover da Central de controle, para a tela em que você estava antes ou, sem para onde voltar, fecha a ilha. Alt+← e o botão "voltar" do mouse fazem o mesmo. Fechar a ilha limpa o histórico. Nos idiomas da direita para a esquerda a cápsula espelha, e o Voltar fica à direita.
 
 ### Central de controle
 
@@ -199,36 +199,25 @@ Embaixo de toda tela aberta fica uma cápsula pequena, presa à borda de baixo d
 
 Ela também abre pelas linhas do app e de estado do nível 2, por um OSD de mídia e pelo Super+Ctrl+4.
 
-### Temas
+### Temas e papéis de parede
 
-Tão larga quanto couberem de 2 a 4 cartões na tela (30 + 194 px por cartão), 222 de altura.
+Uma tela, duas fileiras, tão larga quanto couberem de 2 a 5 miniaturas de papel de parede na tela (32 + 196 px cada), 412 de altura. ↑ e ↓ trocam de fileira; o ponteiro em cima de uma fileira a deixa ativa. Só a fileira ativa mostra a borda na cor de destaque. `ilha open wallpapers` (e os apelidos `wallpaper` e `background`) abrem a mesma tela na fileira de baixo.
 
-- Um campo de busca ("Buscar temas…") e um contador (`3/18`). Sem resultado: "Nenhum tema encontrado".
-- Cada cartão mostra o fundo do tema, seis pontos da paleta dele e o nome na cor de texto dele. O cartão do centro é o escolhido: ele sobe e ganha uma borda na cor de destaque. Um pontinho marca o tema em uso.
-- "Enter para aplicar". O Enter roda `omarchy-theme-set`. O pontinho muda na hora. A tela fecha quando o tema entra em uso, ou 1,5 s depois. Não há prévia ao vivo. As cores da ilha trocam com um fade de 150 ms quando a paleta nova chega.
-- Mouse: o clique centraliza um cartão. O clique no cartão do centro, ou um clique duplo, aplica. A roda anda um cartão por volta.
-- Teclas: as setas (Esquerda e Direita seguem a direção da tela), Tab e Shift+Tab, Page Up e Page Down de 4 em 4, Home, End, Enter aplica. Esc limpa a busca e depois fecha.
-- Os temas vêm de `~/.config/omarchy/themes` e dos temas do próprio Omarchy. O seu vence quando o nome é o mesmo.
+Fileira de cima, os temas:
 
-### Papéis de parede
+- Um campo de busca ("Buscar temas…") e um contador (`3/18`). Sem resultado: "Nenhum tema encontrado". O campo fica com o teclado, então digitar sempre filtra os temas.
+- Cada cartão mostra a imagem de prévia do próprio tema, as seis cores da paleta e o nome na cor de texto dele, sobre uma faixa no fundo do tema. Um tema sem prévia mostra o fundo com pontos maiores. O cartão do centro é o escolhido: ele sobe e, na fileira ativa, ganha uma borda na cor de destaque. Um pontinho marca o tema em uso.
+- O Enter roda `omarchy-theme-set`. O pontinho muda na hora. A tela continua aberta e passa para a fileira de baixo, que então mostra os papéis de parede do tema novo. As cores da ilha trocam com um fade de 150 ms quando a paleta nova chega.
+- Os temas vêm de `~/.config/omarchy/themes` e dos temas do próprio Omarchy. O seu vence quando o nome é o mesmo. A prévia é o `preview.png` do tema (ou `.jpg`, `.jpeg`, `.webp`), o mesmo arquivo que o seletor de temas do Omarchy usa.
 
-Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatura), 232 de altura.
+Fileira de baixo, os papéis de parede do tema em uso:
 
-- "Papel de parede" e o nome do tema no alto. A miniatura escolhida fica no centro com uma borda na cor de destaque. Um pontinho marca o papel em uso. Embaixo da faixa: o nome do arquivo, o contador e "Enter para aplicar".
-- Aberta pela Ilha (seletor, Alt+3, Ctrl+Tab, `ilha open wallpapers`): os fundos do tema atual mais `~/.config/omarchy/backgrounds/<tema>`. O Enter roda `omarchy-theme-bg-set` e fecha quando ele termina (no máximo 1,2 s). Sem nenhum: "Nenhum papel de parede para este tema".
-- Aberta pelas teclas de fundo do Omarchy: veja Teclas de tema e de papel de parede.
+- "Papel de parede" e o nome do tema no alto. A miniatura escolhida fica no centro. Um pontinho marca o papel em uso. Embaixo da faixa: o nome do arquivo, o contador e "Enter para aplicar".
+- Os fundos do tema atual mais `~/.config/omarchy/backgrounds/<tema>`. O Enter roda `omarchy-theme-bg-set`; a tela continua aberta, para você experimentar outro. Sem nenhum: "Nenhum papel de parede para este tema".
+- Aberta pelas teclas de fundo do Omarchy: veja Teclas de tema e de papel de parede. Esse pedido fecha a tela quando você escolhe.
 - Papéis de parede em vídeo usam a miniatura guardada.
-- Mouse como em Temas. Teclas: as setas, Tab e Shift+Tab, Page Up e Page Down de uma tela inteira, Home, End, Enter aplica, Esc fecha.
 
-### Energia
-
-514 × 112. Cinco botões: Bloquear, Suspender, Sair, Reiniciar, Desligar.
-
-- Bloquear vem escolhido quando abre. O ponteiro escolhe, o clique aperta.
-- Sair, Reiniciar e Desligar pedem um segundo toque em até 3 s: o rótulo diz "Toque de novo". Um segundo toque antes de 350 ms é ignorado.
-- Suspender fica apagado quando o sono está desligado no Omarchy.
-- Teclas: Esquerda e Direita (seguem a direção da tela), Tab e Shift+Tab, Home, End, 1–5 escolhem e apertam, Enter ou Espaço apertam. Esc cancela uma confirmação pendente e depois fecha.
-- O comando roda 180 ms depois de a ilha fechar: `omarchy-system-lock`, `systemctl suspend`, `omarchy-system logout`, `omarchy-system reboot` ou `omarchy-system shutdown`.
+Mouse: o clique centraliza um cartão ou miniatura. O clique no do centro, ou um clique duplo, aplica. A roda anda um por volta. Teclas na fileira ativa: Esquerda e Direita (seguem a direção da tela), Tab e Shift+Tab, Page Up e Page Down, Home, End, Enter aplica. Esc limpa a busca e depois fecha.
 
 ## Mouse e teclado
 
@@ -236,7 +225,7 @@ Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatur
 - O ponteiro na pílula mostra os ícones. Um clique no relógio, o botão direito ou um toque longo (0,5 s) também mostram. No seletor, fecha. Num aviso ao vivo, dispensa.
 - Um clique fora de uma tela aberta fecha a tela.
 - As teclas só valem com uma tela aberta. Os níveis de hover, o seletor e os avisos nunca pegam o teclado.
-- Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia.
+- Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–5 abrem direto: Apps, Temas (com os papéis de parede), Mídia, Central de controle, Energia.
 - Alt+← e o botão "voltar" do mouse voltam (veja Navegação).
 - O Esc vai primeiro para a tela (limpa uma busca, fecha um popover ou uma página, cancela uma confirmação) e depois fecha a ilha.
 - Qualquer tecla liga o modo teclado. Andar o ponteiro mais de 8 px desliga.
@@ -263,8 +252,8 @@ As teclas de painel do próprio Omarchy caem nas telas da Ilha. A mesma tecla de
 
 A Ilha assume os dois seletores de imagem do Omarchy. Nenhuma tecla e nenhuma entrada de menu é trocada: as mesmas teclas e entradas abrem as telas da Ilha.
 
-- **Papéis de parede.** Super+Ctrl+W, Super+Ctrl+Space e Menu › Aparência › Plano de fundo rodam o alternador de fundo do Omarchy, que pede um seletor ao alvo `image-selector` do shell. A Ilha atende esse alvo antes do seletor do Omarchy. Quando todas as imagens do pedido estão nos fundos do tema (`~/.local/state/omarchy/current/theme/backgrounds/`) ou em `~/.config/omarchy/backgrounds/`, a tela de Papéis de parede abre com as imagens do pedido. O Enter grava a escolha no arquivo de resposta que o script espera, e o script do Omarchy aplica. Esc, um clique fora ou outra tela devolvem uma escolha vazia, então o script nunca fica esperando para sempre.
-- **Temas.** Super+Ctrl+T, Super+Shift+Ctrl+Space e Menu › Aparência › Tema abrem o seletor de temas do Omarchy. Quando esse seletor abre sem um pedido que a Ilha repassou, a Ilha o esconde e abre a tela de Temas. O seletor do Omarchy abre transparente, então some antes de mostrar um quadro.
+- **Papéis de parede.** Super+Ctrl+W, Super+Ctrl+Space e Menu › Aparência › Plano de fundo rodam o alternador de fundo do Omarchy, que pede um seletor ao alvo `image-selector` do shell. A Ilha atende esse alvo antes do seletor do Omarchy. Quando todas as imagens do pedido estão nos fundos do tema (`~/.local/state/omarchy/current/theme/backgrounds/`) ou em `~/.config/omarchy/backgrounds/`, a tela de Temas e papéis de parede abre na fileira dos papéis, com as imagens do pedido. O Enter grava a escolha no arquivo de resposta que o script espera, e o script do Omarchy aplica. Esc, um clique fora ou outra tela devolvem uma escolha vazia, então o script nunca fica esperando para sempre.
+- **Temas.** Super+Ctrl+T, Super+Shift+Ctrl+Space e Menu › Aparência › Tema abrem o seletor de temas do Omarchy. Quando esse seletor abre sem um pedido que a Ilha repassou, a Ilha o esconde e abre a tela de Temas e papéis de parede na fileira dos temas. O seletor do Omarchy abre transparente, então some antes de mostrar um quadro.
 - Qualquer outro pedido, como imagens de outra pasta, vai para o seletor do próprio Omarchy sem mudança.
 - Os dois takeovers acabam quando você volta para a barra padrão.
 
@@ -345,7 +334,7 @@ omarchy-shell ilha setting <chave> <valor> # focusedOnly | livePeek | reserveTop
 omarchy-shell ilha state                   # imprime o estado em JSON
 ```
 
-- Telas: `launcher`, `control`, `media`, `themes`, `wallpapers`, `power`. Partes da Central de controle: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Apelidos: `apps` (launcher), `cc` e `controls` (control), `theme` (themes), `wallpaper` e `background` (wallpapers), `last` (a última tela aberta).
+- Telas: `launcher`, `control`, `media`, `themes`, `power`; `wallpapers` abre `themes` na fileira dos papéis de parede. Partes da Central de controle: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Apelidos: `apps` (launcher), `cc` e `controls` (control), `theme` e `look` (themes), `wallpaper` e `background` (a fileira dos papéis de parede), `last` (a última tela aberta).
 - Teclas do `run`: uma letra ou um algarismo, `enter`, `space`, `esc`, `tab`, `up`, `down`, `left`, `right`, `pgup`, `pgdn`, `home`, `end`, `delete`, com um `shift+`, `ctrl+` ou `alt+` opcional na frente. A tecla vai quando a tela fica pronta (no máximo 3 s).
 - Chaves do `peek`: `recording`, `reminder`, `update`, `dnd`, `nightlight`, `stayAwake`, `urgent`. Ele mostra mesmo com aquele estado desligado, mas não com o Aviso ao vivo desligado. `urgent` usa a notificação mais nova da tela.
 - Respostas: `open` e `toggle` imprimem `ok` ou `unknown`; `run` imprime `ok`, `unknown` ou `invalid-key`; `picker` imprime `open`, `closed` ou `busy`; `peek` imprime `shown`, `queued`, `off`, `busy`, `quiet`, `unknown` ou `empty`; `osd` imprime `ok`, `invalid` ou `off`; `setting` imprime `ok`, `unknown` ou `invalid`.
@@ -388,7 +377,7 @@ A Ilha não desenha nenhum outro widget de barra nem a bandeja. Uma tecla de um 
 | `ui/PickerBridge.qml` | Takeovers dos seletores de tema e de papel de parede |
 | `ui/ScreenStack.qml` | Carrega e troca as telas |
 | `ui/ControlCenter.qml`, `WifiCard.qml`, `BluetoothCard.qml`, `SoundPage.qml`, `DisplayPage.qml`, `IlhaPage.qml`, `NotificationsCard.qml` | Central de controle |
-| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `ThemeScreen.qml`, `WallpaperScreen.qml`, `PowerScreen.qml` | As outras telas |
+| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `LookScreen.qml` (com as fileiras `ThemeScreen.qml` e `WallpaperScreen.qml`), `PowerScreen.qml` | As outras telas |
 | `ui/*Svc.qml`, `StateStore.qml`, `AppSearch.js` | Estado do sistema, áudio, rede, monitores, mídia, apps, temas, ajustes (`PrefsSvc.qml`), estado próprio |
 | `ui/Theme.qml`, `Motion.js`, `Morph.qml`, `SpringValue.qml` | Cores, medidas, geometria de cada face, molas, tempos |
 | O resto de `ui/` | Controles: `IlhaSwitch`, `IlhaSlider`, `IlhaRoundButton`, `ToggleTile`, `Carousel`, `CircleButton` e outros |

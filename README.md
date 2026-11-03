@@ -1,6 +1,6 @@
 # Ilha
 
-Floating island bar for [Omarchy](https://omarchy.org). At rest it is a clock. Under the pointer it becomes the workspace line, and a click opens the full line. Six screens open inside the same pill: Control Center, Apps, Media, Themes, Wallpapers, and Power.
+Floating island bar for [Omarchy](https://omarchy.org). At rest it is only the time. Under the pointer it becomes five icons, and each one opens a screen inside the same pill: Apps, Themes and wallpapers, Media, Control Center, and Power.
 
 Documentação em português: [LEIA-ME.md](LEIA-ME.md).
 
@@ -69,11 +69,11 @@ With the bar hidden (`omarchy toggle bar`), the pill (and the 48 px, with `reser
 | State | What is on the pill |
 |---|---|
 | Rest | Only the time, in a capsule 32 px tall, 10 px from the top edge. While recording, a red mark and the elapsed time sit beside it. |
-| Icons | The pointer is on the pill. The six screens as icons, in a 236 × 42 capsule. |
+| Icons | The pointer is on the pill. The five screens as icons, in a 200 × 42 capsule. |
 | Level 2 | Super+Ctrl+Alt+D (Omarchy's calendar key) or a tap on the recording mark. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
 | Live notice | Something just turned on. One short line, 40 px tall. |
 | OSD | `ilha osd`, the resolution prompt, or the restart notice. 40 px tall. |
-| Screen | One of the six screens, in the same shape. |
+| Screen | One of the five screens, in the same shape. |
 
 ### Rest
 
@@ -83,7 +83,7 @@ The one exception is recording, for privacy: a red mark and the elapsed time (`0
 
 ### Icons
 
-The pointer on the pill, in the gap above it, or on the top strip turns the clock into six icons: Apps, Themes, Wallpapers, Media, Control Center, Power. That is the same order as Alt+1–6. A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing". Leave for 250 ms and the pill returns to the clock.
+The pointer on the pill, in the gap above it, or on the top strip turns the clock into five icons: Apps, Themes (with wallpapers), Media, Control Center, Power. That is the same order as Alt+1–5. A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing". Leave for 250 ms and the pill returns to the clock.
 
 A click on the clock (a touch screen has no hover), a right click, or a long press (0.5 s) also shows the icons. Opened that way, they close by themselves 2.6 s later if the pointer never reaches them, or 0.7 s after it leaves. They do not open while a screen is open or while the bar is hidden.
 
@@ -143,11 +143,11 @@ Regular notifications never show in the pill. Omarchy's own cards stay, because 
 
 ## Screens
 
-Six screens, in one order: Apps, Themes, Wallpapers, Media, Control Center, Power. The picker, Alt+1–6, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
+Five screens, in one order: Apps, Themes (with wallpapers), Media, Control Center, Power. The picker, Alt+1–5, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
 
 ### Navigation
 
-Under every open screen sits a small capsule that rides the screen's bottom edge: Back, then the six screens in the order above, with the open one marked in the accent color. A click on a screen icon switches to it. Back goes, in this order: out of a Control Center page or popover, to the screen you were on before, or, with nowhere left to go, closes the island. Alt+← and the mouse's back button do the same. Closing the island clears the history. In right-to-left languages the capsule mirrors, and Back sits on the right.
+Under every open screen sits a small capsule that rides the screen's bottom edge: Back, then the five screens in the order above, with the open one marked in the accent color. A click on a screen icon switches to it. Back goes, in this order: out of a Control Center page or popover, to the screen you were on before, or, with nowhere left to go, closes the island. Alt+← and the mouse's back button do the same. Closing the island clears the history. In right-to-left languages the capsule mirrors, and Back sits on the right.
 
 ### Control Center
 
@@ -199,36 +199,25 @@ Under every open screen sits a small capsule that rides the screen's bottom edge
 
 It also opens from the level 2 app and status lines, a media OSD, and Super+Ctrl+4.
 
-### Themes
+### Themes and wallpapers
 
-As wide as 2 to 4 cards fit on the screen (30 + 194 px per card), 222 tall.
+One screen, two rows, as wide as 2 to 5 wallpaper thumbnails fit on the screen (32 + 196 px each), 412 tall. ↑ and ↓ move between the rows; the pointer over a row makes it the active one. Only the active row shows its accent border. `ilha open wallpapers` (and the aliases `wallpaper` and `background`) open the same screen on the bottom row.
 
-- A search field ("Search themes…") and a counter (`3/18`). No match: "No themes match".
-- Each card shows the theme's background, six dots of its palette, and its name in its text color. The centre card is the selected one: it lifts and gets an accent border. A small dot marks the theme in use.
-- "Enter to apply". Enter runs `omarchy-theme-set`. The dot moves at once. The screen closes when the theme is in use, or 1.5 s later. There is no live preview. The island's colors cross-fade in 150 ms when the new palette arrives.
-- Mouse: a click centres a card. A click on the centre card, or a double click, applies. The wheel moves one card per notch.
-- Keys: the arrows (Left and Right follow the screen direction), Tab and Shift+Tab, Page Up and Page Down by 4, Home, End, Enter applies. Esc clears the search, then closes.
-- Themes come from `~/.config/omarchy/themes` and from Omarchy's own themes. Yours wins on the same name.
+Top row, the themes:
 
-### Wallpapers
+- A search field ("Search themes…") and a counter (`3/18`). No match: "No themes match". The field keeps the keyboard, so typing always filters the themes.
+- Each card shows the theme's own preview image, its six palette colors, and its name in its text color, over a band of the theme's background. A theme with no preview shows its background with larger dots. The centre card is the selected one: it lifts and, in the active row, gets an accent border. A small dot marks the theme in use.
+- Enter runs `omarchy-theme-set`. The dot moves at once. The screen stays open and moves to the bottom row, which then shows the new theme's wallpapers. The island's colors cross-fade in 150 ms when the new palette arrives.
+- Themes come from `~/.config/omarchy/themes` and from Omarchy's own themes. Yours wins on the same name. The preview is the theme's `preview.png` (or `.jpg`, `.jpeg`, `.webp`), the same file Omarchy's theme switcher uses.
 
-As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 tall.
+Bottom row, the wallpapers of the theme in use:
 
-- "Wallpaper" and the theme name at the top. The selected thumbnail sits in the centre with an accent border. A small dot marks the wallpaper in use. Under the strip: the file name, the counter, and "Enter to apply".
-- Opened by Ilha (picker, Alt+3, Ctrl+Tab, `ilha open wallpapers`): the current theme's backgrounds plus `~/.config/omarchy/backgrounds/<theme>`. Enter runs `omarchy-theme-bg-set` and closes when it finishes (at most 1.2 s). None: "No wallpapers for this theme".
-- Opened by Omarchy's background keys: see Theme and wallpaper keys.
+- "Wallpaper" and the theme name at the top. The selected thumbnail sits in the centre. A small dot marks the wallpaper in use. Under the strip: the file name, the counter, and "Enter to apply".
+- The current theme's backgrounds plus `~/.config/omarchy/backgrounds/<theme>`. Enter runs `omarchy-theme-bg-set`; the screen stays open, so you can try another. None: "No wallpapers for this theme".
+- Opened by Omarchy's background keys: see Theme and wallpaper keys. That request closes the screen once you choose.
 - Video wallpapers use their cached thumbnail.
-- Mouse as in Themes. Keys: the arrows, Tab and Shift+Tab, Page Up and Page Down by one screenful, Home, End, Enter applies, Esc closes.
 
-### Power
-
-514 × 112. Five buttons: Lock, Suspend, Log Out, Reboot, Power Off.
-
-- Lock is selected when it opens. The pointer selects, a click presses.
-- Log Out, Reboot, and Power Off need a second press within 3 s: the label reads "Press again". A second press sooner than 350 ms is ignored.
-- Suspend is dimmed when sleep is turned off in Omarchy.
-- Keys: Left and Right (they follow the screen direction), Tab and Shift+Tab, Home, End, 1–5 select and press, Enter or Space press. Esc cancels a pending confirmation, then closes.
-- The command runs 180 ms after the island closes: `omarchy-system-lock`, `systemctl suspend`, `omarchy-system logout`, `omarchy-system reboot`, or `omarchy-system shutdown`.
+Mouse: a click centres a card or thumbnail. A click on the centre one, or a double click, applies. The wheel moves one per notch. Keys in the active row: Left and Right (they follow the screen direction), Tab and Shift+Tab, Page Up and Page Down, Home, End, Enter applies. Esc clears the search, then closes.
 
 ## Mouse and keyboard
 
@@ -236,7 +225,7 @@ As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 
 - The pointer on the pill shows the icons. A click on the clock, a right click, or a long press (0.5 s) shows them too. On the picker it closes it. On a live notice it dismisses it.
 - A click outside an open screen closes it.
 - Keys work only while a screen is open. The hover levels, the picker, and the notices never take the keyboard.
-- Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Themes, Wallpapers, Media, Control Center, Power.
+- Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–5 open them directly: Apps, Themes (with wallpapers), Media, Control Center, Power.
 - Alt+← and the mouse's back button go back (see Navigation).
 - Esc first goes to the screen (it clears a search, closes a popover or page, cancels a confirmation), then closes the island.
 - Any key turns keyboard mode on. Moving the pointer more than 8 px turns it off.
@@ -263,8 +252,8 @@ Omarchy's own panel keys land on Ilha's screens. The same key again closes what 
 
 Ilha takes over Omarchy's two image pickers. No key and no menu entry is rebound: the same keys and entries open Ilha's screens.
 
-- **Wallpapers.** Super+Ctrl+W, Super+Ctrl+Space, and Menu › Appearance › Background run Omarchy's background switcher, which asks the shell's `image-selector` target for a picker. Ilha answers that target ahead of Omarchy's picker. When every image in the request is in the theme's backgrounds (`~/.local/state/omarchy/current/theme/backgrounds/`) or in `~/.config/omarchy/backgrounds/`, the Wallpapers screen opens with the request's images. Enter writes the choice to the reply file the script waits on, and Omarchy's script applies it. Esc, a click outside, or another screen hands back an empty choice, so the script never waits forever.
-- **Themes.** Super+Ctrl+T, Super+Shift+Ctrl+Space, and Menu › Appearance › Theme open Omarchy's theme picker. When that picker opens without a request Ilha passed on, Ilha hides it and opens the Themes screen. Omarchy's picker maps transparent at first, so it is hidden before it shows a frame.
+- **Wallpapers.** Super+Ctrl+W, Super+Ctrl+Space, and Menu › Appearance › Background run Omarchy's background switcher, which asks the shell's `image-selector` target for a picker. Ilha answers that target ahead of Omarchy's picker. When every image in the request is in the theme's backgrounds (`~/.local/state/omarchy/current/theme/backgrounds/`) or in `~/.config/omarchy/backgrounds/`, the Themes and wallpapers screen opens on its wallpaper row, with the request's images. Enter writes the choice to the reply file the script waits on, and Omarchy's script applies it. Esc, a click outside, or another screen hands back an empty choice, so the script never waits forever.
+- **Themes.** Super+Ctrl+T, Super+Shift+Ctrl+Space, and Menu › Appearance › Theme open Omarchy's theme picker. When that picker opens without a request Ilha passed on, Ilha hides it and opens the Themes and wallpapers screen on its theme row. Omarchy's picker maps transparent at first, so it is hidden before it shows a frame.
 - Any other request, such as images from another folder, goes to Omarchy's own picker unchanged.
 - Both takeovers end when you switch back to the default bar.
 
@@ -345,7 +334,7 @@ omarchy-shell ilha setting <key> <value>   # focusedOnly | livePeek | reserveTop
 omarchy-shell ilha state                   # prints the state as JSON
 ```
 
-- Screens: `launcher`, `control`, `media`, `themes`, `wallpapers`, `power`. Control Center parts: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Aliases: `apps` (launcher), `cc` and `controls` (control), `theme` (themes), `wallpaper` and `background` (wallpapers), `last` (the last screen opened).
+- Screens: `launcher`, `control`, `media`, `themes`, `power`; `wallpapers` opens `themes` on the wallpaper row. Control Center parts: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Aliases: `apps` (launcher), `cc` and `controls` (control), `theme` and `look` (themes), `wallpaper` and `background` (the wallpaper row), `last` (the last screen opened).
 - `run` keys: a letter or digit, `enter`, `space`, `esc`, `tab`, `up`, `down`, `left`, `right`, `pgup`, `pgdn`, `home`, `end`, `delete`, with an optional `shift+`, `ctrl+`, or `alt+` in front. The key goes once the screen is ready (3 s at most).
 - `peek` keys: `recording`, `reminder`, `update`, `dnd`, `nightlight`, `stayAwake`, `urgent`. It shows even when that state is off, but not with Live notice off. `urgent` uses the newest on-screen notification.
 - Answers: `open` and `toggle` print `ok` or `unknown`; `run` prints `ok`, `unknown`, or `invalid-key`; `picker` prints `open`, `closed`, or `busy`; `peek` prints `shown`, `queued`, `off`, `busy`, `quiet`, `unknown`, or `empty`; `osd` prints `ok`, `invalid`, or `off`; `setting` prints `ok`, `unknown`, or `invalid`.
@@ -388,7 +377,7 @@ Ilha draws no other bar widget and no tray. A key for a panel Ilha has no screen
 | `ui/PickerBridge.qml` | Theme and wallpaper takeovers |
 | `ui/ScreenStack.qml` | Loads and switches the screens |
 | `ui/ControlCenter.qml`, `WifiCard.qml`, `BluetoothCard.qml`, `SoundPage.qml`, `DisplayPage.qml`, `IlhaPage.qml`, `NotificationsCard.qml` | Control Center |
-| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `ThemeScreen.qml`, `WallpaperScreen.qml`, `PowerScreen.qml` | The other screens |
+| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `LookScreen.qml` (with its rows `ThemeScreen.qml` and `WallpaperScreen.qml`), `PowerScreen.qml` | The other screens |
 | `ui/*Svc.qml`, `StateStore.qml`, `AppSearch.js` | Status, audio, network, monitors, media, apps, themes, settings (`PrefsSvc.qml`), own state |
 | `ui/Theme.qml`, `Motion.js`, `Morph.qml`, `SpringValue.qml` | Colors, sizes, geometry of each face, springs, timings |
 | The rest of `ui/` | Controls: `IlhaSwitch`, `IlhaSlider`, `IlhaRoundButton`, `ToggleTile`, `Carousel`, `CircleButton`, and others |

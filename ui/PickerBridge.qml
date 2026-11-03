@@ -214,7 +214,8 @@ QtObject {
     function handleCancel(doneFile) {
         if (root.pending && root.pending.doneFile === String(doneFile || "")) {
             root.finish("");
-            if (root.island && root.island.screen === "wallpapers")
+            // Os papéis de parede vivem na tela de temas (fileira de baixo).
+            if (root.island && root.island.screen === "themes")
                 root.island.close();
             return "ok";
         }
@@ -297,7 +298,7 @@ QtObject {
     property Connections screenWatch: Connections {
         target: root.island
         function onScreenChanged() {
-            if (root.pending && root.island && root.island.screen !== "wallpapers")
+            if (root.pending && root.island && root.island.screen !== "themes")
                 root.finish("");
         }
     }

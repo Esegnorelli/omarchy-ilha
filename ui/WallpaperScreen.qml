@@ -51,6 +51,14 @@ Item {
     signal navigate(string id, var payload)
     signal closeRequested()
 
+    // ---- Dentro da tela unida (LookScreen) ----
+    // embedded: aplicar um papel (sem takeover) não fecha a tela, para
+    // experimentar outro. active: esta fileira tem o teclado.
+    property bool embedded: false
+    property bool active: true
+    // ↑/↓ trocam de fileira na tela unida.
+    signal rowKey(var event)
+
     function opened(payload) {
         root.snapping = true;
         priv.applying = false;
@@ -81,6 +89,10 @@ Item {
             return false;
         const dir = root.theme ? root.theme.dir : 1;
         const page = Math.max(1, root.dims.k);
+        if (root.embedded && (k === Qt.Key_Up || k === Qt.Key_Down)) {
+            root.rowKey(event);
+            return true;
+        }
         switch (k) {
         case Qt.Key_Left:
             root.move(-dir);
@@ -213,8 +225,9 @@ Item {
         if (!root.themesSvc)
             return;
         if (strip.index === root.markedIndex && root.themesSvc.pendingWallpaper === "") {
-            // Já é o papel atual.
-            root.closeRequested();
+            // Já é o papel atual (na tela unida, fica aberta).
+            if (!root.embedded)
+                root.closeRequested();
             return;
         }
         if (!root.themesSvc.applyWallpaper(w.path))
@@ -228,7 +241,8 @@ Item {
             return;
         priv.applying = false;
         closeFallback.stop();
-        if (root.current)
+        // Na tela unida só o takeover fecha (o script do Omarchy terminou).
+        if (root.current && (!root.embedded || priv.takeoverApplied))
             root.closeRequested();
     }
 
@@ -525,7 +539,7 @@ Item {
                 color: "transparent"
                 border.width: 2.25
                 border.color: root.theme ? root.theme.accent : "white"
-                opacity: cell.selected ? 1 : 0
+                opacity: cell.selected && root.active ? 1 : 0
                 Behavior on opacity {
                     enabled: !root.snapping
                     NumberAnimation {

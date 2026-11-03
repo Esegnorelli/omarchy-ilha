@@ -40,7 +40,7 @@ QtObject {
     property string omarchyPath: ""
 
     // ---- Estado (API congelada) ----
-    // [{slug, name, bg, fg, accent, dots: [red, green, yellow, blue, magenta, cyan]}]
+    // [{slug, name, bg, fg, accent, dots: [red, green, yellow, blue, magenta, cyan], preview}]
     property var themes: []
     property string current: ""
     // Slug pedido agora: a marca do atual pula no quadro do Enter.
@@ -276,7 +276,9 @@ QtObject {
                 dots: [hex(parts[1]), hex(parts[2]), hex(parts[3]), hex(parts[4]), hex(parts[5]), hex(parts[6])],
                 bg: hex(parts[7]),
                 fg: hex(parts[8]),
-                accent: hex(parts[9])
+                accent: hex(parts[9]),
+                // Caminho da imagem de prévia do tema ("" = sem prévia).
+                preview: parts[10] && parts[10] !== "-" && String(parts[10]).charAt(0) === "/" ? String(parts[10]) : ""
             });
         }
         if (JSON.stringify(out) !== JSON.stringify(root.themes))
@@ -373,14 +375,23 @@ QtObject {
         "  for d in \"$user/$s\" \"$op/themes/$s\"; do",
         "    if [ -f \"$d/colors.toml\" ]; then toml=\"$d/colors.toml\"; break; fi",
         "  done",
+        // A prévia, na ordem do omarchy-theme-switcher (só imagens paradas).
+        "  pv=''",
+        "  for d in \"$user/$s\" \"$op/themes/$s\"; do",
+        "    [ -d \"$d\" ] || continue",
+        "    for n in preview.png preview.jpg preview.jpeg preview.webp; do",
+        "      pv=$(find -L \"$d\" -maxdepth 1 -type f -iname \"$n\" -print -quit 2>/dev/null)",
+        "      [ -n \"$pv\" ] && break 2",
+        "    done",
+        "  done",
         "  if [ -n \"$toml\" ]; then",
-        "    awk -v s=\"$s\" 'BEGIN { n = split(\"red green yellow blue magenta cyan background foreground accent\", k, \" \") }",
+        "    awk -v s=\"$s\" -v pv=\"${pv:--}\" 'BEGIN { n = split(\"red green yellow blue magenta cyan background foreground accent\", k, \" \") }",
         "      { i = index($0, \"=\"); if (i == 0) next; key = substr($0, 1, i - 1); val = substr($0, i + 1);",
         "        gsub(/[ \\t\"]/, \"\", key); gsub(/[ \\t\"]/, \"\", val);",
         "        if (!(key in c) && val ~ /^#[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]/) c[key] = substr(val, 1, 7) }",
-        "      END { line = s; for (j = 1; j <= n; j++) line = line \"\\t\" ((k[j] in c) ? c[k[j]] : \"-\"); print line }' \"$toml\"",
+        "      END { line = s; for (j = 1; j <= n; j++) line = line \"\\t\" ((k[j] in c) ? c[k[j]] : \"-\"); print line \"\\t\" pv }' \"$toml\"",
         "  else",
-        "    printf '%s\\n' \"$s\"",
+        "    printf '%s\\t-\\t-\\t-\\t-\\t-\\t-\\t-\\t-\\t-\\t%s\\n' \"$s\" \"${pv:--}\"",
         "  fi",
         "done"
     ].join("\n")

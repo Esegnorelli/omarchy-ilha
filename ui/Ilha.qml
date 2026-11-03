@@ -48,7 +48,7 @@ Item {
     property var barConfig: null
 
     // ---- Versão ----
-    readonly property string codeVersion: "2.2.0"
+    readonly property string codeVersion: "2.3.0"
     readonly property string manifestVersion: island.manifest && island.manifest.version ? String(island.manifest.version) : ""
 
     // Referência à raiz para objetos que têm uma propriedade `island` própria
@@ -103,9 +103,11 @@ Item {
     // Hover forçado pelo IPC `ilha hover 1` (testes): monitor e nível.
     property string hoverOutput: ""
 
-    readonly property var screenIds: ["control", "launcher", "power", "themes", "wallpapers", "media"]
+    readonly property var screenIds: ["control", "launcher", "power", "themes", "media"]
     readonly property var subIds: ["sound", "display", "wifi", "bluetooth", "ilha"]
-    readonly property var aliases: ({ apps: "launcher", theme: "themes", wallpaper: "wallpapers", background: "wallpapers", cc: "control", controls: "control" })
+    readonly property var aliases: ({ apps: "launcher", theme: "themes", look: "themes", cc: "control", controls: "control" })
+    // Papel de parede: a tela de temas, já na fileira de baixo.
+    readonly property var wallpaperAliases: ["wallpapers", "wallpaper", "background", "backgrounds"]
 
     // ---- Objetos compartilhados ----
     property Theme theme: Theme {
@@ -130,8 +132,8 @@ Item {
         control: Qt.resolvedUrl("ControlCenter.qml"),
         launcher: Qt.resolvedUrl("LauncherScreen.qml"),
         power: Qt.resolvedUrl("PowerScreen.qml"),
-        themes: Qt.resolvedUrl("ThemeScreen.qml"),
-        wallpapers: Qt.resolvedUrl("WallpaperScreen.qml"),
+        // Tema e papel de parede numa tela só.
+        themes: Qt.resolvedUrl("LookScreen.qml"),
         media: Qt.resolvedUrl("MediaScreen.qml")
     })
     property var components: ({})
@@ -238,6 +240,8 @@ Item {
             t = island.aliases[t];
         if (t === "settings")
             return { id: "control", payload: { sub: "ilha" } };
+        if (island.wallpaperAliases.indexOf(t) !== -1)
+            return { id: "themes", payload: { row: "walls" } };
         if (island.subIds.indexOf(t) !== -1)
             return { id: "control", payload: { sub: t } };
         if (island.screenIds.indexOf(t) !== -1)

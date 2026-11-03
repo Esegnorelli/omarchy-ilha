@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
+import QtQuick.Effects
 import qs.Commons as Commons
 import "Motion.js" as Motion
 
@@ -49,6 +50,16 @@ Item {
     signal navigate(string id, var payload)
     signal closeRequested()
 
+    // ---- Dentro da tela unida (LookScreen) ----
+    // embedded: sem rodapé, medidas da fileira, aplicar não fecha a tela.
+    // active: esta fileira tem o teclado (a borda do escolhido só aparece nela).
+    property bool embedded: false
+    property bool active: true
+    // ↑/↓, e as teclas que chegam pelo campo com a outra fileira ativa.
+    signal rowKey(var event)
+    // O tema pedido confirmou (ou passou do tempo): a tela unida segue para os papéis.
+    signal themeApplied()
+
     function opened(payload) {
         root.snapping = true;
         priv.waiting = false;
@@ -83,7 +94,7 @@ Item {
     }
 
     // ---- Medidas ----
-    readonly property var dims: root.theme && root.island ? root.theme.screenSize("themes", root.island.screenGeometry(root.island.screenOutput)) : ({ w: 806, h: 222, k: 4 })
+    readonly property var dims: root.theme && root.island ? root.theme.screenSize(root.embedded ? "themeRow" : "themes", root.island.screenGeometry(root.island.screenOutput)) : ({ w: 806, h: 222, k: 4 })
     implicitWidth: root.dims.w
     implicitHeight: root.dims.h
 
@@ -157,8 +168,11 @@ Item {
         if (!t || priv.waiting || !root.themesSvc)
             return;
         if (t.slug === root.currentSlug) {
-            // Já é o tema: nada para aplicar.
-            root.closeRequested();
+            // Já é o tema: nada para aplicar (na tela unida, segue para os papéis).
+            if (root.embedded)
+                root.themeApplied();
+            else
+                root.closeRequested();
             return;
         }
         if (!root.themesSvc.apply(t.slug))
@@ -172,6 +186,19 @@ Item {
     function nav(event, fromField) {
         const k = event.key;
         const mods = event.modifiers;
+        if (root.embedded) {
+            const plain = !(mods & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier));
+            // ↑/↓ trocam de fileira; com a outra fileira ativa, as teclas de
+            // navegação dela passam por aqui (o campo de busca fica com o foco).
+            if (plain && (k === Qt.Key_Up || k === Qt.Key_Down)) {
+                root.rowKey(event);
+                return true;
+            }
+            if (!root.active && plain && k !== Qt.Key_Escape) {
+                root.rowKey(event);
+                return true;
+            }
+        }
         if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
             if (mods & Qt.ControlModifier) {
                 if (!fromField)
@@ -263,7 +290,10 @@ Item {
             if (!priv.waiting)
                 return;
             priv.waiting = false;
-            root.closeRequested();
+            if (root.embedded)
+                root.themeApplied();
+            else
+                root.closeRequested();
         }
     }
 
@@ -274,7 +304,9 @@ Item {
                 return;
             priv.waiting = false;
             applyFallback.stop();
-            if (root.current)
+            if (root.embedded)
+                root.themeApplied();
+            else if (root.current)
                 root.closeRequested();
         }
     }
@@ -326,6 +358,18 @@ Item {
         width: root.implicitWidth
         height: root.implicitHeight
 
+        // Máscara única dos cantos de 13,5 px (a prévia de cada cartão usa).
+        Rectangle {
+            id: cardMask
+            width: 187
+            height: 98
+            radius: 13.5
+            antialiasing: true
+            visible: false
+            layer.enabled: true
+            layer.smooth: true
+        }
+
         Carousel {
             id: strip
             x: root.inset
@@ -365,6 +409,7 @@ Item {
             weight: 500
             color: root.theme ? root.theme.inkFaint : "gray"
             opacity: root.list.length > 0 ? 1 : 0
+            visible: !root.embedded
             text: root.strings ? root.strings.t("common.enterToApply") : ""
         }
     }
@@ -380,6 +425,11 @@ Item {
             property bool selected: false
             readonly property var t: root.list[card.index] || ({})
             readonly property bool applied: card.t.slug !== undefined && card.t.slug === root.currentSlug
+            // A prévia só carrega quando o cartão chega perto da faixa (e fica).
+            property bool near: false
+            onDChanged: if (Math.abs(card.d) < 3.5) card.near = true
+            Component.onCompleted: if (Math.abs(card.d) < 3.5) card.near = true
+            readonly property bool pictured: preview.status === Image.Ready
 
             opacity: Math.pow(0.7, Math.abs(card.d))
             Accessible.role: Accessible.ListItem
@@ -406,6 +456,39 @@ Item {
                     antialiasing: true
                     color: card.t.bg || (root.theme ? root.theme.card : "black")
                 }
+                // A imagem do tema (preview.png do próprio tema), cantos pela máscara.
+                Image {
+                    id: preview
+                    anchors.fill: parent
+                    source: card.near && card.t.preview && root.themesSvc ? root.themesSvc.fileUrl(card.t.preview) : ""
+                    sourceSize.width: 374
+                    sourceSize.height: 196
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: true
+                    smooth: true
+                    opacity: card.pictured ? 1 : 0
+                    Behavior on opacity {
+                        NumberAnimation { duration: root.theme ? root.theme.dur(120) : 0; easing.type: Easing.OutCubic }
+                    }
+                    layer.enabled: card.pictured
+                    layer.effect: MultiEffect {
+                        maskEnabled: true
+                        maskSource: cardMask
+                    }
+                }
+                // Faixa de baixo no fundo do tema: as cores e o nome ficam legíveis sobre a imagem.
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 13.5
+                    antialiasing: true
+                    opacity: card.pictured ? 1 : 0
+                    gradient: Gradient {
+                        GradientStop { position: 0.30; color: Qt.alpha(card.t.bg || "#000000", 0) }
+                        GradientStop { position: 0.62; color: Qt.alpha(card.t.bg || "#000000", 0.82) }
+                        GradientStop { position: 1.00; color: Qt.alpha(card.t.bg || "#000000", 0.96) }
+                    }
+                }
                 // Aro de 1 px (tinta 5%) em todos.
                 Rectangle {
                     anchors.fill: parent
@@ -423,7 +506,7 @@ Item {
                     color: "transparent"
                     border.width: 2
                     border.color: root.theme ? root.theme.rawAccent : "white"
-                    opacity: card.selected ? 1 : 0
+                    opacity: card.selected && root.active ? 1 : 0
                     Behavior on opacity {
                         enabled: !root.snapping
                         NumberAnimation {
@@ -433,18 +516,22 @@ Item {
                     }
                 }
 
-                // Seis bolinhas de 14 px, passo 17,5, centros a 40,5 do topo.
+                // Seis bolinhas: 14 px no centro do cartão sem imagem; com a
+                // imagem, 10 px na faixa de baixo, sobre o nome.
                 Row {
-                    x: (card.width - (5 * 17.5 + 14)) / 2
-                    y: 40.5 - 7
-                    spacing: 3.5
+                    id: dotRow
+                    readonly property real dot: card.pictured ? 10 : 14
+                    readonly property real gap: card.pictured ? 3 : 3.5
+                    x: (card.width - (6 * dot + 5 * gap)) / 2
+                    y: (card.pictured ? 64 : 40.5) - dot / 2
+                    spacing: gap
                     Repeater {
                         model: 6
                         Rectangle {
                             required property int index
-                            width: 14
-                            height: 14
-                            radius: 7
+                            width: dotRow.dot
+                            height: dotRow.dot
+                            radius: dotRow.dot / 2
                             antialiasing: true
                             color: card.t.dots && card.t.dots[index] ? card.t.dots[index]
                                 : (root.theme ? root.theme.alpha(card.t.fg || root.theme.ink, 0.25) : "gray")
@@ -455,7 +542,7 @@ Item {
                 IlhaText {
                     x: 12
                     width: card.width - 24
-                    y: 80 - height / 2
+                    y: (card.pictured ? 83 : 80) - height / 2
                     theme: root.theme
                     size: 12
                     weight: 500

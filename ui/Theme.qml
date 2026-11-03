@@ -163,7 +163,9 @@ QtObject {
         // Telas
         PANEL_W: 514, PANEL_CAP: 30, LAUNCHER_CAP: 27,
         CC_H: 513, LAUNCHER_H: 368, POWER_H: 112, MEDIA_H: 218,
-        THEMES_H: 222, THEMES_PAD: 30, THEMES_PITCH: 194, THEMES_KMIN: 2, THEMES_KMAX: 4,
+        THEMES_H: 222, THEMES_PAD: 30, THEMES_PITCH: 194, THEMES_KMIN: 2, THEMES_KMAX: 5,
+        // Tema e papel de parede numa tela só: a fileira de temas (sem rodapé) em cima.
+        THEMES_ROW_H: 180,
         WALLS_H: 232, WALLS_PAD: 32, WALLS_PITCH: 196, WALLS_KMIN: 2, WALLS_KMAX: 5,
         // Limites: w <= screenW − 48; h <= screenH − 10 − 72
         EDGE: 48, PANEL_BOTTOM_GAP: 72,
@@ -180,7 +182,7 @@ QtObject {
         MARK_ICON: 16, MARK_GLYPH: 14, MARK_TIME_GAP: 4, MARK_BARS_GAP: 5, MARK_BARS_W: 9,
         MARK_GAP: 8, MARK_TRIM: 4,
         // Seletor de telas
-        PICKER_W: 236, PICKER_H: 42, PICKER_TOP: 22, PICKER_CAP: 21,
+        PICKER_W: 200, PICKER_H: 42, PICKER_TOP: 22, PICKER_CAP: 21,
         PICKER_PAD: 10, PICKER_PITCH: 36, PICKER_GLYPH: 18, PICKER_HOVER: 30,
         // Aviso ao vivo
         PEEK_H: 40, PEEK_TOP: 10, PEEK_CAP: 20, PEEK_MIN_W: 160, PEEK_MAX_W: 480, PEEK_GLYPH: 18,
@@ -191,7 +193,8 @@ QtObject {
         // Borda de cima e roda
         STRIP_W: 600, STRIP_H: 3, WHEEL_BAND: 14,
         // Ordem única das telas (seletor, Alt+1..6, Ctrl+Tab, roda)
-        SCREEN_ORDER: ["launcher", "themes", "wallpapers", "media", "control", "power"]
+        // (Temas e Papéis de parede são uma tela só: "themes".)
+        SCREEN_ORDER: ["launcher", "themes", "media", "control", "power"]
     })
 
     // ---- Geometria ----
@@ -223,11 +226,22 @@ QtObject {
         case "media":
             h = P.MEDIA_H;
             break;
-        case "themes":
-            k = theme.clamp(Math.floor((maxW - P.THEMES_PAD) / P.THEMES_PITCH), P.THEMES_KMIN, P.THEMES_KMAX);
-            w = P.THEMES_PAD + P.THEMES_PITCH * k;
-            h = P.THEMES_H;
+        case "themes": {
+            // Tela unida: a largura dos papéis de parede, a fileira de temas em cima.
+            const kw = theme.clamp(Math.floor((maxW - P.WALLS_PAD) / P.WALLS_PITCH), P.WALLS_KMIN, P.WALLS_KMAX);
+            w = P.WALLS_PAD + P.WALLS_PITCH * kw;
+            k = kw;
+            h = P.THEMES_ROW_H + P.WALLS_H;
             break;
+        }
+        case "themeRow": {
+            // A fileira de temas dentro da tela unida (mesma largura).
+            const kw = theme.clamp(Math.floor((maxW - P.WALLS_PAD) / P.WALLS_PITCH), P.WALLS_KMIN, P.WALLS_KMAX);
+            w = P.WALLS_PAD + P.WALLS_PITCH * kw;
+            k = theme.clamp(Math.floor((w - P.THEMES_PAD) / P.THEMES_PITCH), P.THEMES_KMIN, P.THEMES_KMAX);
+            h = P.THEMES_ROW_H;
+            break;
+        }
         case "wallpapers":
             k = theme.clamp(Math.floor((maxW - P.WALLS_PAD) / P.WALLS_PITCH), P.WALLS_KMIN, P.WALLS_KMAX);
             w = P.WALLS_PAD + P.WALLS_PITCH * k;

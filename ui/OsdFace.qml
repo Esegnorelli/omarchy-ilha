@@ -71,7 +71,7 @@ Item {
     readonly property real textW: root.kind === "media" ? root.mediaTextW : root.messageW
 
     implicitWidth: root.kind === "progress" ? (root.theme ? root.theme.px.OSD_W : 304)
-        : Math.max(root.kind === "media" ? 220 : 200, Math.min(360, root.pad + root.leadW + root.leadGap + root.textW + root.pad))
+        : Math.max(root.kind === "media" ? 220 : 200, Math.min(480, root.pad + root.leadW + root.leadGap + root.textW + root.pad))
     implicitHeight: root.theme ? root.theme.px.OSD_H : 40
 
     // Grupo (mensagem e mídia): centrado quando a largura mínima sobra.

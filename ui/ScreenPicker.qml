@@ -2,7 +2,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "Motion.js" as Motion
 
-// Seletor de telas (amendments §6): seis ícones na pílula (236 x 42, topo
+// Seletor de telas (amendments §6): cinco ícones na pílula (200 x 42, topo
 // 22, cap 21), na ordem theme.px.SCREEN_ORDER — o ícone k é Alt+k. Fica
 // DENTRO do HoverBar, em coordenadas da janela. Os ícones têm x final fixo
 // em relação ao centro e só acompanham morph.centerY: o recorte que alarga
@@ -45,7 +45,7 @@ Item {
         control: { icon: "tune", label: "picker.control" },
         power: { icon: "power_settings_new", label: "cc.power" }
     })
-    readonly property var slots: (root.theme ? root.theme.px.SCREEN_ORDER : ["launcher", "themes", "wallpapers", "media", "control", "power"])
+    readonly property var slots: (root.theme ? root.theme.px.SCREEN_ORDER : ["launcher", "themes", "media", "control", "power"])
         .map(id => Object.assign({ id: id }, root.screenMeta[id]))
 
     readonly property real cx: root.morph ? root.morph.centerX : root.width / 2

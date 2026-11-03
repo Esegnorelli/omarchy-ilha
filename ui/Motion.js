@@ -268,6 +268,7 @@ function ease(t, curve) {
 }
 
 // Rank de entrada de um ícone do seletor (P): 0 para 2 e 3, 1 para 1 e 4, 2 para 0 e 5.
+// Entrada do centro para as pontas: com cinco ícones, 2 / 1 e 3 / 0 e 4.
 function pickerRank(slot) {
-    return slot === 2 || slot === 3 ? 0 : (slot === 1 || slot === 4 ? 1 : 2);
+    return Math.abs(slot - 2);
 }

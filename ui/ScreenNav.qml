@@ -42,7 +42,7 @@ Item {
         control: { icon: "tune", label: "picker.control" },
         power: { icon: "power_settings_new", label: "cc.power" }
     })
-    readonly property var slots: (root.theme ? root.theme.px.SCREEN_ORDER : ["launcher", "themes", "wallpapers", "media", "control", "power"])
+    readonly property var slots: (root.theme ? root.theme.px.SCREEN_ORDER : ["launcher", "themes", "media", "control", "power"])
         .map(id => Object.assign({ id: id }, root.screenMeta[id]))
 
     readonly property real pitch: priv.px("NAV_PITCH", 36)
