@@ -1,10 +1,12 @@
 # Ilha
 
-Barra flutuante para o [Omarchy](https://omarchy.org). Em repouso é o relógio. Com o ponteiro, vira uma linha só de status. Os painéis abrem um de cada vez, na mesma pílula.
+Barra flutuante para o [Omarchy](https://omarchy.org). Em repouso é o relógio. Com o ponteiro, vira a linha dos workspaces, e um clique abre a linha completa. Seis telas abrem dentro da mesma pílula: Central de controle, Apps, Mídia, Temas, Papéis de parede e Energia.
 
 English documentation: [README.md](README.md).
 
-A Ilha substitui a barra (`kinds: ["bar"]`, id `esegnorelli.ilha`). Não é um widget dentro da barra padrão. Cores, cantos, vidro e fonte seguem o tema do Omarchy, e um clique no Estilo pinta a pílula antes de o resto da área de trabalho terminar a troca.
+A Ilha substitui a barra (`kinds: ["bar"]`, id `esegnorelli.ilha`, versão 2.0.0). Não é um widget dentro da barra padrão. As cores seguem o tema do Omarchy, e o texto segue o idioma do Omarchy.
+
+> Depois de atualizar, se a pílula disser "Reinicie o shell para concluir a atualização da Ilha", toque nela ou rode `omarchy restart shell`.
 
 ## Instalar
 
@@ -12,7 +14,13 @@ A Ilha substitui a barra (`kinds: ["bar"]`, id `esegnorelli.ilha`). Não é um w
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` troca a barra para a Ilha. O Omarchy pede confirmação, porque um plugin roda dentro do shell que fica aberto. Não há pacote extra, nem sudo, nem passo de instalação: tudo o que a Ilha usa vem com o Omarchy. O `omarchy plugin add` só clona o repositório e valida o `manifest.json`, e a Ilha não precisa de mais nada. Fora da própria pasta ela só grava as três chaves do Estilo (veja Aparência), dentro do `~/.config/omarchy/shell.json` do próprio Omarchy, pela API de plugins do host (`mutateShellConfig`).
+O `omarchy plugin add` clona o repositório e valida o `manifest.json`. O `--enable` então troca a barra para a Ilha. O Omarchy pede confirmação antes, porque um plugin roda como código sem isolamento dentro do shell que fica aberto (`--yes` pula as perguntas). Não há pacote extra, nem sudo, nem passo de instalação. A Ilha não roda script de instalação e não grava nada quando começa.
+
+Fora da própria pasta, a Ilha só grava isto:
+
+- As duas chaves de ajuste, no `~/.config/omarchy/shell.json` do próprio Omarchy, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`). Só quando você vira uma chave ou roda `ilha setting` (veja Ajustes).
+- O próprio estado, em `~/.local/state/esegnorelli.ilha/` (`$XDG_STATE_HOME`, quando definido): `state.json` (quando você tocou em Limpar nas notificações pela última vez, e a temperatura da luz noturna) e `game-mode.json` enquanto o Modo jogo está ligado.
+- A resposta ao alternador de fundo do Omarchy, nos dois arquivos de resposta que esse script cria e espera (veja Teclas de tema e de papel de parede).
 
 Se a barra estiver escondida, mostre de novo com `omarchy toggle bar`.
 
@@ -22,9 +30,15 @@ Se a barra estiver escondida, mostre de novo com `omarchy toggle bar`.
 omarchy plugin update esegnorelli.ilha
 ```
 
-Sem id, `omarchy plugin update` atualiza todo plugin instalado por git. Ele mostra o diff e não avança por cima de edições locais.
+Sem id, `omarchy plugin update` atualiza todo plugin instalado por git. Ele mostra o diff e não avança por cima de edições locais. Depois, o Omarchy relê os plugins.
 
-O Omarchy guarda a Ilha antiga no cache de QML, então depois de atualizar ou reinstalar rode `omarchy restart shell` para ver a versão nova.
+O Omarchy não limpa o cache de QML. A Ilha compara a versão do `manifest.json` com a versão do código que o shell carregou. Quando elas não batem, a pílula mostra "Reinicie o shell para concluir a atualização da Ilha" por 8 segundos, uma vez por sessão, uns 2 segundos depois de a Ilha carregar. Ela espera, por até cerca de um minuto, enquanto houver uma tela, um nível de hover ou outro OSD na pílula. O toque roda `omarchy-restart-shell`. `omarchy restart shell` faz o mesmo. Com a barra escondida, o aviso aparece no OSD do Omarchy.
+
+Vindo da 1.x:
+
+- O código da 2.0 fica em `ui/`, uma pasta que a 1.x nunca teve, e a barra agora começa por `ui/Ilha.qml`. Os arquivos QML da 1.x na raiz saíram. Como todos os arquivos são novos, o shell carrega a 2.0 na hora, sem reiniciar.
+- `focusedOnly` e `livePeek` em `bar.ilha` mantêm os valores. O `level2Dwell` saiu: o nível 2 abre no clique. A Ilha ignora a chave antiga e a apaga na próxima vez que gravar um ajuste.
+- Os painéis Tempo, Captura, Estilo, Ferramentas e Plugins saíram e, com o Estilo, os controles de cantos, transparência e fonte.
 
 ## Remover
 
@@ -42,144 +56,375 @@ Apagar a cópia instalada (o repositório no GitHub continua):
 omarchy plugin remove esegnorelli.ilha
 ```
 
+A pasta de estado da Ilha, `~/.local/state/esegnorelli.ilha/`, fica. Apague à mão se quiser.
+
 Se a Ilha não carregar, o Omarchy volta sozinho para `omarchy.bar`.
 
 ## O que aparece
 
-A pílula flutua a 12 px da borda de cima, na camada de overlay, e não reserva espaço. As janelas não se mexem quando ela cresce. Ela fica por cima de tela cheia. O tamanho que ela publica para o shell (`barSize`) é 50.
+Uma ilha por monitor, centrada no alto. Ela reserva 48 px no alto de cada monitor (`barSize` 48), então as janelas começam abaixo dela. A pílula cresce por cima das janelas; elas não se mexem. A ilha fica na camada top. Uma tela aberta por cima de uma janela em tela cheia passa para a camada overlay, para aparecer por cima dela.
+
+Com a barra escondida (`omarchy toggle bar`), a pílula e os 48 px dela somem. As telas abertas por tecla ou por IPC continuam aparecendo.
 
 | Estado | O que está na pílula |
 |---|---|
-| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Com algo ligado, uma marca fica ao lado da hora e a cápsula cresce para caber: o ícone do aviso mais importante que estiver ligado, na cor dele, nesta ordem: gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado. Gravando, o tempo da gravação vem depois do ícone e conta os segundos (só nessa hora; o relógio em si fica em minutos). Com música tocando, três barrinhas na cor de destaque ficam ao lado do ícone, ou sozinhas quando nada mais está ligado. Notificações na tela não contam aqui; elas ficam no sino. |
-| Hover | Nível 1: o relógio entre os dois grupos, os workspaces como cápsulas numeradas de um lado (o ativo mais largo, na cor de destaque; o workspace 10 aparece como 0), barras de rede, bateria e até duas marcas de estado do outro. Com música tocando, o elemento "tocando agora" (a capa, ou uma nota, e o título curto) fica antes dos workspaces. |
-| Hover parado | Nível 2, depois de o ponteiro ficar parado na pílula por 1,6 s: a pílula alarga em três colunas, no máximo 640 × 64. À esquerda, o app em foco sobre os workspaces. No centro, um relógio grande com a data ao lado. À direita, o estado das notificações (a contagem, ou "Tudo em dia", e o sino) sobre rede, bateria e as marcas de estado. Com uma faixa carregada (tocando ou pausada), a linha do app em foco vira "título — artista" com um botão pequeno de tocar/pausar. |
-| Seletor | Os ícones dos seis painéis numa fileira de 236 × 46, cada um com o seu dígito embaixo. Veja abaixo. |
-| Aviso ao vivo | Uma linha curta que cresce da pílula e volta: "Gravando 0:42", "Lembrete em 15 min" ou uma notificação urgente. Veja abaixo. |
-| Painel | O mesmo objeto vira um painel. Não há linha de cabeçalho em cima dele. |
+| Repouso | O relógio, numa cápsula de 32 px de altura, a 10 px da borda de cima. Com algo ligado, uma marca fica ao lado do relógio. |
+| Nível 1 | O ponteiro está na pílula. Uma linha de 42 px de altura, a 22 px do alto: os workspaces deste monitor em cápsulas numeradas, o relógio e o grupo de estado. |
+| Nível 2 | Um clique no nível 1. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
+| Seletor de telas | Botão direito ou toque longo. Seis ícones numa cápsula de 236 × 42. |
+| Aviso ao vivo | Algo acabou de ligar. Uma linha curta, de 40 px de altura. |
+| OSD | `ilha osd`, a pergunta da resolução ou o aviso de reinício. 40 px de altura. |
+| Tela | Uma das seis telas, na mesma forma. |
 
-São dois níveis de hover. Uma faixa invisível de 3 px nos 600 px do centro da borda de cima, o vão de 12 px abaixo dela ou a própria pílula abrem o nível 1, a linha. O nível 2 só abre com o ponteiro parado em cima da própria pílula: 1,6 s sem andar mais de 4 px (andar mais recomeça a conta). A faixa e o vão nunca abrem o nível 2, então passar pela borda de cima não desdobra a pílula, e o Estilo pode desligar o nível 2. Ao sair, volta o relógio. Nada troca sozinho. O clique no elemento "tocando agora", nos dois níveis, abre a Mídia. Sem player, nenhuma parte da música aparece. Na primeira vez que o ponteiro abre a linha numa sessão, uma dica curta aparece sob a pílula por 3 s: "0 tempo · 1 apps · roda troca".
+### Repouso
 
-No repouso, o toque na marca abre o painel dono dela: a gravação abre a Captura, o lembrete o Tempo, a atualização as Ferramentas, e Não perturbe, luz noturna e manter acordado abrem o Controle. As barrinhas da música abrem a Mídia, e o toque no resto da cápsula abre o Tempo. Com o ponteiro na marca a linha não abre, para o toque cair na marca, e o nome curto dela aparece num balão.
+O relógio mostra `HH:mm` com os algarismos do idioma. Ele fica em 12 horas (`h:mm`, sem AM/PM) quando a entrada `omarchy.clock` do layout da barra no `shell.json` tem um `format` com `AP`.
 
-| Lugar | Conteúdo | Toque |
+Com algo ligado, a cápsula alarga e uma marca fica ao lado do relógio (à esquerda dele; à direita nos idiomas da direita para a esquerda):
+
+- O ícone do primeiro estado ligado, na cor dele, nesta ordem: sessão remota, sudo sem senha, gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado.
+- Gravando, o tempo da gravação vem depois do ícone (`0:42`). O relógio em si fica em minutos.
+- Com música tocando, três barrinhas na cor de destaque ficam encostadas no relógio. Elas não se mexem. Um player pausado não mostra nenhuma. Só com música ligada, as barrinhas são a marca inteira.
+
+As notificações não fazem parte da marca.
+
+Com o ponteiro em cima da marca, a pílula fica em repouso e a marca se destaca, para o toque cair nela. Em qualquer outro lugar, o ponteiro abre o nível 1 na hora.
+
+- O toque na marca abre o dono dela. Sessão remota, sudo sem senha, gravação, lembrete e atualização abrem o nível 2 com esse estado fixado na linha de estado. Não perturbe e luz noturna abrem a Central de controle. Manter acordado abre Central de controle › Tela com o cartão Manter acordado em destaque.
+- O toque nas barrinhas da música abre a Mídia.
+- Um estado fixado fica na linha de estado enquanto estiver ligado. Depois do clique que o desliga (parar a gravação, por exemplo), a linha volta à ordem de sempre.
+
+### Nível 1
+
+O ponteiro na pílula, no vão acima dela ou na faixa da borda de cima abre o nível 1 na hora. Ao sair por 60 ms, volta o repouso.
+
+- Workspaces: o bloco deste monitor (1–10, 11–20, …), os cinco primeiros e mais os de número maior que já existirem. O algarismo fica dentro de cada cápsula; o workspace 10 aparece como `10`. O ativo é maior, na cor de destaque, com um brilho. Os ocupados levam um tom da cor de destaque. Os vazios são apagados. Os urgentes usam a cor de urgência.
+- Grupo de estado, nesta ordem: as barrinhas da música (com uma faixa carregada; mexem enquanto toca e ficam apagadas na pausa), o ponto de privacidade (gravação, sessão remota ou sudo sem senha; pulsa enquanto grava), a rede (barras do Wi-Fi, um ícone de cabo ou sem conexão) e a bateria (só em notebooks; um raio na tomada; a cor de urgência com 15 % ou menos na bateria).
+- O clique numa cápsula foca esse workspace. O clique nas barrinhas da música abre a Mídia. O clique em qualquer outro lugar abre o nível 2.
+
+### Nível 2
+
+Um clique no nível 1 abre. Ele fica enquanto o ponteiro estiver em cima e fecha 2,5 s depois de o ponteiro sair. Super+Ctrl+Alt+D alterna o nível 2 no monitor focado.
+
+- Esquerda: o ícone e o nome do app da janela em foco, ou "Área de trabalho" quando o workspace não tem janela. Quando a janela em foco é o player de música, o título e o artista. Embaixo, os workspaces, maiores.
+- Centro: o relógio, maior, e a data no formato do idioma.
+- Direita: a linha de estado, sobre rede e bateria.
+
+Uma cápsula foca o workspace dela. A linha do app abre os Apps (a Mídia quando mostra o player). O relógio e a data abrem a Central de controle. A linha de estado executa a ação dela. O espaço vazio volta ao nível 1.
+
+A linha de estado mostra o primeiro que casar:
+
+| Estado | Texto | Clique |
 |---|---|---|
-| Esquerda | Workspaces deste monitor como cápsulas numeradas: os cinco primeiros do bloco do monitor, e mais os de número maior que já existirem. O ativo é mais largo, preenchido com a cor de destaque do tema. Os ocupados são mais claros. Os vazios são quietos. | O clique numa cápsula foca esse workspace. O clique no ativo troca o layout dele (Mosaico, Rolagem, Flutuante); o nome aparece num balão |
-| Meio | Hora | Abre o Tempo |
-| Direita | Barras de rede e bateria, a bateria preenchida na cor de destaque, e depois até duas marcas de estado na mesma ordem da marca do repouso, com as notificações por último | Rede ou bateria abre o Controle. Cada marca age por conta própria: a gravação para; Não perturbe, luz noturna e manter acordado desligam; o lembrete abre o Tempo; a atualização abre as Ferramentas; o sino abre a notificação mais recente |
+| Sessão remota | "Sessão remota", ou "Sessão remota · " e quem está conectado | Nada |
+| Gravação | "Gravando 0:42" | Para a gravação |
+| Sudo sem senha | "Sudo sem senha ativo" | Desliga |
+| Notificações na tela | "3 notificações" | Central de controle |
+| Lembrete | "Lembrete em 15 min" | Roda `omarchy-reminder show` |
+| Atualização | "Atualização disponível" | Abre o `omarchy-update` num terminal flutuante |
+| Manter acordado | "Mantendo acordado" | Desliga o manter acordado |
+| Faixa carregada | "Título · Artista" | Mídia |
+| Não perturbe | "Não perturbe" | Desliga |
+| Nada | "Tudo em dia" | Central de controle |
 
-Apps, Controle, Captura, Estilo, Ferramentas e Energia não ficam desenhados na linha. Eles só aparecem juntos no seletor. Cada painel abre na pílula, um de cada vez.
+### Seletor de telas
 
-**Seletor.** Toque longo ou clique direito na cápsula (ou na linha) mostra os ícones dos seis painéis: Apps, Controle, Captura, Estilo, Ferramentas, Energia, cada um com o seu dígito embaixo. Parar num ícone mostra "nome · dígito"; o toque abre aquele painel. O seletor some sozinho: 2,6 s sem o ponteiro em cima, ou 0,7 s depois de o ponteiro passar por ele e sair. Outro clique direito no mesmo monitor esconde. Ele não abre com um painel aberto.
+O botão direito, ou um toque longo (0,5 s), na pílula em repouso, no nível 1 ou no nível 2 mostra seis ícones: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia. É a mesma ordem do Alt+1–6. Os ícones não têm rótulo.
 
-**Aviso ao vivo.** Quando um indicador liga, a pílula cresce numa linha curta, no formato da notificação, com o ícone e a cor do indicador: "Gravando 0:42" (o tempo continua contando), "Lembrete em 15 min", "Atualização disponível", "Não perturbe ligado", "Luz noturna ligada", "Manter acordado ligado". Fica 2,6 s, e só enquanto o indicador seguir ligado, depois volta o relógio. Uma notificação urgente aparece do mesmo jeito, numa linha (ícone, aplicativo, resumo), por 4 s. Parar o ponteiro em cima do aviso pausa a contagem; quando o ponteiro sai, ele fica mais 1 s. O toque abre o painel dono, ou, numa notificação, abre a notificação na pílula, como o sino. Com um painel aberto, um indicador não gera aviso, e indicadores que já estavam ligados quando a Ilha carregou também não. Com o Aviso ao vivo desligado no Estilo, um indicador novo mostra a linha por 2,6 s no lugar, e as notificações urgentes não aparecem sozinhas.
+- O toque num ícone abre aquela tela. A Mídia está sempre lá; sem player, abre "Nada tocando".
+- O toque entre os ícones, ou outro clique direito, fecha o seletor.
+- Ele fecha sozinho 2,6 s depois de abrir se o ponteiro não chegar nele, ou 0,7 s depois de o ponteiro sair dele.
+- Ele não abre com uma tela aberta nem com a barra escondida.
+- O toque longo numa cápsula de workspace não foca o workspace.
 
-## Painéis
+### Dica da linha
 
-Todos usam a mesma grade de 4 colunas e altura fixa por página, então a pílula não pula quando o conteúdo muda. A largura abraça o painel: 564 na maioria, 498 no Controle, 468 na Mídia. Com o mouse o painel mostra só os controles; as letras das teclas e a linha de rodapé (estado à esquerda, dicas à direita) só aparecem no modo teclado.
+Na primeira vez que o nível 1 abre numa sessão, uma etiqueta pequena aparece embaixo dele por 3 s: "Clique: mais · Botão direito ou segurar: telas · Alt+1–6: trocar". Ela some quando a linha fecha. Não aparece com a barra escondida nem com o aviso de reinício na tela. Não é gravada, então a próxima sessão mostra de novo.
 
-| Tecla | Painel | Conteúdo |
+### Borda de cima
+
+Uma faixa invisível de 3 px nos 600 px do centro da borda de cima (menos em telas estreitas) abre o nível 1, nunca o nível 2. Em cima da marca, a pílula fica em repouso, então levar o ponteiro até o alto sobre a marca e clicar abre o dono da marca.
+
+### Aviso ao vivo
+
+Quando algo liga, a pílula do monitor focado vira uma linha curta e depois volta ao relógio.
+
+| Gatilho | Linha | Toque |
 |---|---|---|
-| 0 | Tempo | O mês. Page Up e Page Down trocam o mês. Home volta para hoje |
-| 1 | Apps | Busca de aplicativos. Setas, Enter. Esc limpa e depois fecha |
-| 2 | Controle | Três linhas de 56 px, cada uma com dois blocos em cápsula (círculo do ícone, nome, estado) e um bloco redondo (só o ícone; o nome aparece num balão com o hover, ou no rodapé no modo teclado). `Q` Wi-Fi, `W` Não perturbe, `E` microfone; `A` Bluetooth, `S` modo jogo, `D` luz noturna; `Z` manter acordado, `X` animações, `C` Velocidade (teste de velocidade). Sem Wi-Fi, a primeira vaga vira Protetor de tela; sem Bluetooth, Suspensão. Ligado acende só o círculo do ícone na cor de destaque; Wi-Fi ou Bluetooth ligados sem conexão mostram só um véu leve de destaque. Abaixo dos blocos, o cartão Som: uma barra de volume (`-`/`=` ±5 %, `M` ou o toque no ícone deixa mudo) cuja seta, ou Enter, abre a subpágina Som (saídas, entrada); um botão redondo Voltar ou Esc volta. Por último, a linha da rede: interface e tipo, endereço IPv4 e um botão QR do Wi-Fi (`V`) quando no Wi-Fi. A Velocidade e o QR fecham a ilha e abrem os painéis do próprio Omarchy |
-| 3 | Captura | Print de região, tela, janela ou rolagem, e Inteligente no `V`. Gravação com som do sistema e microfone. OCR, QR code, conta-gotas |
-| 4 | Estilo | Três páginas, com abas no alto: Tema, Fundo, e Janelas e fonte. `Tab` e `Shift+Tab` trocam de página; a largura fica e só a altura muda. **Tema**: um carrossel de amostras de 140 × 80, cada uma o fundo do próprio tema com a paleta em pontos e o nome na cor do texto dele; o cartão do cursor fica no centro, com contorno, e os vizinhos esmaecem rumo às bordas. Um pontinho de destaque marca o tema em uso. As setas escolhem; Enter, ou o clique no cartão do centro, aplica; o clique num vizinho só seleciona. Sob a faixa, o tema atual e `n/N`. O botão de grade no cabeçalho, ou `R`, abre Todos os temas (uma grade de 4 colunas). **Fundo**: um carrossel dos fundos desse tema, a escolhida em 160 × 90 no centro com contorno de destaque, as vizinhas menores e mais quietas; o fundo em uso guarda um pontinho de destaque. Embaixo, o nome do arquivo e `n/N`, e depois três botões compactos: Próximo fundo, Escolher fundo e Cores do fundo (`Q W E`). O cabeçalho mostra o tema a que os fundos pertencem. **Janelas e fonte**: Cantos (Do tema, Retos, Redondos; `W E R`), Transparência (Opaca, Translúcida, Vidro; `S D F`), Fonte e, sob Ilha, três chaves (`Z X C`): Nível 2 ao parar, Só no monitor focado e Aviso ao vivo (veja Aparência). Em Tema e Fundo, `/` começa uma busca que toma o lugar das abas; as letras de atalho e os dígitos seguem funcionando até você digitar. Esc limpa a busca, fecha Todos os temas, volta à página Tema e depois fecha |
-| 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins. A busca de atualizações roda no máximo a cada 10 minutos e desiste depois de 30 segundos |
-| 6 | Energia | Uma fileira de botões quadrados arredondados, ícone e nome: bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
-| — | Plugins | Busca os plugins do shell. Enter liga ou desliga. Trocar a barra pede um segundo toque. A roda chega nele depois da Energia |
-| — | Mídia | Um mini-player compacto, 440 × 98 dentro de uma ilha de 468 × 126, para o player MPRIS ativo (o serviço de mídia do Omarchy, quando existe). Linha de cima: capa de 64 px, título sobre "artista · álbum", e anterior, tocar/pausar, próxima. Linha de baixo: tempo decorrido, barra de progresso, duração. Clique ou arraste na barra para pular, quando o player deixa. Aleatório e repetir (desligado, lista, faixa) ficam nas pontas da barra, só quando o player suporta. Fichas para trocar de player aparecem sob a linha do artista quando há mais de um. Teclas: Espaço ou `K` tocar/pausar, `←`/`J` anterior, `→`/`L` próxima, `,` e `.` voltam ou avançam 10 s, `S` aleatório, `R` repetir, `P` próximo player. Sem nada tocando, mostra o vazio na mesma altura |
-| — | OSD | Volume, brilho e outros avisos enviados para a ilha |
-| — | Notificação | O clique no sino da linha (uma marca de estado no nível 1, o estado das notificações no nível 2) abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Uma notificação comum não aparece sozinha; uma urgente chega como aviso ao vivo, e o toque nele abre esta mesma linha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
+| Uma gravação começa | "Gravando 0:42" (segue contando) | Nível 2, fixado na gravação |
+| Um lembrete é criado, e mais uma vez quando faltam 5 minutos | "Lembrete em 15 min", ou "Lembrete em 15 min · " e a mensagem dele | Nível 2, fixado no lembrete |
+| Uma atualização fica disponível | "Atualização disponível" | Nível 2, fixado na atualização |
+| O Não perturbe liga | "Não perturbe ligado" | Central de controle |
+| A luz noturna liga | "Luz noturna ligada" | Central de controle |
+| O manter acordado liga | "Manter acordado ligado" | Central de controle › Tela, com o cartão Manter acordado em destaque |
+| Chega uma notificação urgente | O app e o resumo | Central de controle, com essa notificação em destaque |
 
-Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede abrem o Controle, o relógio abre o Tempo, energia abre a Energia, mídia abre a Mídia.
+- Fica 2,6 s (uma notificação urgente, 4 s) e termina antes se o estado desligar. O ponteiro em cima pausa a contagem; quando o ponteiro sai, fica mais 1 s. O botão direito dispensa.
+- Só a mudança conta. Estados que já estavam ligados quando a Ilha começou, ou que mudam nos primeiros 4 segundos dela, não geram aviso. Sessão remota e sudo sem senha nunca geram aviso; eles aparecem na marca e no nível 2.
+- Com o Não perturbe ligado, só aparecem os avisos de Não perturbe, de gravação e de urgência.
+- Nenhum aviso aparece com uma tela ou o seletor aberto, nem com uma janela em tela cheia no monitor focado. Com a pílula focada no nível 1, no nível 2 ou mostrando um OSD, o aviso espera até 5 s ela voltar ao repouso.
+- Um aviso de prioridade igual ou maior troca o que está na tela (urgente, gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado). Um OSD no mesmo monitor encerra o aviso.
+- Com o Aviso ao vivo desligado nos Ajustes da Ilha, nenhum aviso aparece.
+
+As notificações comuns nunca aparecem na pílula. Os cartões do próprio Omarchy ficam, porque são eles que trazem as ações.
+
+## Telas
+
+Seis telas, numa ordem só: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia. O seletor, o Alt+1–6, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
+
+### Central de controle
+
+514 × 513. Duas linhas de controles e depois três cartões.
+
+| Lugar | Controle | Clique |
+|---|---|---|
+| Linha 1 | Bloco Wi-Fi (nome da rede, "Não conectado", "Desligado", "Indisponível" ou "Ethernet") | O bloco abre o popover de Wi-Fi. O círculo do ícone liga ou desliga o Wi-Fi |
+| Linha 1 | Bloco Foco | Liga ou desliga o Não perturbe |
+| Linha 1 | Bloquear (redondo) | Fecha a ilha e roda `omarchy system lock` |
+| Linha 2 | Bloco Bluetooth ("Ligado", "Desligado", "2 conectados" ou "Nenhum adaptador Bluetooth") | O bloco abre o popover de Bluetooth. O círculo do ícone liga ou desliga o Bluetooth |
+| Linha 2 | Bloco Modo jogo | Ligado, desliga as animações, tira os vãos e deixa as janelas opacas, guardando o que mudou. Desligado, devolve só o que ele mudou |
+| Linha 2 | Luz noturna (redondo) | Liga ou desliga a luz noturna, na temperatura escolhida em Tela |
+| Cartão | Som | Barra de volume: arraste ou clique. O toque no ícone deixa mudo. A seta abre a página Som |
+| Cartão | Tela | Brilho do monitor focado ("Brilho indisponível" quando ele não tem controle). A seta abre a página Tela |
+| Cartão | Notificações | Veja abaixo |
+
+**Notificações.** As da tela primeiro, com um ponto na cor de destaque, depois as fechadas nas últimas 24 horas desde o último Limpar, da mais nova para a mais velha, no máximo 30. "Limpar" dispensa todas. O clique na mais nova da tela clica nela, como o cartão do Omarchy faria, e fecha a ilha. O hover numa notificação da tela mostra um botão para dispensá-la. Sem nenhuma: "Nenhuma notificação". Com o ponteiro no cartão, ou no modo teclado, uma fileira de atalhos aparece no cabeçalho dele: Ajustes da Ilha, Apps, Temas, Papéis de parede, Energia.
+
+**Popovers e páginas.** Cada um nasce do controle que o abriu e escurece a grade. O botão de voltar, o Esc ou um toque fora do cartão volta.
+
+- Wi-Fi: uma chave para o rádio, a rede conectada com Desconectar e depois "Redes" com Conectar. Só procura redes enquanto está aberto. Cinco linhas aparecem; o resto rola. Uma rede protegida pede a senha na própria linha ("Senha incorreta" se falhar). Uma rede conhecida mostra um botão para esquecê-la. Uma rede corporativa (802.1X) abre o `nmtui` num terminal.
+- Bluetooth: uma chave, os aparelhos "Salvos" com Conectar ou Desconectar e depois os aparelhos "Por perto" com Parear. Só procura aparelhos enquanto está aberto. Conectar um fone passa a saída de áudio para ele.
+- Som: os aparelhos de "Saída" e o volume de saída, depois os de "Entrada" e o volume de entrada. Uma linha escolhe o aparelho padrão.
+- Tela: um cartão por monitor, com brilho, escala (de 1.0× a 2.0×, as que cabem no monitor) e Resolução (até 6 modos). Uma resolução nova pergunta "Manter esta resolução? Revertendo em 10 s", com Manter e Reverter, e reverte sozinha. Se a Central fechar, a contagem passa para a pílula, e o toque mantém a resolução. Depois vêm a Luz noturna (uma chave e a temperatura, 2500–5800 K) e o Manter acordado ("A tela não escurece, bloqueia nem dorme").
+- Ilha: as duas chaves. Veja Ajustes.
+
+**Teclas.** As setas andam pela posição. Tab e Shift+Tab andam na ordem. Home vai ao Wi-Fi; End, às notificações. Enter executa a ação principal. Espaço aperta o círculo do ícone de um bloco, ou deixa mudo na barra de Som. Numa barra, Esquerda e Direita mudam 5 % (Shift: 1 %). M deixa mudo no cartão Som. Numa notificação, Delete dispensa uma da tela, e Enter na mais nova da tela clica nela. Nos popovers e nas páginas, Cima e Baixo andam, Enter e Espaço escolhem ou alternam, Espaço liga e desliga o rádio no Wi-Fi e no Bluetooth, Delete esquece uma rede Wi-Fi conhecida, Esquerda e Direita mudam as barras em 5 % (Shift: 1 %), e M deixa muda a seção focada no Som. O Esc fecha o campo de senha ou uma lista aberta, depois o popover ou a página, depois a ilha.
+
+### Apps
+
+514 × 368. A busca de aplicativos: "Buscar…" no alto, seis linhas embaixo.
+
+- Sem nada digitado, todos os apps visíveis, de A a Z. Ao digitar, a ordem segue a busca aproximada. Sem resultado: "Nenhum app encontrado".
+- As entradas escondidas seguem as regras do próprio Omarchy.
+- O destaque só segue o ponteiro quando o ponteiro anda. A roda rola a lista.
+- Apps de terminal abrem pelo `omarchy-launch-tui`; o resto, pelo `uwsm-app -- gtk-launch`. Quando nenhuma janela aparece em 2 s, o OSD do Omarchy diz "Abrindo Firefox…" (com o nome do app) até ela aparecer, por no máximo 15 s.
+- Teclas: Cima e Baixo, Tab e Shift+Tab (dão a volta), Page Up e Page Down de 6 em 6. Enter abre o app e fecha. Esc limpa e depois fecha.
+
+### Mídia
+
+514 × 218. O player MPRIS ativo, pelo serviço de mídia do Omarchy.
+
+- A capa, o título, o artista e o nome do player. Com mais de um player, o nome é um botão que troca de player.
+- A barra de progresso, com o tempo decorrido e o que falta. Clique ou arraste nela quando o player deixa.
+- Aleatório, anterior, tocar/pausar, próxima, repetir (desligado, lista, faixa). Aleatório e repetir funcionam quando o player suporta.
+- Sem player: "Nada tocando" e "Toque algo em qualquer player", no mesmo tamanho.
+- Teclas: Espaço ou Enter tocar/pausar, Esquerda e Direita voltam ou avançam 5 s, Shift+Esquerda e Shift+Direita anterior e próxima, S aleatório, R repetir, P próximo player.
+
+Ela também abre pelas barrinhas da música, pelas linhas do app e de estado do nível 2, por um OSD de mídia e pelo Super+Ctrl+4.
+
+### Temas
+
+Tão larga quanto couberem de 2 a 4 cartões na tela (30 + 194 px por cartão), 222 de altura.
+
+- Um campo de busca ("Buscar temas…") e um contador (`3/18`). Sem resultado: "Nenhum tema encontrado".
+- Cada cartão mostra o fundo do tema, seis pontos da paleta dele e o nome na cor de texto dele. O cartão do centro é o escolhido: ele sobe e ganha uma borda na cor de destaque. Um pontinho marca o tema em uso.
+- "Enter para aplicar". O Enter roda `omarchy-theme-set`. O pontinho muda na hora. A tela fecha quando o tema entra em uso, ou 1,5 s depois. Não há prévia ao vivo. As cores da ilha trocam com um fade de 150 ms quando a paleta nova chega.
+- Mouse: o clique centraliza um cartão. O clique no cartão do centro, ou um clique duplo, aplica. A roda anda um cartão por volta.
+- Teclas: as setas (Esquerda e Direita seguem a direção da tela), Tab e Shift+Tab, Page Up e Page Down de 4 em 4, Home, End, Enter aplica. Esc limpa a busca e depois fecha.
+- Os temas vêm de `~/.config/omarchy/themes` e dos temas do próprio Omarchy. O seu vence quando o nome é o mesmo.
+
+### Papéis de parede
+
+Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatura), 232 de altura.
+
+- "Papel de parede" e o nome do tema no alto. A miniatura escolhida fica no centro com uma borda na cor de destaque. Um pontinho marca o papel em uso. Embaixo da faixa: o nome do arquivo, o contador e "Enter para aplicar".
+- Aberta pela Ilha (seletor, Alt+5, Ctrl+Tab, `ilha open wallpapers`): os fundos do tema atual mais `~/.config/omarchy/backgrounds/<tema>`. O Enter roda `omarchy-theme-bg-set` e fecha quando ele termina (no máximo 1,2 s). Sem nenhum: "Nenhum papel de parede para este tema".
+- Aberta pelas teclas de fundo do Omarchy: veja Teclas de tema e de papel de parede.
+- Papéis de parede em vídeo usam a miniatura guardada.
+- Mouse como em Temas. Teclas: as setas, Tab e Shift+Tab, Page Up e Page Down de uma tela inteira, Home, End, Enter aplica, Esc fecha.
+
+### Energia
+
+514 × 112. Cinco botões: Bloquear, Suspender, Sair, Reiniciar, Desligar.
+
+- Bloquear vem escolhido quando abre. O ponteiro escolhe, o clique aperta.
+- Sair, Reiniciar e Desligar pedem um segundo toque em até 3 s: o rótulo diz "Toque de novo". Um segundo toque antes de 350 ms é ignorado.
+- Suspender fica apagado quando o sono está desligado no Omarchy.
+- Teclas: Esquerda e Direita (seguem a direção da tela), Tab e Shift+Tab, Home, End, 1–5 escolhem e apertam, Enter ou Espaço apertam. Esc cancela uma confirmação pendente e depois fecha.
+- O comando roda 180 ms depois de a ilha fechar: `omarchy-system-lock`, `systemctl suspend`, `omarchy-system logout`, `omarchy-system reboot` ou `omarchy-system shutdown`.
 
 ## Mouse e teclado
 
-- A roda só troca de painel com um painel aberto, na borda de cima dele (o respiro de 14 px, na largura toda). Na linha e no repouso ela não faz nada. Cada volta (120 unidades) anda um painel: Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, e a Mídia quando há uma faixa. Para baixo avança. Para cima volta. Uma volta incompleta zera depois de 200 ms sem eventos da roda, ou quando o sentido vira, então um deslize lento do trackpad nunca troca de painel.
-- Toque longo ou clique direito na cápsula mostra o seletor; o toque num ícone abre aquele painel.
-- Listas e controles deslizantes guardam a própria roda. O volume fica no Controle.
-- `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem, com a Mídia só quando há uma faixa.
-- Setas movem o foco. Enter e Espaço ativam.
-- As letras seguem a grade: `Q W E R`, `A S D F`, `Z X C V`. A letra aparece no controle só no modo teclado. A linha de rodapé com estado e dicas também só aparece no modo teclado; com o mouse o painel termina com o mesmo respiro de cima. O contorno de foco só aparece depois de navegar pelo teclado. As mesmas letras valem no QWERTY e no ABNT2.
-- No Estilo, `[` e `]` só destacam a fonte. Enter ou o clique aplicam. Fontes de ícones ficam fora da lista.
-- Esc cancela uma confirmação, depois limpa a busca, depois fecha.
-- Um clique fora fecha o painel.
-- Confirmações (reiniciar, desligar, sair) deixam o controle vermelho com "Confirmar?" por 4 segundos. Um segundo toque antes de 350 ms é ignorado.
+- A roda só troca de tela com uma tela aberta, na faixa que cobre a largura da tela nos 24 px de cima do monitor: o vão acima da tela e o respiro de cima dela. Cada volta (120 unidades) anda uma tela, na ordem acima. Para baixo avança, para cima volta. Uma volta incompleta zera depois de 200 ms sem eventos da roda, ou quando o sentido vira, então um deslize lento do trackpad nunca troca de tela. Os idiomas da direita para a esquerda não invertem a roda. No repouso, nos níveis 1 e 2, no seletor, num aviso ou num OSD, a roda não faz nada. Listas, carrosséis e controles deslizantes guardam a própria roda.
+- O botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra o seletor. No seletor, fecha. Num aviso ao vivo, dispensa.
+- Um clique fora de uma tela aberta fecha a tela.
+- As teclas só valem com uma tela aberta. Os níveis de hover, o seletor e os avisos nunca pegam o teclado.
+- Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia.
+- O Esc vai primeiro para a tela (limpa uma busca, fecha um popover ou uma página, cancela uma confirmação) e depois fecha a ilha.
+- Qualquer tecla liga o modo teclado. Andar o ponteiro mais de 8 px desliga.
 
-Atalho opcional, em `~/.config/hypr/bindings.lua`. `Super+Z` está livre nos atalhos padrão do Omarchy. `Super+Ctrl+Z` é o zoom, então esse fica quieto.
+### Teclas do Omarchy
+
+As teclas de painel do próprio Omarchy caem nas telas da Ilha. A mesma tecla de novo fecha o que ela abriu.
+
+| Tecla | Nome no Omarchy | Na Ilha |
+|---|---|---|
+| Super+Ctrl+A | Áudio | Central de controle › Som |
+| Super+Ctrl+B | Bluetooth | Central de controle › Bluetooth |
+| Super+Ctrl+N | Rede | Central de controle › Wi-Fi |
+| Super+Ctrl+D | Tela | Central de controle › Tela |
+| Super+Ctrl+P | Energia | Energia |
+| Super+Ctrl+Alt+D | Calendário | Nível 2, no monitor focado |
+| Super+Ctrl+Alt+E | Relógio mundial | Central de controle |
+| Super+Ctrl+1, 2, 3, 4 | Painel da barra 1–4 | Central de controle › Som, Central de controle › Wi-Fi, Energia, Mídia |
+| Super+Ctrl+5 a 9 | Painel da barra 5–9 | Nada |
+| Super+Ctrl+T, Super+Shift+Ctrl+Space | Menu de temas | Temas |
+| Super+Ctrl+W, Super+Ctrl+Space | Alternador de fundo | Papéis de parede |
+
+### Teclas de tema e de papel de parede
+
+A Ilha assume os dois seletores de imagem do Omarchy. Nenhuma tecla e nenhuma entrada de menu é trocada: as mesmas teclas e entradas abrem as telas da Ilha.
+
+- **Papéis de parede.** Super+Ctrl+W, Super+Ctrl+Space e Menu › Aparência › Plano de fundo rodam o alternador de fundo do Omarchy, que pede um seletor ao alvo `image-selector` do shell. A Ilha atende esse alvo antes do seletor do Omarchy. Quando todas as imagens do pedido estão nos fundos do tema (`~/.local/state/omarchy/current/theme/backgrounds/`) ou em `~/.config/omarchy/backgrounds/`, a tela de Papéis de parede abre com as imagens do pedido. O Enter grava a escolha no arquivo de resposta que o script espera, e o script do Omarchy aplica. Esc, um clique fora ou outra tela devolvem uma escolha vazia, então o script nunca fica esperando para sempre.
+- **Temas.** Super+Ctrl+T, Super+Shift+Ctrl+Space e Menu › Aparência › Tema abrem o seletor de temas do Omarchy. Quando esse seletor abre sem um pedido que a Ilha repassou, a Ilha o esconde e abre a tela de Temas. O seletor do Omarchy abre transparente, então some antes de mostrar um quadro.
+- Qualquer outro pedido, como imagens de outra pasta, vai para o seletor do próprio Omarchy sem mudança.
+- Os dois takeovers acabam quando você volta para a barra padrão.
+
+### Atalhos opcionais
+
+Ponha em `~/.config/hypr/bindings.lua`. Antes, confira o que já está ocupado com `omarchy menu keybindings --print`.
+
+`Super+Z` está livre nos atalhos padrão do Omarchy. `Super+Ctrl+Z` é o zoom, então esse fica quieto.
 
 ```lua
 o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 ```
 
-## Aparência
+Este troca a grade de Apps do próprio Omarchy (a da dock) pelos Apps da Ilha:
 
-O Estilo chega na pílula no clique. O comando do sistema continua depois.
-
-- **Tema.** A pílula lê o `colors.toml` daquele tema (a sua camada, depois o tema de fábrica) e recolore na hora. O `omarchy theme set` espera 280 ms, então uma sequência rápida de cliques não empilha trocas. Papel de parede, terminais e bordas seguem o comando. Se o tema do sistema não chegar, a pílula volta para o tema que está valendo.
-- **Cantos.** Arredondado usa cápsulas e um canto de painel de 32, e arredonda as janelas junto. Reto deixa a casca, os controles internos e as janelas com quina viva, inclusive o terminal. Tema segue o arredondamento atual do Hyprland; um tema com arredondamento 0 cai no visual arredondado em vez de deixar a ilha reta. Um desktop sem vão não achata a escolha arredondada. `omarchy hyprland corners`.
-- **Vidro.** A superfície da ilha é o fundo do tema levado quase ao preto (num tema claro, um degrau na direção da cor do texto), então a pílula mantém a forma sobre um terminal do mesmo tema. Num tema escuro a superfície é o fundo do tema a 28 % (o Tokyo Night dá `#07080b`); num tema claro é o fundo levado 6 % na direção da cor do texto. Opaca é sólida (alfa 1). Vidro pinta essa superfície a 0.94 na cápsula e 0.92 no painel, por cima do blur que o Omarchy já aplica ao namespace `omarchy-bar`. Translúcida fica em 0.84 e 0.82. Opaca e Vidro não têm fio de borda num tema escuro; a Translúcida, e todo tema claro, mantêm um fio de 1 px na cor do texto com alfa baixo, para a borda não sumir. Não há sombra. Botões, cartões, chips e o calendário usam o alfa do painel, então um controle escolhido não vira uma placa sólida. A exceção são as pequenas marcas de destaque (círculos de ícone ativos, preenchimento dos controles deslizantes, hoje, o workspace ativo, a bateria): elas ficam na cor de destaque sólida mesmo no vidro. A mesma escolha define a opacidade das janelas pelo próprio Omarchy; a Ilha não acrescenta regras de janela. `omarchy hyprland window transparency`.
-- **Fonte.** A família escolhida entra na pílula na hora. O `omarchy font set` ainda reinicia o shell quando reescreve o fontconfig.
-- **Movimento.** A pílula muda de forma em 200 ms fixos quando cresce e 160 ms quando encolhe, numa curva que desacelera, e o conteúdo troca com um fade cruzado. Passar de um painel para outro nunca fecha e reabre a pílula. Com `omarchy toggle animations` desligado, tudo aparece na hora.
-- **Cor.** A pílula usa só `Commons.Color`. Não há paleta própria.
-- **Chaves da Ilha.** Estilo › Janelas e fonte › Ilha traz três chaves. Nível 2 ao parar (`level2Dwell`, ligada por padrão) deixa o ponteiro parado na pílula abrir o nível 2; desligada, a linha fica no nível 1. Só no monitor focado (`focusedOnly`, desligada) desenha a cápsula só no monitor focado do Hyprland; outro monitor só mostra a pílula enquanto estiver mostrando algo (um painel, o OSD, uma notificação, um aviso ao vivo ou o seletor). Aviso ao vivo (`livePeek`, ligada) liga o aviso ao vivo. Elas ficam em `~/.config/omarchy/shell.json`, sob `bar.ilha`, gravadas pela API de plugins do Omarchy (`mutateShellConfig`), que grava o arquivo de forma atômica. Só a chave que mudou é gravada. A pílula lê as chaves ao vivo, então uma edição à mão do `shell.json` também vale, e `omarchy bar reset` devolve o padrão. Sem o host, ou se a gravação for recusada, a escolha só dura até o shell reiniciar.
-
-```json
-"bar": { "ilha": { "level2Dwell": true, "focusedOnly": false, "livePeek": true } }
+```lua
+o.rebind("SUPER + ALT + SPACE", "Apps", "omarchy-shell ilha toggle launcher")
 ```
 
-O modo jogo, no Controle, é outra ação. Ligar pode desligar animações, tirar os vãos e deixar as janelas opacas. Desligar devolve o que ele mudou.
+## OSD
+
+O host não entrega o OSD dele para plugins de terceiros. As teclas do sistema (volume, brilho, mídia) continuam mostrando o OSD do próprio Omarchy.
+
+A pílula mostra:
+
+- `ilha osd '<json>'`, com os mesmos campos do `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText` e `duration` em ms (padrão 1200; `0` deixa na tela até um toque ou `ilha closeOsd`). Um valor sem mensagem desenha um ícone, uma barra e o valor. Uma mensagem desenha uma linha. Um ícone `media` ou `player` desenha a capa com o título e o artista.
+- "Manter esta resolução? Revertendo em 10 s", enquanto a página Tela não está à vista. O toque mantém a resolução.
+- O aviso de reinício (veja Atualizar).
+
+Quando a pílula não pode desenhar (barra escondida, uma janela em tela cheia no monitor focado, ou uma tela que não seja a Central de controle aberta), o `ilha osd` vai para o OSD do Omarchy. Com a Central de controle aberta, um OSD de volume ou de brilho não é desenhado enquanto o controle deslizante dele está à vista; o resto vai para o OSD do Omarchy.
+
+O OSD aparece no monitor focado. O toque num OSD de volume abre Central de controle › Som; num de brilho, Central de controle › Tela; num de mídia, a Mídia. Qualquer outro toque dispensa.
+
+## Aparência
+
+- **Cores.** A Ilha lê as cores de fundo, texto, destaque e urgência do tema do Omarchy. A ilha é sempre escura: a superfície é a mais escura entre fundo e texto, a 10 % sobre o preto. Cartões e linhas são degraus mais claros na cor do texto. A cor de destaque vai na direção da cor do texto até ser legível sobre a superfície (3:1 nos preenchimentos, 4,5:1 no texto), e a de urgência também. Uma troca de tema muda as cores com um fade de 150 ms. A Ilha não grava paleta nenhuma.
+- **Forma.** Uma cápsula com um fio de borda de 1 px e uma sombra suave. Com as chaves de vidro do Omarchy ligadas (`~/.local/state/omarchy/toggles/hypr/bar-glassy.lua` ou `window-glassy.lua`), a sombra fica mais leve. A ilha continua opaca.
+- **Posição.** Sempre no alto. Os ajustes de posição e de fundo da barra do Omarchy não valem para a Ilha.
+- **Fontes.** O texto usa o recorte da Inter que vem junto; outras escritas caem nas fontes do sistema. Os ícones usam o recorte da Material Symbols Rounded que vem junto.
+- **Movimento.** A forma anda em molas e o conteúdo aparece com fade já no layout final. Com as animações do Hyprland desligadas (`omarchy toggle animations`, ou o Modo jogo), tudo muda na hora.
+
+## Ajustes
+
+Duas chaves, em Central de controle › Ajustes da Ilha (o primeiro botão da fileira de atalhos do cartão de notificações), ou com `omarchy-shell ilha open settings`:
+
+- **Só no monitor focado** (`focusedOnly`, desligada por padrão): "Os outros monitores ficam sem a pílula". Só o monitor focado do Hyprland desenha a pílula em repouso. Os outros monitores não desenham nada e não recebem entrada até o foco ir para eles. Todo monitor mantém os seus 48 px, então as janelas não se mexem quando o foco muda.
+- **Aviso ao vivo** (`livePeek`, ligada por padrão): "Uma frase curta quando algo liga". Desligada, nenhum aviso ao vivo aparece.
+
+A página também mostra a versão.
+
+A Ilha guarda as duas em `~/.config/omarchy/shell.json`, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`), que grava o arquivo de forma atômica. Ela só muda a chave que você virou, e só quando você vira uma chave ou roda `ilha setting`. Nada é gravado na instalação nem na partida. A pílula lê as chaves ao vivo, então uma edição à mão do `shell.json` também vale. Sem a API do host, a escolha só dura até o shell reiniciar, e a página diz "Vale até o shell reiniciar".
+
+```json
+"bar": { "ilha": { "focusedOnly": false, "livePeek": true } }
+```
+
+```bash
+omarchy-shell ilha setting livePeek false
+omarchy-shell ilha setting focusedOnly toggle
+```
 
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|media|last>
-omarchy-shell ilha toggle <view|last>
-omarchy-shell ilha run <view> <tecla>   # exemplo: run calendar pgdn, run control q
-omarchy-shell ilha close
-omarchy-shell ilha osd '{"icon":"volume-high","value":"55","progressText":"55%","max":"100"}'
-omarchy-shell ilha closeOsd
-omarchy-shell ilha state
+omarchy-shell ilha open <tela>             # abre uma tela, no modo teclado
+omarchy-shell ilha toggle <tela>           # abre, ou fecha quando essa mesma tela está aberta
+omarchy-shell ilha close                   # fecha a tela aberta e o seletor
+omarchy-shell ilha run <tela> <tecla>      # abre no modo teclado e manda uma tecla, ex.: run themes right
+omarchy-shell ilha picker                  # alterna o seletor de telas no monitor focado
+omarchy-shell ilha hover <0|1|2>           # segura o nível 1 ou 2 no monitor focado; 0 solta
+omarchy-shell ilha peek <chave>            # mostra um aviso ao vivo agora
+omarchy-shell ilha osd '<json>'            # mostra um OSD na pílula
+omarchy-shell ilha closeOsd                # esconde o OSD da pílula
+omarchy-shell ilha setting <chave> <valor> # focusedOnly | livePeek; true | false | toggle
+omarchy-shell ilha state                   # imprime o estado em JSON
 ```
 
-`open` e `toggle` abrem o painel e fecham se ele já estiver aberto. `open media` funciona mesmo sem nada tocando. `state` imprime JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
+- Telas: `launcher`, `control`, `media`, `themes`, `wallpapers`, `power`. Partes da Central de controle: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Apelidos: `apps` (launcher), `cc` e `controls` (control), `theme` (themes), `wallpaper` e `background` (wallpapers), `last` (a última tela aberta).
+- Teclas do `run`: uma letra ou um algarismo, `enter`, `space`, `esc`, `tab`, `up`, `down`, `left`, `right`, `pgup`, `pgdn`, `home`, `end`, `delete`, com um `shift+`, `ctrl+` ou `alt+` opcional na frente. A tecla vai quando a tela fica pronta (no máximo 3 s).
+- Chaves do `peek`: `recording`, `reminder`, `update`, `dnd`, `nightlight`, `stayAwake`, `urgent`. Ele mostra mesmo com aquele estado desligado, mas não com o Aviso ao vivo desligado. `urgent` usa a notificação mais nova da tela.
+- Respostas: `open` e `toggle` imprimem `ok` ou `unknown`; `run` imprime `ok`, `unknown` ou `invalid-key`; `picker` imprime `open`, `closed` ou `busy`; `peek` imprime `shown`, `queued`, `off`, `busy`, `quiet`, `unknown` ou `empty`; `osd` imprime `ok`, `invalid` ou `off`; `setting` imprime `ok`, `unknown` ou `invalid`.
+- O `state` traz a tela aberta, a face de cada monitor, o OSD, o aviso ao vivo, o seletor, os ajustes (com `canPersist`), os takeovers e as duas versões.
+
+A Ilha também atende os alvos que a barra padrão registrava, para os scripts do próprio Omarchy continuarem funcionando:
+
+```bash
+omarchy-shell omarchy.clock <open|show|close|hide|toggle|refresh>   # open e show: nível 2; close e hide: volta
+omarchy-shell omarchy.bar syncHidden
+omarchy-shell omarchy.indicators refresh
+omarchy-shell omarchy.system-update <refresh|clear>
+omarchy-shell omarchy.workspaces refresh
+```
+
+O alvo `osd` continua sendo do Omarchy.
 
 ## Idiomas
 
-A Ilha traz um catálogo em `i18n/` para cada idioma que o Omarchy oferece. Ela segue Configuração → Idioma ao vivo, sem reiniciar o shell, inclusive números e relógio. O que faltar cai no inglês. Idiomas da direita para a esquerda (árabe, persa, hebraico, urdu) espelham a ilha inteira. O relógio, o tempo da gravação, as barras da rede, a bateria e o progresso e os botões de transporte da Mídia ficam da esquerda para a direita de propósito.
+A Ilha traz um catálogo em `i18n/` para cada um dos 50 idiomas que o Omarchy oferece. Ela segue Configuração › Idioma ao vivo, sem reiniciar o shell. Os números usam os algarismos do idioma: o relógio, os workspaces, o tempo da gravação e as porcentagens. A data do nível 2 usa o formato de cada idioma e os nomes de dia e de mês dele. O que faltar cai no inglês.
+
+Os idiomas da direita para a esquerda (árabe, persa, hebraico, urdu) espelham a ilha inteira. A marca fica à direita do relógio, o seletor começa com os Apps à direita e o ícone do aviso fica à direita. Esquerda e Direita seguem a direção da tela. O relógio, o tempo da gravação, as barras da rede, a bateria e a barra de progresso, os tempos e os botões de transporte da Mídia ficam da esquerda para a direita de propósito.
 
 ## Dependências
 
-O Omarchy, com o shell dele. Nenhum pacote extra. A Ilha não instala plugin de blur e não busca nada por conta própria. Os botões chamam os comandos do Omarchy que o nome diz (`omarchy theme`, `omarchy font`, `omarchy capture`, `omarchy hyprland corners`, `omarchy hyprland window transparency` e os serviços de painel correspondentes).
+O Omarchy, com o shell dele. Nenhum pacote extra. As fontes vêm em `fonts/`. Os botões chamam os comandos e serviços do Omarchy que o nome diz (`omarchy-theme-set`, `omarchy-theme-bg-set`, `omarchy-system`, `omarchy-brightness-display`, `omarchy-bluetooth-power`, `omarchy-audio-output-set-default` e assim por diante). A Ilha roda a checagem de atualização do próprio Omarchy (`omarchy-update-available`) 5 s depois de começar, a cada 6 horas e quando o Omarchy pede.
 
-Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro que precise do serviço ao vivo de outro plugin pode ficar limitado aqui. Volte com `omarchy bar use omarchy.bar` quando esse widget precisar da barra padrão.
+A Ilha não desenha nenhum outro widget de barra nem a bandeja. Uma tecla de um painel que não tem tela na Ilha não faz nada. Volte com `omarchy bar use omarchy.bar` quando precisar deles.
 
 ## Arquivos
 
-| Arquivo | Papel |
+| Caminho | Papel |
 |---|---|
-| `manifest.json` | Id, versão e a entrada `bar` |
-| `Island.qml` | Uma janela por monitor, a pílula, os painéis e o IPC |
-| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, marcas de estado, estado das notificações, tocando agora; e o seletor |
-| `Indicators.qml` | Estado ao vivo: a marca do repouso, as marcas de estado, o texto do aviso ao vivo, a fonte da música |
-| `NoticeView.qml` | A notificação e o aviso ao vivo numa linha |
-| `Prefs.qml` | As três chaves do Estilo, lidas e gravadas em `bar.ilha` no `shell.json` |
-| `ContinuousRect.qml` | Cápsula e cartão |
-| `Metrics.qml` | Medidas da grade, raios, durações |
-| `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Controle da grade e a letra |
-| `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Linhas, teclado, rodapé |
-| `IconButton.qml`, `Icon.qml` | Botão e ícone Material Symbols |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `MediaPanel.qml`, `OsdView.qml` | Painéis |
+| `manifest.json` | Id, versão 2.0.0 e a entrada `bar` `ui/Ilha.qml` |
+| `ui/Ilha.qml` | Entrada: contrato com o host, navegação, serviços, ajustes, IPC |
+| `ui/IslandWindow.qml` | Uma janela por monitor: a forma, as faces, a máscara de entrada, as teclas |
+| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Níveis 1 e 2, a marca do repouso, o seletor, a dica da linha, o relógio, os workspaces |
+| `ui/PeekBridge.qml`, `PeekFace.qml` | Aviso ao vivo |
+| `ui/OsdBridge.qml`, `OsdFace.qml` | OSD na pílula, pergunta da resolução, aviso de reinício |
+| `ui/PickerBridge.qml` | Takeovers dos seletores de tema e de papel de parede |
+| `ui/ScreenStack.qml` | Carrega e troca as telas |
+| `ui/ControlCenter.qml`, `WifiCard.qml`, `BluetoothCard.qml`, `SoundPage.qml`, `DisplayPage.qml`, `IlhaPage.qml`, `NotificationsCard.qml` | Central de controle |
+| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `ThemeScreen.qml`, `WallpaperScreen.qml`, `PowerScreen.qml` | As outras telas |
+| `ui/*Svc.qml`, `StateStore.qml`, `AppSearch.js` | Estado do sistema, áudio, rede, monitores, mídia, apps, temas, ajustes (`PrefsSvc.qml`), estado próprio |
+| `ui/Theme.qml`, `Motion.js`, `Morph.qml`, `SpringValue.qml` | Cores, medidas, geometria de cada face, molas, tempos |
+| O resto de `ui/` | Controles: `IlhaSwitch`, `IlhaSlider`, `IlhaRoundButton`, `ToggleTile`, `Carousel`, `CircleButton` e outros |
+| `fonts/` | `InterIlha2.ttf` (recorte da Inter, OFL, `LICENSE-Inter.txt`) e `MaterialSymbolsRoundedIlha2.ttf` (recorte da Material Symbols Rounded, Apache 2.0, `LICENSE-MaterialSymbols.txt`) |
 | `i18n/` | Um catálogo por idioma do Omarchy |
-| `install.sh`, `uninstall.sh` | Atalhos opcionais. O Omarchy não os executa |
+| `dev/` | Só para desenvolvimento; o Omarchy nunca carrega. O `harness.sh` roda uma instância à parte do Quickshell que nunca toca no shell em uso; os scripts em Python conferem catálogos, ícones, nomes e contraste, e geram os recortes das fontes |
+| `uninstall.sh` | Volta para a barra padrão. O Omarchy não o executa |
 
-Um painel recebe `active`, as cores, `shell` e `metrics`, e informa o tamanho com `implicitWidth` e `implicitHeight`. Pode implementar `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape` e `focusFirst`.
+Uma tela recebe `island`, `theme`, `strings`, `morph`, `payload`, `current` e `keyboardMode`, e informa o tamanho com `implicitWidth` e `implicitHeight`. Ela implementa `opened(payload)`, `closed()`, `handleKey(event)` e `handleEscape()`, e pode emitir `navigate(id, payload)` e `closeRequested()`. Nada numa tela roda antes de `opened()` nem depois de `closed()`.
 
 ## Quando algo falha
 
 - A cópia nova não virou a barra. Rode `omarchy restart shell` e depois `omarchy plugin enable esegnorelli.ilha`.
-- O shell registrou `bar option esegnorelli.ilha failed to load, falling back to omarchy.bar`. Rode `omarchy plugin validate ~/.config/omarchy/plugins/esegnorelli.ilha` e leia `journalctl --user -t omarchy-shell`.
-- A cor da pílula espera o papel de parede. Não deve. O Estilo lê o `colors.toml` antes do `omarchy theme set`. Papel de parede e terminais ainda seguem o comando.
+- O shell registrou `bar option esegnorelli.ilha failed to load, falling back to omarchy.bar`. Rode `omarchy plugin validate ~/.config/omarchy/plugins/esegnorelli.ilha` e leia `journalctl -t omarchy-shell`.
+- A pílula diz "Reinicie o shell para concluir a atualização da Ilha". O shell ainda roda o código antigo da Ilha. Toque no aviso ou rode `omarchy restart shell`.
+- As teclas de volume e brilho mostram o OSD do Omarchy, não a pílula. É o esperado: o host não entrega o OSD dele para plugins de terceiros.
+- A bandeja, ou outro widget de barra, sumiu. A Ilha não desenha nenhum. Use `omarchy bar use omarchy.bar` quando precisar deles.
 - O `omarchy plugin update` recusa o pull. A cópia tem edições locais. Faça commit ou stash em `~/.config/omarchy/plugins/esegnorelli.ilha`.
 
 ## Licença

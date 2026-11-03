@@ -1,10 +1,12 @@
 # Ilha
 
-Floating island bar for [Omarchy](https://omarchy.org). At rest it is a clock. Under the pointer it becomes one tight status line. Panels open one at a time, in the same pill.
+Floating island bar for [Omarchy](https://omarchy.org). At rest it is a clock. Under the pointer it becomes the workspace line, and a click opens the full line. Six screens open inside the same pill: Control Center, Apps, Media, Themes, Wallpapers, and Power.
 
 Documentação em português: [LEIA-ME.md](LEIA-ME.md).
 
-Ilha replaces the bar (`kinds: ["bar"]`, id `esegnorelli.ilha`). It is not a widget inside the default bar. Colors, corners, glass, and the font follow the Omarchy theme, and a click in Estilo paints the pill before the rest of the desktop finishes switching.
+Ilha replaces the bar (`kinds: ["bar"]`, id `esegnorelli.ilha`, version 2.0.0). It is not a widget inside the default bar. Colors follow the Omarchy theme, and the text follows the Omarchy language.
+
+> After an update, if the pill says "Restart the shell to finish updating Ilha", tap it or run `omarchy restart shell`.
 
 ## Install
 
@@ -12,7 +14,13 @@ Ilha replaces the bar (`kinds: ["bar"]`, id `esegnorelli.ilha`). It is not a wid
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` switches the bar to Ilha. Omarchy asks you to confirm, because a plugin runs inside the long-lived shell. There is no extra package, no sudo, and no setup step: everything Ilha uses ships with Omarchy. `omarchy plugin add` only clones the repo and validates `manifest.json`, and that is all Ilha needs. Outside its own folder it writes only the three Estilo switches (see Appearance), inside Omarchy's own `~/.config/omarchy/shell.json`, through the host's plugin API (`mutateShellConfig`).
+`omarchy plugin add` clones the repo and validates `manifest.json`. `--enable` then switches the bar to Ilha. Omarchy asks you to confirm first, because a plugin runs as unsandboxed code inside the long-lived shell (`--yes` skips the questions). There is no extra package, no sudo, and no setup step. Ilha runs no install script and writes nothing when it starts.
+
+Outside its own folder, Ilha writes only these:
+
+- Its two settings, in Omarchy's own `~/.config/omarchy/shell.json` under `bar.ilha`, through the host's plugin API (`mutateShellConfig`). Only when you flip a switch or run `ilha setting` (see Settings).
+- Its own state, in `~/.local/state/esegnorelli.ilha/` (`$XDG_STATE_HOME` when set): `state.json` (when you last pressed Clear in the notifications, and the night light temperature) and `game-mode.json` while Game Mode is on.
+- The answer to Omarchy's background switcher, in the two reply files that script creates and waits on (see Theme and wallpaper keys).
 
 If the bar was hidden, show it again with `omarchy toggle bar`.
 
@@ -22,9 +30,15 @@ If the bar was hidden, show it again with `omarchy toggle bar`.
 omarchy plugin update esegnorelli.ilha
 ```
 
-With no id, `omarchy plugin update` updates every git-managed plugin. It shows the diff and refuses to fast-forward over local edits.
+With no id, `omarchy plugin update` updates every git-managed plugin. It shows the diff and refuses to fast-forward over local edits. Then Omarchy rescans its plugins.
 
-Omarchy keeps the previous Ilha in its QML cache, so after an update or a reinstall run `omarchy restart shell` to see the new version.
+Omarchy does not clear its QML cache. Ilha compares the version in `manifest.json` with the version of the code the shell has loaded. When they differ, the pill shows "Restart the shell to finish updating Ilha" for 8 seconds, once per session, about 2 seconds after Ilha loads. It waits, up to about a minute, while a screen, a hover level, or another OSD is up. A tap runs `omarchy-restart-shell`. `omarchy restart shell` does the same. With the bar hidden, the notice shows in Omarchy's OSD instead.
+
+From 1.x:
+
+- The 2.0 code lives in `ui/`, a folder 1.x never had, and the bar now starts from `ui/Ilha.qml`. The 1.x QML files at the root are gone. Because every file is new, the shell loads 2.0 right away, with no restart.
+- `focusedOnly` and `livePeek` in `bar.ilha` keep their values. `level2Dwell` is gone: level 2 opens on a click. Ilha ignores the old key and removes it the next time it saves a setting.
+- The Tempo, Captura, Estilo, Ferramentas, and Plugins panels are gone, and with Estilo the corner, transparency, and font controls.
 
 ## Remove
 
@@ -42,144 +56,375 @@ Delete the checkout (the GitHub repo stays):
 omarchy plugin remove esegnorelli.ilha
 ```
 
+Ilha's state folder, `~/.local/state/esegnorelli.ilha/`, stays. Delete it by hand if you want.
+
 If Ilha fails to load, Omarchy falls back to `omarchy.bar` on its own.
 
 ## What you see
 
-The pill floats 12 px from the top edge, on the overlay layer, and does not reserve screen space. Windows do not move when it grows. It stays above fullscreen. The size it publishes to the shell (`barSize`) is 50.
+One island per monitor, centred at the top. It reserves 48 px at the top of each monitor (`barSize` 48), so windows start below it. The pill grows over the windows; they do not move. The island sits on the top layer. A screen opened over a fullscreen window moves to the overlay layer, so it shows above it.
+
+With the bar hidden (`omarchy toggle bar`), the pill and its 48 px go away. Screens opened by a key or by IPC still appear.
 
 | State | What is on the pill |
 |---|---|
-| Rest | The clock, in a true capsule of 108 × 38. When something is on, a mark sits beside the time and the capsule grows to fit it: the icon of the highest-priority active indicator, in its own color, in this order: recording, reminder, update, Do not disturb, night light, stay awake. While recording, the elapsed time follows the icon and counts seconds (only then; the clock itself stays in minutes). While music plays, three small accent bars sit beside the icon, or alone when nothing else is on. Notifications on screen do not count here; they live on the bell. |
-| Hover | Level 1: the clock between two groups, the workspaces as numbered capsules on one side (the active one wider, in the accent, workspace 10 shown as 0), network bars, battery, and up to two status marks on the other. While music plays, a now-playing element (the cover, or a note, and the short title) sits before the workspaces. |
-| Hover, held | Level 2, after the pointer rests still on the pill for 1.6 s: the pill widens to three columns, at most 640 × 64. Left, the focused app over the workspaces. Centre, a big clock with the date beside it. Right, the notification status (the count, or "All caught up", and the bell) over network, battery, and the status marks. With a track loaded (playing or paused), the focused-app line becomes "title — artist" with a small play/pause button. |
-| Picker | The six panel icons in one row of 236 × 46, each with its digit underneath. See below. |
-| Live notice | One short line that grows out of the pill and returns: "Recording 0:42", "Reminder in 15 min", or an urgent notification. See below. |
-| Panel | The same object morphs into one panel. There is no header line on top of it. |
+| Rest | The clock, in a capsule 32 px tall, 10 px from the top edge. When something is on, a mark sits beside the clock. |
+| Level 1 | The pointer is on the pill. A line 42 px tall, 22 px from the top: this monitor's workspaces as numbered capsules, the clock, and the status group. |
+| Level 2 | A click on level 1. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
+| Screen picker | Right click or long press. Six icons in a 236 × 42 capsule. |
+| Live notice | Something just turned on. One short line, 40 px tall. |
+| OSD | `ilha osd`, the resolution prompt, or the restart notice. 40 px tall. |
+| Screen | One of the six screens, in the same shape. |
 
-There are two hover levels. A 3 px invisible strip across the central 600 px of the top edge, the 12 px gap under it, or the pill itself opens level 1, the line. Level 2 opens only when the pointer rests still on the pill itself: 1.6 s without moving more than 4 px (moving further restarts the count). The strip and the gap never open level 2, so passing over the top edge does not unfold the pill, and Estilo can turn level 2 off. Leave, and it returns to the clock. Nothing rotates on its own. A click on the now-playing element, at either level, opens Media. With no player, none of the music parts appear. The first time the pointer opens the line in a session, a short hint shows under the pill for 3 s: "0 time · 1 apps · scroll switches".
+### Rest
 
-At rest, a tap on the mark opens the panel that owns it: recording opens Captura, a reminder Tempo, an update Ferramentas, and Do not disturb, night light, and stay awake open Controle. The music bars open Media, and a tap elsewhere on the capsule opens Tempo. With the pointer on the mark the line does not open, so the tap lands on the mark, and its short name shows in a tooltip.
+The clock reads `HH:mm` in the language's digits. It is 12-hour (`h:mm`, with no AM/PM) when the `omarchy.clock` entry in the bar layout of `shell.json` has a `format` with `AP`.
 
-| Place | Content | Click |
+When something is on, the capsule widens and a mark sits beside the clock (on its left; on its right in right-to-left languages):
+
+- The icon of the first state that is on, in its color, in this order: remote session, passwordless sudo, recording, reminder, update, Do not disturb, night light, stay awake.
+- While recording, the elapsed time follows the icon (`0:42`). The clock itself stays in minutes.
+- While music plays, three small accent bars sit next to the clock. They do not move. A paused player shows none. With only music on, the bars are the whole mark.
+
+Notifications are not part of the mark.
+
+With the pointer over the mark, the pill stays at rest and the mark highlights, so a tap lands on it. Anywhere else, the pointer opens level 1 at once.
+
+- A tap on the mark opens its owner. Remote session, passwordless sudo, recording, reminder, and update open level 2 with that state pinned on the status line. Do not disturb and night light open the Control Center. Stay awake opens Control Center › Display with the Stay awake card highlighted.
+- A tap on the music bars opens Media.
+- A pinned state stays on the status line while it is on. After the click that turns it off (stopping the recording, for example), the line falls back to the usual order.
+
+### Level 1
+
+The pointer on the pill, in the gap above it, or on the top strip opens level 1 at once. Leave for 60 ms and it returns to rest.
+
+- Workspaces: this monitor's block (1–10, 11–20, …), the first five plus any higher one that exists. The digit sits inside each capsule; workspace 10 reads `10`. The active one is larger, in the accent, with a glow. Occupied ones are tinted with the accent. Empty ones are faint. Urgent ones use the urgent color.
+- Status group, in order: music bars (while a track is loaded; they move while it plays and dim when it is paused), the privacy dot (recording, remote session, or passwordless sudo; it pulses while recording), network (Wi-Fi bars, a cable icon, or offline), and battery (laptops only; a bolt while plugged in; the urgent color at 15 % or less on battery).
+- Click a capsule to focus that workspace. Click the music bars for Media. Click anywhere else for level 2.
+
+### Level 2
+
+A click on level 1 opens it. It stays while the pointer is on it and closes 2.5 s after the pointer leaves. Super+Ctrl+Alt+D toggles it on the focused monitor.
+
+- Left: the focused window's app icon and name, or "Desktop" when the workspace has no window. When the focused window is the music player, its title and artist. Under it, the workspaces, larger.
+- Centre: the clock, larger, and the date in the language's own format.
+- Right: the status line, over network and battery.
+
+A capsule focuses its workspace. The app line opens Apps (Media when it shows the player). The clock and date open the Control Center. The status line runs its action. Empty space returns to level 1.
+
+The status line shows the first match:
+
+| State | Text | Click |
 |---|---|---|
-| Left | Workspaces for this monitor as numbered capsules: the first five of the monitor's block, plus any higher one that exists. The active one is wider, filled with the theme accent. Occupied ones are brighter. Empty ones are quiet. | Click a capsule to focus that workspace. Click the active one to cycle its layout (Tiling, Scrolling, Floating); its name shows in a tooltip |
-| Center | Time | Open Tempo |
-| Right | Network bars and battery, the battery filled in the accent, then up to two status marks in the same order as the rest mark, notifications last | Network or battery opens Controle. A mark acts on its own: recording stops; Do not disturb, night light, and stay awake turn off; a reminder opens Tempo; an update opens Ferramentas; the bell opens the newest notification |
+| Remote session | "Remote session", or "Remote session · " and who is connected | Nothing |
+| Recording | "Recording 0:42" | Stops the recording |
+| Passwordless sudo | "Passwordless sudo on" | Turns it off |
+| Notifications on screen | "3 notifications" | Control Center |
+| Reminder | "Reminder in 15 min" | Runs `omarchy-reminder show` |
+| Update | "Update available" | Opens `omarchy-update` in a floating terminal |
+| Stay awake | "Staying awake" | Turns stay awake off |
+| A track is loaded | "Title · Artist" | Media |
+| Do not disturb | "Do not disturb" | Turns it off |
+| Nothing | "All caught up" | Control Center |
 
-Apps, Controle, Captura, Estilo, Ferramentas, and Energia are not drawn on the line. They appear together only in the picker. Each panel opens in the pill, one at a time.
+### Screen picker
 
-**Picker.** Long press or right click on the capsule (or on the line) shows the six panel icons: Apps, Controle, Captura, Estilo, Ferramentas, Energia, each with its digit underneath. Resting on an icon shows "name · digit"; a tap opens that panel. The picker goes away on its own: 2.6 s without the pointer on it, or 0.7 s after the pointer has been on it and left. Another right click on the same monitor hides it. It does not open while a panel is open.
+Right click, or a long press (0.5 s), on the pill at rest, at level 1, or at level 2 shows six icons: Apps, Control Center, Media, Themes, Wallpapers, Power. That is the same order as Alt+1–6. The icons have no labels.
 
-**Live notice.** When an indicator turns on, the pill grows into one short line, in the notification format with the indicator's icon and color: "Recording 0:42" (the time keeps counting), "Reminder in 15 min", "Update available", "Do not disturb on", "Night light on", "Stay awake on". It stays 2.6 s, and only while the indicator is still on, then returns to the clock. An urgent notification shows the same way, as one line (icon, app, summary), for 4 s. Resting the pointer on the notice pauses the count; after the pointer leaves, it stays 1 s more. A tap opens the owning panel, or, for a notification, opens it in the pill as the bell does. With a panel open, an indicator does not raise a notice, and indicators already on when Ilha loads do not raise one either. With Live notice off in Estilo, a new indicator shows the line for 2.6 s instead, and urgent notifications do not appear on their own.
+- A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing".
+- A tap between icons, or another right click, closes the picker.
+- It closes by itself 2.6 s after it opens if the pointer never reaches it, or 0.7 s after the pointer leaves it.
+- It does not open while a screen is open or while the bar is hidden.
+- A long press on a workspace capsule does not focus it.
 
-## Panels
+### Line hint
 
-Every panel uses the same 4-column grid and a fixed height per page, so the pill does not jump when the contents change. The width hugs the panel: 564 for most, 498 for Controle, 468 for Media. With the mouse a panel shows only its controls; the key letters and the footer line (status on the left, hints on the right) appear in keyboard mode only.
+The first time level 1 opens in a session, a small tag shows under it for 3 s: "Click: more · Right-click or hold: screens · Alt+1–6: switch". It goes away when the line closes. It does not show while the bar is hidden or while the restart notice is up. It is not saved, so the next session shows it again.
 
-| Key | Panel | What is inside |
+### Top edge
+
+A 3 px invisible strip along the central 600 px of the top edge (less on narrow screens) opens level 1, never level 2. Over the mark, the pill stays at rest instead, so pushing the pointer to the top over the mark and clicking opens the mark's owner.
+
+### Live notice
+
+When something turns on, the pill on the focused monitor becomes one short line, then returns to the clock.
+
+| Trigger | Line | Tap |
 |---|---|---|
-| 0 | Tempo | The month. Page Up and Page Down change it. Home returns to today |
-| 1 | Apps | App search. Arrows, Enter. Esc clears, then closes |
-| 2 | Controle | Three rows of 56 px, each two capsule tiles (icon circle, name, state) and one round tile (icon only; its name shows in a small tooltip on hover, or in the footer in keyboard mode). `Q` Wi-Fi, `W` Do not disturb, `E` microphone; `A` Bluetooth, `S` game mode, `D` night light; `Z` stay awake, `X` animations, `C` speed test. Without Wi-Fi the first slot becomes Screensaver; without Bluetooth, Suspend. On lights only the icon circle in the accent; Wi-Fi or Bluetooth on but not connected shows a faint accent veil instead. Below the tiles, the Sound card: a volume bar (`-`/`=` ±5 %, `M` or a tap on the icon mutes) whose chevron, or Enter, opens the Sound subpage (outputs, input); a round Back button or Esc returns. Last, the network row: interface and type, IPv4 address, and a Wi-Fi QR button (`V`) when on Wi-Fi. The speed test and the QR close the island and open Omarchy's own panels |
-| 3 | Captura | Region, screen, window, or scrolling screenshot, and Smart at `V`. Recording with system audio and microphone. OCR, QR code, color picker |
-| 4 | Estilo | Three pages under tabs at the top: Theme, Background, and Windows and font. `Tab` and `Shift+Tab` switch pages; the width stays put and only the height changes. **Theme**: a carousel of 140 × 80 swatches, each the theme's own background with its palette as dots and its name in its text color; the cursor card sits in the centre, outlined, and the neighbors fade toward the edges. A small accent dot marks the theme in use. Arrows choose; Enter, or a click on the centre card, applies; a click on a neighbor only selects it. Under the strip, the current theme and `n/N`. The grid button in the header, or `R`, opens All themes (a 4-column grid). **Background**: a carousel of that theme's wallpapers, the chosen one 160 × 90 in the centre with an accent outline, the neighbors smaller and quieter; the wallpaper in use keeps an accent dot. Under it, the file name and `n/N`, then three compact buttons: Next wallpaper, Pick wallpaper, and From wallpaper colors (`Q W E`). The header shows the theme the wallpapers belong to. **Windows and font**: Corners (From theme, Sharp, Rounded; `W E R`), Transparency (Opaque, Transparent, Glass; `S D F`), Font, and, under Island, three switches (`Z X C`): Level 2 on rest, Focused monitor only, and Live notice (see Appearance). On Theme and Background, `/` starts a search that takes the place of the tabs; the shortcut letters and digits keep working until you type. Esc clears the search, closes All themes, returns to the Theme page, then closes |
-| 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins. The update check runs at most every 10 minutes and gives up after 30 seconds |
-| 6 | Energia | A row of rounded square buttons, icon and label: lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
-| — | Plugins | Search the shell plugins. Enter turns one on or off. Switching the bar asks for a second press. The wheel reaches it after Energia |
-| — | Media | A compact mini player, 440 × 98 inside a 468 × 126 island, for the active MPRIS player (Omarchy's media service when present). Top row: a 64 px cover, title over "artist · album", and previous, play/pause, next. Bottom row: elapsed time, progress bar, total time. Click or drag the bar to seek when the player allows. Shuffle and repeat (off, playlist, track) sit at the ends of the bar only when the player supports them. Chips to switch players appear under the artist line when there is more than one. Keys: Space or `K` play/pause, `←`/`J` previous, `→`/`L` next, `,` and `.` seek 10 s, `S` shuffle, `R` repeat, `P` next player. Nothing playing shows an empty state at the same height |
-| — | OSD | Volume, brightness, and other notices sent to the island |
-| — | Notification | Click the bell on the status line (a status mark on level 1, the notification status on level 2). The newest one opens inside the pill: icon, app, and summary on one line. A regular notification does not appear on its own; an urgent one arrives as a live notice, and a tap on it opens this same line. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
+| A recording starts | "Recording 0:42" (keeps counting) | Level 2, pinned on the recording |
+| A reminder is set, and once more when 5 minutes are left | "Reminder in 15 min", or "Reminder in 15 min · " and its message | Level 2, pinned on the reminder |
+| An update becomes available | "Update available" | Level 2, pinned on the update |
+| Do not disturb turns on | "Do not disturb on" | Control Center |
+| Night light turns on | "Night light on" | Control Center |
+| Stay awake turns on | "Stay awake on" | Control Center › Display, Stay awake card highlighted |
+| An urgent notification arrives | The app and the summary | Control Center, with that notification highlighted |
 
-Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and network open Controle, the clock opens Tempo, power opens Energia, media opens Media.
+- It stays 2.6 s (an urgent notification 4 s) and ends early if the state turns off. The pointer on it pauses the count; after the pointer leaves, it stays 1 s more. A right click dismisses it.
+- Only a change counts. States already on when Ilha starts, or that change in its first 4 seconds, raise nothing. Remote session and passwordless sudo never raise one; they show in the mark and on level 2.
+- While Do not disturb is on, only the Do not disturb, recording, and urgent notices appear.
+- No notice appears while a screen or the picker is open, or while a window is fullscreen on the focused monitor. While the focused pill is at level 1, at level 2, or showing an OSD, the notice waits up to 5 s for it to return to rest.
+- A notice of equal or higher priority replaces the one on screen (urgent, recording, reminder, update, Do not disturb, night light, stay awake). An OSD on the same monitor ends it.
+- With Live notice off in Ilha settings, no notice appears.
+
+Regular notifications never show in the pill. Omarchy's own cards stay, because they carry the actions.
+
+## Screens
+
+Six screens, in one order: Apps, Control Center, Media, Themes, Wallpapers, Power. The picker, Alt+1–6, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
+
+### Control Center
+
+514 × 513. Two rows of controls, then three cards.
+
+| Place | Control | Click |
+|---|---|---|
+| Row 1 | Wi-Fi tile (network name, "Not connected", "Off", "Unavailable", or "Ethernet") | The tile opens the Wi-Fi popover. The icon circle turns Wi-Fi on or off |
+| Row 1 | Focus tile | Turns Do not disturb on or off |
+| Row 1 | Lock (round) | Closes the island and runs `omarchy system lock` |
+| Row 2 | Bluetooth tile ("On", "Off", "2 connected", or "No Bluetooth adapter") | The tile opens the Bluetooth popover. The icon circle turns Bluetooth on or off |
+| Row 2 | Game Mode tile | On, it turns off animations, removes gaps, and makes windows opaque, saving what it changed. Off, it puts back only what it changed |
+| Row 2 | Night Light (round) | Turns night light on or off, at the temperature set in Display |
+| Card | Sound | Volume bar: drag or click. A tap on its icon mutes. The arrow opens the Sound page |
+| Card | Display | Brightness of the focused monitor ("Brightness unavailable" when it has no control). The arrow opens the Display page |
+| Card | Notifications | See below |
+
+**Notifications.** On-screen notifications first, with an accent dot, then those closed in the last 24 hours since the last Clear, newest first, at most 30. "Clear" dismisses them all. A click on the newest on-screen one clicks it, as Omarchy's card would, and closes the island. Hovering an on-screen one shows a button to dismiss it. With none: "No notifications". With the pointer on the card, or in keyboard mode, a row of shortcuts appears in its header: Ilha settings, Apps, Themes, Wallpapers, Power.
+
+**Popovers and pages.** Each one grows out of the control that opened it and dims the grid. The back button, Esc, or a press outside the card returns.
+
+- Wi-Fi: a switch for the radio, the connected network with Disconnect, then "Networks" with Connect. It scans only while open. Five rows show, then the list scrolls. A secured network asks for its password in the row ("Wrong password" on failure). A known network shows a button to forget it. An enterprise (802.1X) network opens `nmtui` in a terminal.
+- Bluetooth: a switch, "Saved" devices with Connect or Disconnect, then "Nearby" devices with Pair. It looks for devices only while open. Connecting headphones moves the audio output to them.
+- Sound: "Output" devices and the output volume, then "Input" devices and the input volume. A row sets the default device.
+- Display: one card per monitor, with brightness, scale (1.0× to 2.0×, the ones that fit the monitor), and Resolution (up to 6 modes). A new resolution asks "Keep this resolution? Reverting in 10 s", with Keep and Revert, and reverts on its own. If the Control Center closes, the countdown moves to the pill, and a tap keeps the resolution. Then Night Light (a switch and the temperature, 2500–5800 K) and Stay awake ("Screen won't dim, lock or sleep").
+- Ilha: the two switches. See Settings.
+
+**Keys.** The arrows move by position. Tab and Shift+Tab move in order. Home goes to Wi-Fi, End to the notifications. Enter runs the main action. Space presses a tile's icon circle, or mutes on the Sound bar. On a bar, Left and Right change it by 5 % (Shift: 1 %). M mutes on the Sound card. On a notification, Delete dismisses an on-screen one, and Enter on the newest on-screen one clicks it. In the popovers and pages, Up and Down move, Enter and Space choose or toggle, Space turns the radio on or off in Wi-Fi and Bluetooth, Delete forgets a known Wi-Fi network, Left and Right change bars by 5 % (Shift: 1 %), and M mutes the focused section in Sound. Esc closes the password field or an open list, then the popover or page, then the island.
+
+### Apps
+
+514 × 368. The app search: "Search…" at the top, six rows below.
+
+- With nothing typed, every visible app, A to Z. Typing ranks by fuzzy match. No match: "No apps found".
+- Hidden entries follow Omarchy's own rules.
+- The highlight follows the pointer only when the pointer moves. The wheel scrolls.
+- Terminal apps open through `omarchy-launch-tui`, the rest through `uwsm-app -- gtk-launch`. When no window appears within 2 s, Omarchy's OSD says "Launching Firefox…" (with the app's name) until it does, for at most 15 s.
+- Keys: Up and Down, Tab and Shift+Tab (they wrap around), Page Up and Page Down by 6. Enter opens the app and closes. Esc clears, then closes.
+
+### Media
+
+514 × 218. The active MPRIS player, from Omarchy's media service.
+
+- The cover, the title, the artist, and the player's name. With more than one player, the name is a button that switches player.
+- The seek bar, with elapsed and remaining time. Click or drag it when the player allows.
+- Shuffle, previous, play/pause, next, repeat (off, playlist, track). Shuffle and repeat work when the player supports them.
+- With no player: "Nothing playing" and "Play something in any player", at the same size.
+- Keys: Space or Enter play/pause, Left and Right seek 5 s, Shift+Left and Shift+Right previous and next, S shuffle, R repeat, P next player.
+
+It also opens from the music bars, the level 2 app and status lines, a media OSD, and Super+Ctrl+4.
+
+### Themes
+
+As wide as 2 to 4 cards fit on the screen (30 + 194 px per card), 222 tall.
+
+- A search field ("Search themes…") and a counter (`3/18`). No match: "No themes match".
+- Each card shows the theme's background, six dots of its palette, and its name in its text color. The centre card is the selected one: it lifts and gets an accent border. A small dot marks the theme in use.
+- "Enter to apply". Enter runs `omarchy-theme-set`. The dot moves at once. The screen closes when the theme is in use, or 1.5 s later. There is no live preview. The island's colors cross-fade in 150 ms when the new palette arrives.
+- Mouse: a click centres a card. A click on the centre card, or a double click, applies. The wheel moves one card per notch.
+- Keys: the arrows (Left and Right follow the screen direction), Tab and Shift+Tab, Page Up and Page Down by 4, Home, End, Enter applies. Esc clears the search, then closes.
+- Themes come from `~/.config/omarchy/themes` and from Omarchy's own themes. Yours wins on the same name.
+
+### Wallpapers
+
+As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 tall.
+
+- "Wallpaper" and the theme name at the top. The selected thumbnail sits in the centre with an accent border. A small dot marks the wallpaper in use. Under the strip: the file name, the counter, and "Enter to apply".
+- Opened by Ilha (picker, Alt+5, Ctrl+Tab, `ilha open wallpapers`): the current theme's backgrounds plus `~/.config/omarchy/backgrounds/<theme>`. Enter runs `omarchy-theme-bg-set` and closes when it finishes (at most 1.2 s). None: "No wallpapers for this theme".
+- Opened by Omarchy's background keys: see Theme and wallpaper keys.
+- Video wallpapers use their cached thumbnail.
+- Mouse as in Themes. Keys: the arrows, Tab and Shift+Tab, Page Up and Page Down by one screenful, Home, End, Enter applies, Esc closes.
+
+### Power
+
+514 × 112. Five buttons: Lock, Suspend, Log Out, Reboot, Power Off.
+
+- Lock is selected when it opens. The pointer selects, a click presses.
+- Log Out, Reboot, and Power Off need a second press within 3 s: the label reads "Press again". A second press sooner than 350 ms is ignored.
+- Suspend is dimmed when sleep is turned off in Omarchy.
+- Keys: Left and Right (they follow the screen direction), Tab and Shift+Tab, Home, End, 1–5 select and press, Enter or Space press. Esc cancels a pending confirmation, then closes.
+- The command runs 180 ms after the island closes: `omarchy-system-lock`, `systemctl suspend`, `omarchy-system logout`, `omarchy-system reboot`, or `omarchy-system shutdown`.
 
 ## Mouse and keyboard
 
-- The wheel switches panels only while a panel is open, on its top edge (the 14 px padding, full width). On the line and at rest it does nothing. Each notch (120 units) moves one panel: Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, and Media when a track is loaded. Scroll down goes forward. Scroll up goes back. A partial scroll resets after 200 ms without wheel events, or when the direction flips, so slow trackpad drift never switches.
-- Long press or right click on the capsule shows the picker; a tap on an icon opens that panel.
-- Lists and sliders keep their own wheel. Volume lives in Controle.
-- `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them, Media included only when a track is loaded.
-- Arrow keys move, Enter and Space activate.
-- Letters follow the grid: `Q W E R`, `A S D F`, `Z X C V`. The letter shows on the control in keyboard mode only. The footer line with status and hints also appears only in keyboard mode; with the mouse a panel ends with the same padding as its top. The focus outline appears only after you navigate with the keyboard. The same letters work on a QWERTY or ABNT2 keyboard.
-- In Estilo, `[` and `]` only highlight a font. Enter or a click applies it. Icon fonts stay out of the list.
-- Esc cancels a confirmation, then clears search, then closes.
-- A click outside closes the panel.
-- Confirmations (reboot, power off, log out) turn the control red and read "Confirm?" for 4 seconds. A second press sooner than 350 ms is ignored.
+- The wheel switches screens only while a screen is open, on the band across the screen's width in the top 24 px of the monitor: the gap above the screen and its top padding. Each notch (120 units) moves one screen, in the order above. Down goes forward, up goes back. A partial scroll resets after 200 ms without wheel events, or when the direction flips, so slow trackpad drift never switches. Right-to-left languages do not flip it. At rest, on levels 1 and 2, on the picker, on a notice, or on an OSD, the wheel does nothing. Lists, carousels, and sliders keep their own wheel.
+- Right click or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows the picker. On the picker it closes it. On a live notice it dismisses it.
+- A click outside an open screen closes it.
+- Keys work only while a screen is open. The hover levels, the picker, and the notices never take the keyboard.
+- Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Control Center, Media, Themes, Wallpapers, Power.
+- Esc first goes to the screen (it clears a search, closes a popover or page, cancels a confirmation), then closes the island.
+- Any key turns keyboard mode on. Moving the pointer more than 8 px turns it off.
 
-Optional binding, in `~/.config/hypr/bindings.lua`. `Super+Z` is free in the default Omarchy bindings. `Super+Ctrl+Z` is zoom, so leave that one alone.
+### Omarchy keys
+
+Omarchy's own panel keys land on Ilha's screens. The same key again closes what it opened.
+
+| Key | Omarchy name | In Ilha |
+|---|---|---|
+| Super+Ctrl+A | Audio | Control Center › Sound |
+| Super+Ctrl+B | Bluetooth | Control Center › Bluetooth |
+| Super+Ctrl+N | Network | Control Center › Wi-Fi |
+| Super+Ctrl+D | Display | Control Center › Display |
+| Super+Ctrl+P | Power | Power |
+| Super+Ctrl+Alt+D | Calendar | Level 2, on the focused monitor |
+| Super+Ctrl+Alt+E | World clock | Control Center |
+| Super+Ctrl+1, 2, 3, 4 | Bar panel 1–4 | Control Center › Sound, Control Center › Wi-Fi, Power, Media |
+| Super+Ctrl+5 to 9 | Bar panel 5–9 | Nothing |
+| Super+Ctrl+T, Super+Shift+Ctrl+Space | Theme menu | Themes |
+| Super+Ctrl+W, Super+Ctrl+Space | Background switcher | Wallpapers |
+
+### Theme and wallpaper keys
+
+Ilha takes over Omarchy's two image pickers. No key and no menu entry is rebound: the same keys and entries open Ilha's screens.
+
+- **Wallpapers.** Super+Ctrl+W, Super+Ctrl+Space, and Menu › Appearance › Background run Omarchy's background switcher, which asks the shell's `image-selector` target for a picker. Ilha answers that target ahead of Omarchy's picker. When every image in the request is in the theme's backgrounds (`~/.local/state/omarchy/current/theme/backgrounds/`) or in `~/.config/omarchy/backgrounds/`, the Wallpapers screen opens with the request's images. Enter writes the choice to the reply file the script waits on, and Omarchy's script applies it. Esc, a click outside, or another screen hands back an empty choice, so the script never waits forever.
+- **Themes.** Super+Ctrl+T, Super+Shift+Ctrl+Space, and Menu › Appearance › Theme open Omarchy's theme picker. When that picker opens without a request Ilha passed on, Ilha hides it and opens the Themes screen. Omarchy's picker maps transparent at first, so it is hidden before it shows a frame.
+- Any other request, such as images from another folder, goes to Omarchy's own picker unchanged.
+- Both takeovers end when you switch back to the default bar.
+
+### Optional bindings
+
+Add them to `~/.config/hypr/bindings.lua`. Check what is taken first with `omarchy menu keybindings --print`.
+
+`Super+Z` is free in the default Omarchy bindings. `Super+Ctrl+Z` is zoom, so leave that one alone.
 
 ```lua
 o.bind("SUPER + Z", "Ilha", "omarchy-shell ilha toggle last")
 ```
 
-## Appearance
+This one replaces Omarchy's own Apps grid (from the dock) with Ilha's Apps:
 
-Estilo applies to the pill at the click. The system command still runs after that.
-
-- **Theme.** The pill reads that theme's `colors.toml` (your overlay, then the stock theme) and recolors immediately. `omarchy theme set` is debounced by 280 ms, so a fast series of clicks does not stack theme switches. Wallpaper, terminals, and borders follow the command. If the system theme never arrives, the pill returns to the theme that is actually current.
-- **Corners.** Rounded uses capsules plus a panel corner of 32, and rounds the windows with it. Sharp squares the shell, the inner controls, and the windows, including terminals. Theme follows the current Hyprland rounding; a theme with rounding 0 falls back to the rounded look instead of squaring the island. A no-gap desktop does not flatten a rounded choice. `omarchy hyprland corners`.
-- **Glass.** The island surface is the theme background taken almost to black (on a light theme, one step toward the text color), so the pill keeps its shape over a terminal in the same theme. On a dark theme the surface is the theme background at 28 % (Tokyo Night gives `#07080b`); on a light theme it is the background moved 6 % toward the text color. Opaque is solid (alpha 1). Glass paints that surface at 0.94 on the capsule and 0.92 on a panel, over the blur Omarchy already applies to the `omarchy-bar` namespace. Transparent is 0.84 and 0.82. Opaque and Glass have no rim on a dark theme; Transparent, and every light theme, keep a 1 px rim in the text color at low alpha so the edge does not vanish. There is no shadow. Buttons, cards, chips, and the calendar use the panel alpha, so a selected control does not turn into a solid plate. The exception is the small accent marks (active icon circles, slider fill, today, the active workspace, the battery): they stay solid accent even in glass. The same choice sets window opacity through Omarchy itself; Ilha adds no window rules. `omarchy hyprland window transparency`.
-- **Font.** The clicked family is used on the pill at once. `omarchy font set` still restarts the shell when it rewrites fontconfig.
-- **Motion.** The pill morphs in a fixed 200 ms when it grows and 160 ms when it shrinks, with a decelerating curve, and the content crossfades. Moving between panels never closes and reopens the pill. `omarchy toggle animations` off makes every change instant.
-- **Color source.** The pill uses `Commons.Color` only. There is no private palette.
-- **Island switches.** Estilo › Windows and font › Island holds three switches. Level 2 on rest (`level2Dwell`, on by default) lets a still pointer on the pill open level 2; off, the line stays at level 1. Focused monitor only (`focusedOnly`, off) draws the capsule only on Hyprland's focused monitor; another monitor shows the pill only while it is showing something (a panel, the OSD, a notification, a live notice, or the picker). Live notice (`livePeek`, on) turns the live notice on. They are stored in `~/.config/omarchy/shell.json` under `bar.ilha`, through the Omarchy plugin API (`mutateShellConfig`), which writes the file atomically. Only the key that changed is written. The pill reads them live, so a hand edit of `shell.json` counts too, and `omarchy bar reset` puts them back to the defaults. Without the host, or if the write is refused, a choice lasts only until the shell restarts.
-
-```json
-"bar": { "ilha": { "level2Dwell": true, "focusedOnly": false, "livePeek": true } }
+```lua
+o.rebind("SUPER + ALT + SPACE", "Apps", "omarchy-shell ilha toggle launcher")
 ```
 
-Game mode, in Controle, is a separate action. Turning it on can disable animations, remove gaps, and set windows opaque, and turning it off puts back what it changed.
+## OSD
+
+The host does not give its OSD to third-party plugins. System keys (volume, brightness, media) keep showing Omarchy's own OSD.
+
+The pill shows:
+
+- `ilha osd '<json>'`, with the same fields as `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText`, and `duration` in ms (default 1200; `0` keeps it until a tap or `ilha closeOsd`). A value with no message draws an icon, a bar, and the value. A message draws one line. A `media` or `player` icon draws the cover with the title and artist.
+- "Keep this resolution? Reverting in 10 s", while the Display page is not on screen. A tap keeps the resolution.
+- The restart notice (see Update).
+
+When the pill cannot draw (the bar is hidden, a window is fullscreen on the focused monitor, or a screen other than the Control Center is open), `ilha osd` goes to Omarchy's OSD instead. With the Control Center open, a volume or brightness OSD is not drawn while its slider is on screen; anything else goes to Omarchy's OSD.
+
+The OSD shows on the focused monitor. A tap on a volume OSD opens Control Center › Sound, on a brightness OSD Control Center › Display, on a media OSD Media. Any other tap dismisses it.
+
+## Appearance
+
+- **Colors.** Ilha reads the Omarchy theme's background, text, accent, and urgent colors. The island is always dark: its surface is the darker of background and text, at 10 % over black. Cards and rows are lighter steps of the text color. The accent is moved toward the text color until it reads on the surface (3:1 for fills, 4.5:1 for text), and so is the urgent color. A theme change cross-fades in 150 ms. Ilha writes no palette.
+- **Shape.** A capsule with a 1 px rim and a soft shadow. When Omarchy's glassy toggles are on (`~/.local/state/omarchy/toggles/hypr/bar-glassy.lua` or `window-glassy.lua`), the shadow is lighter. The island stays opaque.
+- **Position.** Always at the top. Omarchy's bar position and bar background settings do not apply to Ilha.
+- **Fonts.** Text uses the bundled Inter subset; other scripts fall back to the system fonts. Icons use the bundled Material Symbols Rounded subset.
+- **Motion.** The shape moves on springs and the content fades in at its final layout. With Hyprland's animations off (`omarchy toggle animations`, or Game Mode), every change is instant.
+
+## Settings
+
+Two switches, in Control Center › Ilha settings (the first button in the Notifications card's shortcut row), or with `omarchy-shell ilha open settings`:
+
+- **Focused monitor only** (`focusedOnly`, off by default): "Other monitors show no pill". Only Hyprland's focused monitor draws the pill at rest. The other monitors draw nothing and take no input until the focus moves there. Every monitor keeps its 48 px, so windows do not move when the focus moves.
+- **Live notice** (`livePeek`, on by default): "A short sentence when something turns on". Off, no live notice appears.
+
+The page also shows the version.
+
+Ilha stores them in `~/.config/omarchy/shell.json`, under `bar.ilha`, through the host's plugin API (`mutateShellConfig`), which writes the file atomically. It changes only the key you flipped, and only when you flip a switch or run `ilha setting`. Nothing is written at install or at start. The pill reads them live, so a hand edit of `shell.json` counts too. Without the host API, a choice lasts until the shell restarts, and the page says "Saved until the shell restarts".
+
+```json
+"bar": { "ilha": { "focusedOnly": false, "livePeek": true } }
+```
+
+```bash
+omarchy-shell ilha setting livePeek false
+omarchy-shell ilha setting focusedOnly toggle
+```
 
 ## IPC
 
 ```bash
-omarchy-shell ilha open <launcher|control|capture|style|tools|plugins|calendar|power|media|last>
-omarchy-shell ilha toggle <view|last>
-omarchy-shell ilha run <view> <key>     # example: run calendar pgdn, run control q
-omarchy-shell ilha close
-omarchy-shell ilha osd '{"icon":"volume-high","value":"55","progressText":"55%","max":"100"}'
-omarchy-shell ilha closeOsd
-omarchy-shell ilha state
+omarchy-shell ilha open <screen>           # opens a screen, in keyboard mode
+omarchy-shell ilha toggle <screen>         # opens it, or closes it when that exact screen is open
+omarchy-shell ilha close                   # closes the open screen and the picker
+omarchy-shell ilha run <screen> <key>      # opens in keyboard mode and sends one key, e.g. run themes right
+omarchy-shell ilha picker                  # toggles the screen picker on the focused monitor
+omarchy-shell ilha hover <0|1|2>           # holds level 1 or 2 on the focused monitor; 0 releases it
+omarchy-shell ilha peek <key>              # shows a live notice now
+omarchy-shell ilha osd '<json>'            # shows an OSD in the pill
+omarchy-shell ilha closeOsd                # hides the pill's OSD
+omarchy-shell ilha setting <key> <value>   # focusedOnly | livePeek; true | false | toggle
+omarchy-shell ilha state                   # prints the state as JSON
 ```
 
-`open` and `toggle` both open that panel, and close it when it is already open. `open media` works even with nothing playing. `state` prints JSON (`view`, `lastView`, `keyboard`, `osd`, `hidden`, `screen`).
+- Screens: `launcher`, `control`, `media`, `themes`, `wallpapers`, `power`. Control Center parts: `sound`, `display`, `wifi`, `bluetooth`, `settings`. Aliases: `apps` (launcher), `cc` and `controls` (control), `theme` (themes), `wallpaper` and `background` (wallpapers), `last` (the last screen opened).
+- `run` keys: a letter or digit, `enter`, `space`, `esc`, `tab`, `up`, `down`, `left`, `right`, `pgup`, `pgdn`, `home`, `end`, `delete`, with an optional `shift+`, `ctrl+`, or `alt+` in front. The key goes once the screen is ready (3 s at most).
+- `peek` keys: `recording`, `reminder`, `update`, `dnd`, `nightlight`, `stayAwake`, `urgent`. It shows even when that state is off, but not with Live notice off. `urgent` uses the newest on-screen notification.
+- Answers: `open` and `toggle` print `ok` or `unknown`; `run` prints `ok`, `unknown`, or `invalid-key`; `picker` prints `open`, `closed`, or `busy`; `peek` prints `shown`, `queued`, `off`, `busy`, `quiet`, `unknown`, or `empty`; `osd` prints `ok`, `invalid`, or `off`; `setting` prints `ok`, `unknown`, or `invalid`.
+- `state` includes the open screen, each monitor's face, the OSD, the live notice, the picker, the settings (with `canPersist`), the takeovers, and both versions.
+
+Ilha also answers the targets the default bar registered, so Omarchy's own scripts keep working:
+
+```bash
+omarchy-shell omarchy.clock <open|show|close|hide|toggle|refresh>   # open and show: level 2; close and hide: back
+omarchy-shell omarchy.bar syncHidden
+omarchy-shell omarchy.indicators refresh
+omarchy-shell omarchy.system-update <refresh|clear>
+omarchy-shell omarchy.workspaces refresh
+```
+
+The `osd` target stays Omarchy's.
 
 ## Languages
 
-Ilha ships a catalog in `i18n/` for every language Omarchy offers. It follows Setup → Language live, without a shell restart, numbers and the clock included. A missing string falls back to English. Right-to-left languages (Arabic, Persian, Hebrew, Urdu) mirror the whole island. The clock, the recording time, the network bars, the battery, and the Media progress and transport buttons stay left to right on purpose.
+Ilha ships a catalog in `i18n/` for each of the 50 languages Omarchy offers. It follows Setup › Language live, without a shell restart. Numbers use the language's digits: the clock, the workspaces, the recording time, and the percentages. The level 2 date uses each language's own pattern and its day and month names. A missing string falls back to English.
+
+Right-to-left languages (Arabic, Persian, Hebrew, Urdu) mirror the whole island. The mark sits right of the clock, the picker starts with Apps on the right, and the notice icon is on the right. Left and Right follow the screen direction. The clock, the recording time, the network bars, the battery, and the Media seek bar, times, and transport buttons stay left to right on purpose.
 
 ## Dependencies
 
-Omarchy, with its shell. No extra packages. Ilha does not install a blur plugin and does not fetch anything on its own. Buttons call the Omarchy commands they name (`omarchy theme`, `omarchy font`, `omarchy capture`, `omarchy hyprland corners`, `omarchy hyprland window transparency`, and the matching panel services).
+Omarchy, with its shell. No extra packages. The fonts ship in `fonts/`. Buttons call the Omarchy commands and services they name (`omarchy-theme-set`, `omarchy-theme-bg-set`, `omarchy-system`, `omarchy-brightness-display`, `omarchy-bluetooth-power`, `omarchy-audio-output-set-default`, and so on). Ilha runs Omarchy's own update check (`omarchy-update-available`) 5 s after it starts, every 6 hours, and when Omarchy asks.
 
-A replacement bar can show installed widgets, but a third-party widget that needs another plugin's live service can be limited here. Switch back with `omarchy bar use omarchy.bar` when that widget needs the default bar.
+Ilha draws no other bar widget and no tray. A key for a panel Ilha has no screen for does nothing. Switch back with `omarchy bar use omarchy.bar` when you need them.
 
 ## Files
 
-| File | Role |
+| Path | Role |
 |---|---|
-| `manifest.json` | Plugin id, version, and the `bar` entry |
-| `Island.qml` | One window per monitor, the pill, panels, and IPC |
-| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, status marks, notification status, now playing; and the picker |
-| `Indicators.qml` | Live status: the rest mark, the status marks, the live notice text, the media source |
-| `NoticeView.qml` | The one-line notification and live notice |
-| `Prefs.qml` | The three Estilo switches, read from and written to `bar.ilha` in `shell.json` |
-| `ContinuousRect.qml` | Capsule and card |
-| `Metrics.qml` | Grid sizes, radii, durations |
-| `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Grid control and its letter |
-| `GridRow.qml`, `PanelGrid.qml`, `LabeledRow.qml`, `InfoRow.qml`, `PanelFooter.qml` | Rows, keyboard navigation, footer |
-| `IconButton.qml`, `Icon.qml` | Button and Material Symbols icon |
-| `Launcher.qml`, `ControlPanel.qml`, `CaptureMenu.qml`, `StyleMenu.qml`, `ToolsMenu.qml`, `PluginsMenu.qml`, `CalendarView.qml`, `PowerMenu.qml`, `MediaPanel.qml`, `OsdView.qml` | Panels |
+| `manifest.json` | Plugin id, version 2.0.0, and the `bar` entry `ui/Ilha.qml` |
+| `ui/Ilha.qml` | Entry point: host contract, navigation, services, settings, IPC |
+| `ui/IslandWindow.qml` | One window per monitor: the shape, the faces, the input mask, the keys |
+| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Levels 1 and 2, the rest mark, the picker, the line hint, the clock, the workspaces |
+| `ui/PeekBridge.qml`, `PeekFace.qml` | Live notice |
+| `ui/OsdBridge.qml`, `OsdFace.qml` | OSD in the pill, resolution prompt, restart notice |
+| `ui/PickerBridge.qml` | Theme and wallpaper takeovers |
+| `ui/ScreenStack.qml` | Loads and switches the screens |
+| `ui/ControlCenter.qml`, `WifiCard.qml`, `BluetoothCard.qml`, `SoundPage.qml`, `DisplayPage.qml`, `IlhaPage.qml`, `NotificationsCard.qml` | Control Center |
+| `ui/LauncherScreen.qml`, `MediaScreen.qml`, `ThemeScreen.qml`, `WallpaperScreen.qml`, `PowerScreen.qml` | The other screens |
+| `ui/*Svc.qml`, `StateStore.qml`, `AppSearch.js` | Status, audio, network, monitors, media, apps, themes, settings (`PrefsSvc.qml`), own state |
+| `ui/Theme.qml`, `Motion.js`, `Morph.qml`, `SpringValue.qml` | Colors, sizes, geometry of each face, springs, timings |
+| The rest of `ui/` | Controls: `IlhaSwitch`, `IlhaSlider`, `IlhaRoundButton`, `ToggleTile`, `Carousel`, `CircleButton`, and others |
+| `fonts/` | `InterIlha2.ttf` (Inter subset, OFL, `LICENSE-Inter.txt`) and `MaterialSymbolsRoundedIlha2.ttf` (Material Symbols Rounded subset, Apache 2.0, `LICENSE-MaterialSymbols.txt`) |
 | `i18n/` | One catalog per Omarchy language |
-| `install.sh`, `uninstall.sh` | Optional helpers. Omarchy does not run them |
+| `dev/` | Development only; Omarchy never loads it. `harness.sh` runs a separate Quickshell instance that never touches the running shell; the Python scripts check catalogs, icons, names, and contrast, and build the font subsets |
+| `uninstall.sh` | Switches back to the default bar. Omarchy does not run it |
 
-A panel receives `active`, colors, `shell`, and `metrics`, and reports size with `implicitWidth` and `implicitHeight`. It can implement `closeRequested()`, `navigate(target)`, `handleKey`, `handleEscape`, and `focusFirst`.
+A screen receives `island`, `theme`, `strings`, `morph`, `payload`, `current`, and `keyboardMode`, and reports its size with `implicitWidth` and `implicitHeight`. It implements `opened(payload)`, `closed()`, `handleKey(event)`, and `handleEscape()`, and can emit `navigate(id, payload)` and `closeRequested()`. Nothing in a screen runs before `opened()` or after `closed()`.
 
 ## Troubleshooting
 
 - The new checkout did not become the bar. Run `omarchy restart shell`, then `omarchy plugin enable esegnorelli.ilha`.
-- The shell logged `bar option esegnorelli.ilha failed to load, falling back to omarchy.bar`. Run `omarchy plugin validate ~/.config/omarchy/plugins/esegnorelli.ilha` and read `journalctl --user -t omarchy-shell`.
-- The pill color waits on the wallpaper. It should not. Estilo reads `colors.toml` before `omarchy theme set`. Wallpaper and terminals still follow the command.
+- The shell logged `bar option esegnorelli.ilha failed to load, falling back to omarchy.bar`. Run `omarchy plugin validate ~/.config/omarchy/plugins/esegnorelli.ilha` and read `journalctl -t omarchy-shell`.
+- The pill says "Restart the shell to finish updating Ilha". The shell still runs older Ilha code. Tap the notice, or run `omarchy restart shell`.
+- Volume and brightness keys show Omarchy's OSD, not the pill. That is expected: the host does not give its OSD to third-party plugins.
+- The tray, or another bar widget, is missing. Ilha draws none. Use `omarchy bar use omarchy.bar` when you need them.
 - `omarchy plugin update` refuses to pull. The checkout has local edits. Commit or stash them in `~/.config/omarchy/plugins/esegnorelli.ilha`.
 
 ## License

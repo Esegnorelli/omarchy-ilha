@@ -1,2 +1,3 @@
 *.qmlc
 .qmlls.ini
+__pycache__/
