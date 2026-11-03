@@ -3,8 +3,10 @@ import QtQuick.Effects
 import qs.Commons as Commons
 
 // Linha fina de 44 px (spec §3.2): rótulo e valor em c1, controle em c2–c4.
-// A variante "bar" é um cartão de 80 px: título e valor no alto e uma barra
-// grossa de 32 px embaixo, com o ícone dentro do preenchimento (o Volume).
+// A variante "bar" é um cartão de metrics.barCard (58 px): título e valor no
+// alto e uma barra de 24 px embaixo, com o ícone dentro do preenchimento (o
+// Volume). Medidas do vídeo de referência: título centrado a 14 px do topo,
+// barra recuada 8 nas laterais e 6 na base, › de 22 px no canto.
 //
 // API pública:
 //   variant: "segmented" | "slider" | "chips" | "bar"
@@ -73,7 +75,8 @@ Item {
     signal moreTapped()
 
     implicitWidth: metrics.content
-    implicitHeight: variant === "bar" ? 80 : metrics.slim
+    // barCard ainda pode faltar num Metrics antigo: 58 como reserva.
+    implicitHeight: variant === "bar" ? (metrics.barCard || 58) : metrics.slim
     width: implicitWidth
 
     readonly property int currentIndex: {
@@ -338,7 +341,7 @@ Item {
         }
     }
 
-    // ---------- Barra (variant "bar"): cartão de 80 px ----------
+    // ---------- Barra (variant "bar"): cartão de 58 px ----------
     Item {
         id: barBox
         visible: lrow.variant === "bar"
@@ -382,12 +385,13 @@ Item {
         Text {
             id: barTitle
             anchors.left: parent.left
-            anchors.leftMargin: 14
-            anchors.top: parent.top
-            anchors.topMargin: 12
-            // Sobra entre a margem de 14, o valor (8 antes dele) e o ›.
-            width: Math.min(implicitWidth, barBox.width - 14 - 8 - barValue.width
-                                           - (moreButton.visible ? 10 + moreButton.width + 8 : 14))
+            anchors.leftMargin: 12
+            // Centro da linha a 14 px do topo (o › de 22 px fica no mesmo eixo).
+            anchors.verticalCenter: parent.top
+            anchors.verticalCenterOffset: 14
+            // Sobra entre a margem de 12, o valor (8 antes dele) e o ›.
+            width: Math.min(implicitWidth, barBox.width - 12 - 8 - barValue.width
+                                           - (moreButton.visible ? 6 + moreButton.width + 6 : 12))
             horizontalAlignment: Text.AlignLeft
             text: lrow.label
             textFormat: Text.PlainText
@@ -400,7 +404,7 @@ Item {
         Text {
             id: barValue
             anchors.right: moreButton.visible ? moreButton.left : parent.right
-            anchors.rightMargin: moreButton.visible ? 8 : 14
+            anchors.rightMargin: moreButton.visible ? 6 : 12
             anchors.verticalCenter: barTitle.verticalCenter
             horizontalAlignment: Text.AlignRight
             text: lrow.value
@@ -414,11 +418,12 @@ Item {
             id: moreButton
             visible: lrow.hasMore
             solid: true
-            size: 26
-            iconSize: 16
+            size: 22
+            iconSize: 14
             anchors.right: parent.right
-            anchors.rightMargin: 10
-            anchors.verticalCenter: barTitle.verticalCenter
+            anchors.rightMargin: 6
+            anchors.top: parent.top
+            anchors.topMargin: 3
             // Aponta para onde a subpágina entra.
             icon: lrow.rtl ? "chevron_left" : "chevron_right"
             fg: lrow.fg
@@ -429,14 +434,15 @@ Item {
             onTapped: lrow.moreTapped()
         }
 
-        // Barra grossa: trilho neutro, preenchimento accent sólido com o ícone.
+        // Barra: trilho neutro, preenchimento accent sólido com o ícone.
+        // y 28, altura 24, 8 de recuo nas laterais e 6 na base.
         ContinuousRect {
             id: bar
-            x: 10
-            y: 38
-            width: parent.width - 20
-            height: 32
-            radius: lrow.metrics.fit(16)
+            x: 8
+            y: 28
+            width: parent.width - 16
+            height: 24
+            radius: lrow.metrics.fit(12)
             color: Qt.rgba(lrow.fg.r, lrow.fg.g, lrow.fg.b, barHover.hovered || barDrag.active ? 0.12 : 0.08)
             Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
 
@@ -446,7 +452,7 @@ Item {
                 anchors.left: parent.left
                 height: parent.height
                 width: Math.max(height, barBox.fraction * bar.width)
-                radius: lrow.metrics.fit(16)
+                radius: lrow.metrics.fit(12)
                 color: lrow.dimmed ? lrow.muted : lrow.accent
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
                 Behavior on width {
@@ -458,22 +464,22 @@ Item {
                 id: barIcon
                 visible: lrow.icon !== ""
                 anchors.left: parent.left
-                anchors.leftMargin: 10
+                anchors.leftMargin: 8
                 anchors.verticalCenter: parent.verticalCenter
                 name: lrow.icon
-                size: 18
+                size: 16
                 filled: true
                 color: lrow.dimmed ? lrow.fg : lrow.bg
                 Behavior on color { ColorAnimation { duration: Commons.Style.duration(lrow.metrics.msState); easing.type: Easing.OutCubic } }
             }
 
             HoverHandler { id: barHover; cursorShape: Qt.PointingHandCursor }
-            // Um toque só: no ícone (os primeiros 38 px da borda inicial) é o
+            // Um toque só: no ícone (os primeiros 32 px da borda inicial) é o
             // rótulo (mudo); no resto, posiciona a barra.
             TapHandler {
                 onTapped: eventPoint => {
                     const d = barBox._fromStart(eventPoint.position.x);
-                    if (barIcon.visible && d < 10 + barIcon.width + 10) lrow.labelTapped();
+                    if (barIcon.visible && d < 8 + barIcon.width + 8) lrow.labelTapped();
                     else barBox.setFromX(d);
                 }
             }

@@ -15,10 +15,10 @@ import "TileArm.js" as TileArm
 // dois avisos, sem vão. Um painel abre sozinho no lugar da pílula. Os seis
 // destinos não aparecem juntos.
 //
-// Hover: a pílula mede essa linha. Painel: largura da grade (568).
+// Hover: a pílula mede essa linha. Painel: a largura do próprio painel + 2 × 14.
 // O OSD tem a sua. O sino, quando clicado, mostra a notificação mais
 // recente na pílula, numa linha. Ela não aparece sozinha. Coluna =
-// estado ativo + PanelFooter. Clicar na hora ou num indicador abre um
+// estado ativo (+ PanelFooter só no modo teclado). Clicar na hora ou num indicador abre um
 // painel e liga o "modo menu":
 // repousar 150 ms noutro ícone troca de painel, descer o ponteiro cancela,
 // clicar no ícone ativo volta à faixa e sair com o ponteiro não fecha.
@@ -100,21 +100,29 @@ Item {
     readonly property string cornerMode: cornerSharp ? "sharp" : cornerRounded ? "rounded" : "theme"
     readonly property string glassMode: glassOpaque ? "opaque" : glassGlassy ? "glassy" : "transparent"
 
-    // Um objeto só, quase preto, na cor de fundo do tema. Opaco fecha.
-    // Vidro deixa passar só um fio do blur; transparente abre um pouco mais
-    // e ainda fica bem acima do ignore_alpha 0.3, senão o blur abre um
-    // buraco. O painel é um tico mais fechado, para o texto ficar legível.
-    // Sem aro em opaco e vidro; o transparente guarda um fio de 1 px (fg
-    // 0.08) para a borda não sumir no papel de parede. Sem sombra.
+    // Superfície da ilha: o fundo do tema levado quase ao preto (tema escuro)
+    // ou, num tema claro, um degrau na direção de fg (o texto fg continua
+    // legível). No vídeo a ilha é preta chapada por cima de tudo; com o fundo
+    // do tema puro ela teria a mesma cor do terminal e perderia a borda.
+    readonly property real bgLum: 0.2126 * bg.r + 0.7152 * bg.g + 0.0722 * bg.b
+    readonly property bool lightTheme: bgLum > 0.5
+    readonly property color surface: lightTheme
+        ? Qt.rgba(bg.r + (fg.r - bg.r) * 0.06, bg.g + (fg.g - bg.g) * 0.06, bg.b + (fg.b - bg.b) * 0.06, 1)
+        : Qt.rgba(bg.r * 0.28, bg.g * 0.28, bg.b * 0.28, 1)      // Tokyo Night -> #07080b
+    // Opaco fecha. Vidro deixa passar só um fio do blur; transparente abre um
+    // pouco mais e ainda fica bem acima do ignore_alpha 0.3, senão o blur abre
+    // um buraco. O painel é um tico mais fechado, para o texto ficar legível.
+    // Sem aro em opaco e vidro num tema escuro, como no vídeo; o transparente
+    // e os temas claros guardam um fio de 1 px para a borda não sumir. Sem sombra.
     readonly property bool glassTransparent: !glassOpaque && !glassGlassy
-    readonly property real alphaRest: glassOpaque ? 1 : glassGlassy ? 0.92 : 0.82
-    readonly property real alphaBody: glassOpaque ? 1 : glassGlassy ? 0.90 : 0.80
-    readonly property color fillRest: Qt.rgba(bg.r, bg.g, bg.b, alphaRest)
-    readonly property color fillBody: Qt.rgba(bg.r, bg.g, bg.b, alphaBody)
-    readonly property int rimWidth: glassTransparent ? 1 : 0
+    readonly property real alphaRest: glassOpaque ? 1 : glassGlassy ? 0.94 : 0.84
+    readonly property real alphaBody: glassOpaque ? 1 : glassGlassy ? 0.92 : 0.82
+    readonly property color fillRest: Qt.rgba(surface.r, surface.g, surface.b, alphaRest)
+    readonly property color fillBody: Qt.rgba(surface.r, surface.g, surface.b, alphaBody)
+    readonly property bool needsRim: glassTransparent || lightTheme
+    readonly property int rimWidth: needsRim ? 1 : 0
     readonly property color rimRest: Qt.rgba(fg.r, fg.g, fg.b, 0.08)
-    // Painel aberto sempre tem um fio: quando o fundo do tema é a mesma cor
-    // da janela atrás (terminal do próprio tema), sem ele a borda some.
+    // Aro do painel aberto (quando há aro): um degrau acima do repouso.
     readonly property color rimBody: Qt.rgba(fg.r, fg.g, fg.b, 0.10)
 
     // Repouso e hover: sempre uma cápsula de verdade (altura / 2), menos no
@@ -866,12 +874,18 @@ Item {
             readonly property real targetWidth: mode === "rest" ? 12
                 : faceMode ? (modeItem ? modeItem.implicitWidth + 32 : 12)
                 : mode === "hover" ? Math.max(64, strip.implicitWidth)
+                : modeItem && modeItem.implicitWidth > 0 ? modeItem.implicitWidth + 2 * metrics.pad
                 : metrics.width
+            // Rodapé só no modo teclado (painel aberto ou guiado pelo teclado) e
+            // só se o estado publicar algo. No ponteiro o painel fecha com o
+            // mesmo respiro de cima, como no vídeo.
+            readonly property bool footerOn: isPanel && island.keyboardMode && footerSlot !== null
+                && (footerSlot.footerHints !== "" || footerSlot.footerStatus !== "")
             // Hover: a cápsula do elemento da vez. Painel: o cartão, sem a faixa.
             readonly property real targetHeight: mode === "rest" ? 12
                 : faceMode ? (modeItem ? modeItem.implicitHeight + 16 : 12)
                 : mode === "hover" ? strip.implicitHeight
-                : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + metrics.gap + metrics.footer + metrics.padBottom, win.height - 16)
+                : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + (footerOn ? metrics.gap + metrics.footer + metrics.padBottom : metrics.pad), win.height - 16)
 
             // ---- Coreografia ----
             // 0: repouso (sumida ou bolinha); 1: bolinha de 12 px no lugar;
@@ -883,7 +897,7 @@ Item {
             readonly property bool shrinking: phase < 2 || !revealed
             readonly property bool contentOn: phase === 2 && revealed && contentLatched
             // A faixa aparece quando a pílula já chegou perto do tamanho do hover.
-            // A altura do hover é a da linha (46, ou 80 no nível 2).
+            // A altura do hover é a da linha (46, ou 64 no nível 2).
             // Depois de entrar, a linha fica: o nível 2 cresce a pílula de novo
             // e a linha faz a própria troca, sem o relógio do repouso voltar.
             readonly property bool stripReady: phase === 2 && revealed && hasStrip
@@ -1241,12 +1255,12 @@ Item {
                     }
 
                     // Cápsula enquanto é baixa; cartão de canto contínuo quando abre um painel.
-                    // Fundo do tema por cima do blur; aro só no transparente.
+                    // Superfície quase preta por cima do blur; aro só no transparente e no tema claro.
                     ContinuousRect {
                         anchors.fill: parent
                         radius: island.shellRadius(height, win.isPanel)
                         color: win.isPanel ? island.fillBody : island.fillRest
-                        borderWidth: win.isPanel ? 1 : island.rimWidth
+                        borderWidth: win.isPanel ? (island.needsRim ? 1 : 0) : island.rimWidth
                         borderColor: win.isPanel ? island.rimBody : island.rimRest
 
                         Behavior on radius {
@@ -1427,7 +1441,7 @@ Item {
                         onTapped: island.closeNotice()
                     }
 
-                    // Borda de cima do painel (o pad de 16 px, largura toda): a
+                    // Borda de cima do painel (o pad de 14 px, largura toda): a
                     // roda anda os painéis, como fazia a linha. As listas de
                     // dentro ficam abaixo e guardam a própria roda.
                     Item {
@@ -1448,9 +1462,11 @@ Item {
                     // ---- Rodapé: estado à esquerda, dicas à direita ----
                     PanelFooter {
                         id: footer
-                        readonly property bool shown: win.isPanel && win.contentOn && win.footerSlot !== null
+                        readonly property bool shown: win.footerOn && win.contentOn
 
                         anchors.horizontalCenter: parent.horizontalCenter
+                        // Acompanha a largura do próprio painel (e a métrica dele, se tiver).
+                        width: win.footerSlot && win.footerSlot.implicitWidth > 0 ? win.footerSlot.implicitWidth : win.metrics.content
                         y: win.contentTop
                             + (win.footerSlot ? win.footerSlot.implicitHeight : 0) + win.metrics.gap
                         status: win.footerSlot ? win.footerSlot.footerStatus : ""
@@ -1458,7 +1474,7 @@ Item {
                         alert: win.footerSlot ? win.footerSlot.footerAlert : false
                         fg: island.fg
                         danger: island.danger
-                        metrics: win.metrics
+                        metrics: win.footerSlot ? win.footerSlot.panelMetrics : win.metrics
                         opacity: shown ? 1 : 0
                         visible: opacity > 0
 
@@ -1527,6 +1543,8 @@ Item {
     //   entra:  active, fg, bg, accent, danger, shell, metrics, keyboardMode,
 //           checkUpdates, media (a fonte de música, Indicators)
     //           (payload no OSD)
+    //   lido:   panelContent (int constante, sem depender de metrics) = largura útil;
+    //           o slot monta o metrics do estado com esse content (padrão 536)
     //   sai:    closeRequested(), navigate(target) = trocar de categoria,
     //           footerStatus, footerHints, footerAlert (lidos pelo rodapé),
     //           handleKey(event) → bool, handleEscape() → bool, focusFirst()
@@ -1550,6 +1568,17 @@ Item {
         readonly property string footerStatus: item && item.footerStatus !== undefined ? String(item.footerStatus) : ""
         readonly property string footerHints: item && item.footerHints !== undefined ? String(item.footerHints) : ""
         readonly property bool footerAlert: !!(item && item.footerAlert)
+        // Largura útil declarada pelo painel (constante panelContent), senão a grade de 536.
+        readonly property int contentWidth: loader.item && loader.item.panelContent > 0 ? loader.item.panelContent : 536
+        // Métrica própria do estado: a da ilha com content = largura do painel,
+        // para grade, linhas e rodapé seguirem um painel mais estreito.
+        Metrics {
+            id: slotMetrics
+            corners: slot.hostIsland.cornerMode
+            glass: slot.hostIsland.glassMode
+            content: slot.contentWidth
+        }
+        readonly property Metrics panelMetrics: slotMetrics
 
         anchors.horizontalCenter: parent.horizontalCenter
         // O painel é o cartão inteiro. O OSD fica centrado na pílula.
@@ -1597,6 +1626,7 @@ Item {
                 target.open = Qt.binding(() => slot.current)
             bindIfPresent(target, "fg", () => slot.hostIsland.fg)
             bindIfPresent(target, "bg", () => slot.hostIsland.bg)
+            bindIfPresent(target, "surface", () => slot.hostIsland.surface)
             bindIfPresent(target, "accent", () => slot.hostIsland.accent)
             bindIfPresent(target, "danger", () => slot.hostIsland.danger)
             if (target.themePreview)
@@ -1610,7 +1640,7 @@ Item {
             if (target.lookFont)
                 target.lookFont.connect(name => slot.hostIsland.showFace(name))
             bindIfPresent(target, "shell", () => slot.hostIsland.shell)
-            bindIfPresent(target, "metrics", () => slot.hostIsland.metrics)
+            bindIfPresent(target, "metrics", () => slotMetrics)
             bindIfPresent(target, "keyboardMode", () => slot.hostIsland.keyboardMode)
             // Testes fora do shell desligam a checagem de atualizações (git fetch).
             bindIfPresent(target, "checkUpdates", () => slot.hostIsland.checkUpdates)

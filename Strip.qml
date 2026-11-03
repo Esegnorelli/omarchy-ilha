@@ -34,7 +34,7 @@ import qs.Commons as Commons
 //   activeView: string        painel aberto ("" = nenhum): pílula + cursor (caret)
 //   menuMode: bool            painel aberto: repousar 150 ms num ícone troca de painel
 //   keyboardMode, altHeld     mostram os dígitos (0–6) dos ícones
-//   expanded: bool            hover nível 2 (640 × 80, três colunas)
+//   expanded: bool            hover nível 2 (até 640 × 64, abraça o conteúdo; três colunas)
 //   readonly centerClock      o relógio central do nível 1 (o Island alinha o do repouso)
 //   indicatorSource           a instância de Indicators que lê o sistema
 //   strings                   Commons.Translations da ilha
@@ -94,11 +94,14 @@ Item {
 
     // Nível 1: o relógio no centro exato e os dois grupos a 14 px dele; a
     // largura cobre o lado maior dos dois, mais 18 px de folga de cada lado.
-    // Nível 2: 640 × 80.
+    // Nível 2: até 640 × 64, abraça o conteúdo. Os dois lados ganham a mesma
+    // largura (o maior dos dois), para a hora ficar no centro exato; 32 px de
+    // respiro entre cada coluna e a hora, 20 px de borda. Teto de 640: nunca
+    // mais largo que a referência (típico ≈ 480–590).
     implicitWidth: menus ? metrics.content
-        : expanded ? 640
+        : expanded ? Math.min(640, Math.ceil(wideCenter.implicitWidth + 2 * (Math.max(wideLeft.implicitWidth, wideRight.implicitWidth) + 32) + 2 * 20))
         : Math.ceil(stateClock.implicitWidth + 2 * (Math.max(leftGroup.implicitWidth, rightGroup.implicitWidth) + 14) + 36)
-    implicitHeight: menus ? metrics.strip : expanded ? 80 : 46
+    implicitHeight: menus ? metrics.strip : expanded ? 64 : 46
     // A máscara de hover usa a largura final, para a pílula encolher sem o
     // ponteiro cair no papel de parede.
     readonly property real hoverSpan: implicitWidth
@@ -916,7 +919,7 @@ Item {
     }
 
     // ================= Hover nível 2 =================
-    // Três colunas ancoradas (folga 22, linhas a 6 px), em fade cruzado com
+    // Três colunas ancoradas (folga 20, linhas a 4 px), em fade cruzado com
     // a linha de cima enquanto a pílula cresce.
     Item {
         id: wideRow
@@ -931,10 +934,11 @@ Item {
 
         // Esquerda: app focado sobre os pontos dos workspaces.
         Column {
+            id: wideLeft
             anchors.left: parent.left
-            anchors.leftMargin: 22
+            anchors.leftMargin: 20
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
+            spacing: 4
 
             // Com faixa, a linha de cima é a música: título — artista e um
             // play/pausa pequeno. Sem faixa, o app focado.
@@ -946,8 +950,8 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     host: strip
                     artSize: 16
-                    // Até a hora grande do centro (≈ 228 px na cápsula de 640).
-                    textWidth: 136
+                    // Curto: a cápsula abraça o conteúdo e não passa de 640.
+                    textWidth: 132
                     wide: true
                 }
 
@@ -1022,7 +1026,7 @@ Item {
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, 180)
+                    width: Math.min(implicitWidth, 150)
                     text: strip.appLabel
                     color: strip.fg
                     font.family: strip.fontFamily
@@ -1039,8 +1043,9 @@ Item {
 
         // Centro: hora grande e a data, mais apagada, na mesma linha de base.
         Row {
+            id: wideCenter
             anchors.centerIn: parent
-            spacing: 10
+            spacing: 8
 
             Text {
                 id: wideClock
@@ -1049,7 +1054,7 @@ Item {
                 textFormat: Text.PlainText
                 color: strip.fg
                 font.family: strip.fontFamily
-                font.pixelSize: 26
+                font.pixelSize: 24
                 font.weight: Font.DemiBold
                 font.features: ({ "tnum": 1 })
 
@@ -1072,10 +1077,11 @@ Item {
 
         // Direita: notificações sobre rede e bateria.
         Column {
+            id: wideRight
             anchors.right: parent.right
-            anchors.rightMargin: 22
+            anchors.rightMargin: 20
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 6
+            spacing: 4
 
             Row {
                 id: noticeLine

@@ -5,6 +5,8 @@ import qs.Commons as Commons
 // teclado à direita, 11 px na fonte do tema: estado em metrics.textSecondary,
 // dicas em fg a 55%. As dicas cedem espaço ao estado (ficam com pelo menos 45%
 // da largura) e cortam no fim, com um respiro fixo (hintGap) entre os dois.
+// Só aparece no modo teclado (o Island decide: win.footerOn); a largura
+// acompanha a do painel e a métrica dele (metrics.content).
 //
 // API pública:
 //   status: string    estado ao vivo ("Bateria 82% · carregando", "Pronto"…)

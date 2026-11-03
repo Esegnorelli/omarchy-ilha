@@ -8,20 +8,24 @@ import Quickshell.Services.UPower
 import qs.Commons as Commons
 
 // Controle (spec §3.4, painel 2): ligar, ajustar, conectar.
-//   Duas linhas de 60 px: duas cápsulas (círculo do ícone + nome + estado) e
-//   dois círculos (só o ícone; nome e estado no rodapé com o hover).
-//   Q Wi-Fi* · W Não perturbe · E Microfone · R Manter acordado
-//   A Bluetooth* · S Modo jogo · D Luz noturna · F Animações
+//   Painel de 470 px (ilha de 498, abaixo dos 513 do vídeo de referência).
+//   Três linhas de 56 px: duas cápsulas (círculo do ícone + nome + estado) e
+//   um círculo (só o ícone; o nome aparece num balão com o hover e, no modo
+//   teclado, no rodapé).
+//   Q Wi-Fi* · W Não perturbe · E Microfone
+//   A Bluetooth* · S Modo jogo · D Luz noturna
+//   Z Manter acordado · X Animações · C Velocidade
 //     (* sem Wi-Fi a vaga vira Proteção de tela; sem Bluetooth, Suspensão)
 //   Ligado acende só o círculo do ícone em accent; o corpo fica neutro.
 //   Wi-Fi com o rádio ligado e sem rede (e Bluetooth ligado sem aparelho
 //   conectado) fica em standby: véu de accent no círculo e o ícone em accent,
 //   para não parecer conectado.
-//   Som: LabeledRow "bar" de 80 px (−/= ±5%, M mudo; tocar no ícone = mudo;
+//   Som: LabeledRow "bar" de 58 px (−/= ±5%, M mudo; tocar no ícone = mudo;
 //     › ou Enter na barra abre a subpágina Som: saídas e entrada)
-//   Rede: InfoRow (interface · tipo, IPv4) com C QR do Wi-Fi* e V Velocidade
-//     (fora do Wi-Fi: Velocidade ocupa c3–c4)
-//   Rodapé: bateria (notebook) e o resumo do que está ligado, ou "Tudo normal".
+//   Rede: InfoRow (interface · tipo, IPv4) com V QR do Wi-Fi (só no Wi-Fi)
+//   Rodapé (só no modo teclado): bateria (notebook) e o resumo do que está
+//     ligado, ou "Tudo normal"; com hover num círculo, o nome dele.
+//   Altura: 14 + 3·56 + 2·8 + 8 + 58 + 8 + 56 + 14 = 342.
 // A altura é a mesma em qualquer máquina: o microfone ausente fica cinza no lugar.
 //
 // Luz noturna, Não perturbe e Manter acordado usam os proxies do host
@@ -39,6 +43,16 @@ Item {
     property color bg: Commons.Color.bar.background
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
+    // Superfície da ilha, para o balão do círculo ficar opaco. O host pode
+    // ligar a mesma propriedade; sem ele, a mesma conta do Island: fundo do
+    // tema levado quase ao preto (tema escuro) ou um degrau na direção de fg.
+    property color surface: {
+        const b = root.bg, f = root.fg;
+        const lum = 0.2126 * b.r + 0.7152 * b.g + 0.0722 * b.b;
+        return lum > 0.5
+            ? Qt.rgba(b.r + (f.r - b.r) * 0.06, b.g + (f.g - b.g) * 0.06, b.b + (f.b - b.b) * 0.06, 1)
+            : Qt.rgba(b.r * 0.28, b.g * 0.28, b.b * 0.28, 1);
+    }
 
     // Fachada PluginShellApi do host (pode ser null no modo avulso).
     property var shell: null
@@ -58,6 +72,9 @@ Item {
     // Pede ao host para trocar de estado.
     signal navigate(string target)
 
+    // Largura do painel, constante (não depende de metrics): o host monta o
+    // Metrics deste estado com content = panelContent.
+    readonly property int panelContent: 470
     implicitWidth: metrics.content
     // A altura segue a página visível, e o host acompanha.
     implicitHeight: page === "sound" ? soundPage.implicitHeight : grid.implicitHeight
@@ -614,12 +631,13 @@ Item {
         if (hasMic && micMuted) out.push(strings.t("control.footer.micMuted"));
         return out;
     }
-    // Os círculos não têm texto: com o hover, o nome e o estado vão ao rodapé.
-    readonly property string hoverNote: micTile.noteShown ? micTile.hoverNote
-                                      : awakeTile.noteShown ? awakeTile.hoverNote
-                                      : nightTile.noteShown ? nightTile.hoverNote
-                                      : animTile.noteShown ? animTile.hoverNote
-                                      : ""
+    // Os círculos não têm texto: com o hover, o nome e o estado vão ao balão
+    // (ponteiro) ou ao rodapé (teclado).
+    readonly property Item hoverTile: micTile.noteShown ? micTile
+                                    : nightTile.noteShown ? nightTile
+                                    : speedTile.noteShown ? speedTile
+                                    : null
+    readonly property string hoverNote: hoverTile ? hoverTile.hoverNote : ""
     readonly property string footerStatus: {
         if (root.page === "" && root.hoverNote !== "") return root.hoverNote;
         const parts = [];
@@ -630,8 +648,9 @@ Item {
     readonly property bool footerAlert: batteryLow && !(root.page === "" && root.hoverNote !== "")
     readonly property string footerHints: root.page === "sound"
         ? root.tr("hint.subpage", "↑↓ escolher · Enter usar · Esc voltar", "↑↓ choose · Enter select · Esc back")
-        : root.tr("hint.toggleMore", "Q–F alternar · −/= volume · M mudo · Enter no som: mais",
-                  "Q–F toggle · −/= volume · M mute · Enter on sound: more")
+        // hint.toggleMore ainda diz Q–F; a grade agora vai de Q–E / A–D / Z–C.
+        : root.tr("hint.toggleGrid", "Q–C alternar · −/= volume · M mudo · › som",
+                  "Q–C toggle · −/= volume · M mute · › sound")
 
     // ---------- Subpágina Som ----------
     // Linha marcada pelo teclado na lista de saídas (começa na saída padrão).
@@ -765,16 +784,6 @@ Item {
                 unavailableText: strings.t("control.noMic")
                 onActivated: root.toggleMic()
             }
-            Tile {
-                id: awakeTile
-                shape: "round"
-                kind: "toggle"
-                on: root.stayAwake
-                icon: "coffee"
-                label: strings.t("control.stayAwake")
-                sublabel: root.stayAwake ? strings.t("control.stayAwakeOn") : strings.t("control.off")
-                onActivated: root.toggleStayAwake()
-            }
         }
 
         GridRow {
@@ -826,15 +835,38 @@ Item {
                 sublabel: root.nightOn ? strings.t("control.nightlightOn") : strings.t("control.nightlightOff")
                 onActivated: root.toggleNight()
             }
+        }
+
+        GridRow {
+            tileHeight: root.metrics.capsuleTile
+
             Tile {
-                id: animTile
-                shape: "round"
+                shape: "capsule"
+                kind: "toggle"
+                on: root.stayAwake
+                icon: "coffee"
+                label: strings.t("control.stayAwake")
+                sublabel: root.stayAwake ? strings.t("control.stayAwakeOn") : strings.t("control.off")
+                onActivated: root.toggleStayAwake()
+            }
+            Tile {
+                shape: "capsule"
                 kind: "toggle"
                 on: root.animationsOn
                 icon: "animation"
                 label: strings.t("control.animations")
                 sublabel: root.animationsOn ? strings.t("control.animationsOn") : strings.t("control.animationsOff")
                 onActivated: root.toggleAnimations()
+            }
+            // Velocidade saiu do InfoRow da Rede para o círculo da 3ª linha.
+            Tile {
+                id: speedTile
+                shape: "round"
+                icon: "speed"
+                label: strings.t("control.net.speedTest")
+                available: root.shell !== null && root.netKind !== "disconnected"
+                closesIsland: true
+                onActivated: root.openSpeedTest()
             }
         }
 
@@ -856,6 +888,9 @@ Item {
         }
 
         InfoRow {
+            // As três linhas de cima ficam com Q, A e Z; o QR usa a 4ª coluna
+            // da linha Z (V), já que a Rede é a 4ª linha com tecla.
+            keyRow: 2
             Accessible.name: strings.t("control.network")
             icon: root.netKind === "ethernet" ? "lan" : root.netKind === "wifi" ? "wifi" : "wifi_off"
             alert: root.netKind === "disconnected"
@@ -870,20 +905,66 @@ Item {
 
             Tile {
                 visible: root.hwWifi && root.netKind === "wifi"
-                // Dois botões de 122 px: só o texto cabe (como na spec).
+                // Botão de c4 (colX(2, 4) acompanha os 470 px): só o texto cabe.
                 label: strings.t("control.net.wifiQr")
                 available: root.shell !== null
                 closesIsland: true
                 onActivated: root.openWifiQr()
             }
-            Tile {
-                stretch: true
-                icon: "speed"
-                label: strings.t("control.net.speedTest")
-                available: root.shell !== null && root.netKind !== "disconnected"
-                closesIsland: true
-                onActivated: root.openSpeedTest()
-            }
+        }
+    }
+
+    // ---------- Balão do círculo ----------
+    // Sem rodapé no modo ponteiro, o nome do círculo com hover aparece num
+    // balão logo abaixo dele, sobre o vão de 8 px e o alto da linha seguinte.
+    // O x vem do mapToItem do tile, que o GridRow já espelha em RTL.
+    Item {
+        id: roundTip
+        z: 10
+        readonly property bool shown: root.hoverNote !== "" && !root.keyboardMode && root.page === ""
+        // Último tile e texto mostrados: no fade de saída o balão some no
+        // lugar, sem pular nem esvaziar.
+        property Item anchorTile: null
+        property string held: ""
+        Connections {
+            target: root
+            function onHoverTileChanged() { if (root.hoverTile) roundTip.anchorTile = root.hoverTile; }
+            function onHoverNoteChanged() { if (root.hoverNote !== "") roundTip.held = root.hoverNote; }
+        }
+        readonly property point anchorPos: {
+            const t = roundTip.anchorTile;
+            // Dependências para refazer a conta quando a grade muda.
+            const deps = [root.width, grid.x, grid.y, grid.implicitHeight];
+            if (!t || deps.length === 0) return Qt.point(0, 0);
+            return t.mapToItem(root, t.width / 2, t.height);
+        }
+        width: tipText.implicitWidth + 20
+        height: 24
+        x: Math.max(0, Math.min(root.width - width, anchorPos.x - width / 2))
+        y: anchorPos.y + 4
+        opacity: shown ? 1 : 0
+        visible: opacity > 0
+        Behavior on opacity { NumberAnimation { duration: Commons.Style.duration(roundTip.shown ? root.metrics.msFadeIn : root.metrics.msFadeOut); easing.type: Easing.OutCubic } }
+
+        // Base opaca na cor da ilha e o véu de fg a 14% por cima.
+        ContinuousRect {
+            anchors.fill: parent
+            radius: root.metrics.fit(12)
+            color: root.surface
+        }
+        ContinuousRect {
+            anchors.fill: parent
+            radius: root.metrics.fit(12)
+            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.14)
+        }
+        Text {
+            id: tipText
+            anchors.centerIn: parent
+            text: roundTip.held
+            textFormat: Text.PlainText
+            font.family: root.fontFamily
+            font.pixelSize: 11
+            color: root.fg
         }
     }
 

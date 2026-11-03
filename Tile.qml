@@ -43,7 +43,8 @@ import "TileArm.js" as TileArm
 //   fg, bg, accent, danger, muted, metrics, fontFamily
 //   keyRow, keyCol, keySpan          preenchidos pelo GridRow (posição na grade)
 //   readonly armed: bool, letter: string, hovered: bool
-//   readonly hoverNote: string       "rótulo · sublinha" (o round mostra no rodapé)
+//   readonly hoverNote: string       "rótulo · sublinha" (o painel mostra a do round num
+//                                    balão no ponteiro e no rodapé no modo teclado)
 //   readonly noteShown: bool         round com hover há msTooltip
 // Sinal:  activated()                ação, toggle ou 2ª ativação de um confirm
 // Funções:
@@ -230,7 +231,7 @@ Item {
     readonly property real radius: Math.max(0, cornerRadius >= 0 ? cornerRadius
                                         : (compact || shape !== "card") ? metrics.fit(height / 2)
                                         : iconFace ? metrics.cardRadius : metrics.tileRadius)
-    // Círculo do ícone da cápsula (44 px num tile de 60).
+    // Círculo do ícone da cápsula (40 px num tile de 56).
     readonly property real circle: Math.max(0, height - 16)
     readonly property color circleColor: _armed ? danger : standbyOn ? standbyColor : on ? toneColor : Qt.rgba(fg.r, fg.g, fg.b, 0.10)
     readonly property color circleInk: standbyOn ? toneColor : _armed || on ? bg : fg
@@ -517,7 +518,9 @@ Item {
                 anchors.left: capCircle.right
                 anchors.leftMargin: 12
                 anchors.right: parent.right
-                anchors.rightMargin: tile.letter !== "" ? 14 + tile.metrics.badge + 6 : 14
+                // A vaga da letra só existe no modo teclado; no ponteiro o
+                // texto vai até a margem (a letra não aparece na cápsula).
+                anchors.rightMargin: tile.letter !== "" && tile.keyboardMode ? 14 + tile.metrics.badge + 6 : 14
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
 
@@ -563,8 +566,9 @@ Item {
             id: compactArea
             visible: tile.layoutKind === "compact"
             anchors.fill: parent
-            anchors.rightMargin: tile.letter !== "" ? tile.metrics.badge + 6 : 0
-            anchors.leftMargin: tile.letter !== "" ? 6 : 0
+            // Folga da letra só quando ela aparece (modo teclado).
+            anchors.rightMargin: tile.letter !== "" && tile.keyboardMode ? tile.metrics.badge + 6 : 0
+            anchors.leftMargin: tile.letter !== "" && tile.keyboardMode ? 6 : 0
 
             Row {
                 anchors.centerIn: parent
@@ -598,9 +602,12 @@ Item {
 
         // No round a letra mora dentro do círculo, embaixo do ícone (e não
         // na borda, onde sumia sobre o accent); a cor segue o preenchimento.
+        // Cápsula e round só mostram a letra no modo teclado: no ponteiro o
+        // texto da cápsula ocupa a vaga e o round fica só com o ícone.
         KeyBadge {
             readonly property bool middle: tile.compact || tile.layoutKind === "capsule"
             readonly property bool inCircle: tile.layoutKind === "round"
+            readonly property bool keyOnly: inCircle || tile.layoutKind === "capsule"
             anchors.right: inCircle ? undefined : parent.right
             anchors.rightMargin: tile.layoutKind === "capsule" ? 14 : tile.compact ? 8 : 9
             anchors.horizontalCenter: inCircle ? parent.horizontalCenter : undefined
@@ -609,7 +616,7 @@ Item {
             // Sem âncora vertical no round: y põe a letra no pé do círculo.
             y: inCircle ? parent.height - height - Math.max(2, Math.round(tile.height * 0.07)) : 0
             anchors.verticalCenter: middle ? parent.verticalCenter : undefined
-            letter: tile.letter
+            letter: keyOnly && !tile.keyboardMode ? "" : tile.letter
             keyboardMode: tile.keyboardMode
             strong: tile.hot || tile.focusShown
             // Fora do modo teclado o round não mostra a letra só por estar ligado.

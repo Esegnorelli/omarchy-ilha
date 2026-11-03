@@ -3,14 +3,15 @@ import qs.Commons as Commons
 
 // Letra da tecla impressa no canto de um item (spec §3.2). É sobreposição:
 // quem usa posiciona (anchors) e ela nunca entra no layout. Só a letra, sem
-// caixa: fica escondida fora do modo teclado e aparece no hover ou no foco.
+// caixa: só existe no modo teclado. No ponteiro fica escondida, mesmo no
+// hover ou num item preenchido (como no vídeo, sem letras soltas).
 //
 // API pública:
 //   letter: string        letra mostrada ("" esconde)
-//   keyboardMode: bool    false = escondida (salvo strong/onFill), true = metrics.textKey
+//   keyboardMode: bool    false = escondida, true = metrics.textKey
 //                         (muted um degrau e meio acima, para ler sobre o cartão)
-//   strong: bool          item focado ou com hover: letra em fg
-//   onFill: bool          item preenchido (ligado/armado): letra na cor do fundo a 85%
+//   strong: bool          item focado ou com hover: letra em fg (só cor)
+//   onFill: bool          item preenchido (ligado/armado): letra na cor do fundo a 85% (só cor)
 //   fg, bg, accent, muted cores do tema
 //   fontFamily            fonte do tema (o Tile repassa a do Estilo)
 //   metrics: Metrics
@@ -33,7 +34,8 @@ Item {
     // em repouso lê metrics.textKey, que já parte do muted do tema.
     readonly property color ink: onFill ? Qt.rgba(bg.r, bg.g, bg.b, 0.85)
                                         : (strong ? fg : metrics.textKey)
-    readonly property real level: onFill || strong || keyboardMode ? 1 : 0
+    // strong/onFill mudam só a cor; quem decide se a letra aparece é o modo.
+    readonly property real level: keyboardMode ? 1 : 0
 
     // A opacidade da raiz fica livre para quem usa (a Faixa anima a dela);
     // o nível mora na letra.

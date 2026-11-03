@@ -5,9 +5,11 @@ import qs.Commons as Commons
 
 // Música (view id "media"): o player MPRIS ativo dentro da pílula.
 //
-//   capa 132 · 16 · título / artista / álbum / seletor de players   (132)
-//   14 · progresso (trilho 6 + tempos 11 px)                         (30)
-//   14 · [aleatório] anterior · play/pausa · próxima [repetir]      (60)
+//   capa 64 · 12 · título / artista · álbum / [players] · 12 · ◀ ▶‖ ▶   (64)
+//   10 · [aleatório] tempo · progresso · duração [repetir]            (24)
+//
+// Mini-player na densidade do vídeo: conteúdo 440 × 98 (ilha 468 × 126,
+// 14 de margem). Nada maior do que o necessário.
 //
 // A fonte é a mesma dos indicadores (Island liga "media" na instância
 // compartilhada): o serviço omarchy.media do shell, senão o MPRIS direto.
@@ -153,10 +155,11 @@ Item {
     }
 
     // ---------- Rodapé ----------
-    readonly property string footerStatus: !hasTrack ? ""
+    // Só no modo teclado: com o mouse o mini-player fica sem rodapé.
+    readonly property string footerStatus: !hasTrack || !keyboardMode ? ""
         : playerName !== "" ? playerName + " · " + tr(playing ? "media.playing" : "media.paused")
         : tr(playing ? "media.playing" : "media.paused")
-    readonly property string footerHints: hasTrack ? tr("hint.media") : ""
+    readonly property string footerHints: hasTrack && keyboardMode ? tr("hint.media") : ""
     readonly property bool footerAlert: false
 
     // ---------- Teclado (o host chama) ----------
@@ -213,50 +216,57 @@ Item {
         return true
     }
 
-    implicitWidth: metrics.content
-    implicitHeight: 250
+    // Largura do conteúdo (ilha = 440 + 2 × 14 = 468) e altura das duas
+    // linhas: capa 64 + 10 + progresso 24 = 98 (ilha 126).
+    readonly property int panelContent: 440
+    implicitWidth: panelContent
+    implicitHeight: 98
 
     // ================= Vazio =================
-    Column {
+    Row {
         anchors.centerIn: parent
         visible: !root.hasTrack
-        spacing: 10
+        spacing: 12
 
         Item {
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: 72
-            height: 72
+            anchors.verticalCenter: parent.verticalCenter
+            width: 48
+            height: 48
 
             ContinuousRect {
                 anchors.fill: parent
-                radius: root.metrics.cardRadius
+                radius: root.metrics.fit(14)
                 color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
             }
             Icon {
                 anchors.centerIn: parent
                 name: "music_off"
-                size: 32
+                size: 24
                 color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.tertiaryAlpha)
             }
         }
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: root.tr("media.nothingPlaying")
-            textFormat: Text.PlainText
-            color: root.fg
-            font.family: root.fontFamily
-            font.pixelSize: 15
-            font.weight: Font.DemiBold
-        }
+        Column {
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 2
 
-        Text {
-            anchors.horizontalCenter: parent.horizontalCenter
-            text: root.tr("media.nothingPlayingHint")
-            textFormat: Text.PlainText
-            color: root.secondary
-            font.family: root.fontFamily
-            font.pixelSize: 12
+            Text {
+                text: root.tr("media.nothingPlaying")
+                textFormat: Text.PlainText
+                color: root.fg
+                font.family: root.fontFamily
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
+                horizontalAlignment: Text.AlignLeft
+            }
+            Text {
+                text: root.tr("media.nothingPlayingHint")
+                textFormat: Text.PlainText
+                color: root.secondary
+                font.family: root.fontFamily
+                font.pixelSize: 12
+                horizontalAlignment: Text.AlignLeft
+            }
         }
     }
 
@@ -266,23 +276,23 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         visible: root.hasTrack
-        spacing: 14
+        spacing: 10
 
-        // ---- Capa e textos ----
+        // ---- Linha 1: capa · textos · transporte ----
         Item {
             width: parent.width
-            height: 132
+            height: 64
 
             Item {
                 id: artBox
                 anchors.left: parent.left
-                anchors.top: parent.top
-                width: 132
-                height: 132
+                anchors.verticalCenter: parent.verticalCenter
+                width: 64
+                height: 64
 
                 ContinuousRect {
                     anchors.fill: parent
-                    radius: root.metrics.cardRadius
+                    radius: root.metrics.fit(14)
                     color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaIdle)
                     visible: !art.ready
                 }
@@ -290,7 +300,7 @@ Item {
                     anchors.centerIn: parent
                     visible: !art.ready
                     name: "music_note"
-                    size: 44
+                    size: 28
                     filled: true
                     color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.tertiaryAlpha)
                 }
@@ -300,8 +310,8 @@ Item {
                     anchors.fill: parent
                     visible: false
                     source: root.artUrl
-                    sourceSize.width: 264
-                    sourceSize.height: 264
+                    sourceSize.width: 128
+                    sourceSize.height: 128
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     smooth: true
@@ -310,7 +320,7 @@ Item {
                 ContinuousRect {
                     id: artMask
                     anchors.fill: parent
-                    radius: root.metrics.cardRadius
+                    radius: root.metrics.fit(14)
                     color: root.fg
                     visible: false
                     layer.enabled: art.ready
@@ -331,11 +341,11 @@ Item {
             Column {
                 id: info
                 anchors.left: artBox.right
-                anchors.leftMargin: 16
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.topMargin: 6
-                spacing: 4
+                anchors.leftMargin: 12
+                anchors.right: transportBox.left
+                anchors.rightMargin: 12
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 2
 
                 Text {
                     width: parent.width
@@ -343,163 +353,190 @@ Item {
                     textFormat: Text.PlainText
                     color: root.fg
                     font.family: root.fontFamily
-                    font.pixelSize: 18
+                    font.pixelSize: 14
                     font.weight: Font.DemiBold
                     // Explícito para o espelho do RTL alinhar à direita.
                     horizontalAlignment: Text.AlignLeft
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
+                // Artista e álbum numa linha só.
                 Text {
                     width: parent.width
                     visible: text !== ""
-                    text: root.artist
+                    text: root.artist !== "" && root.album !== "" ? root.artist + " · " + root.album
+                        : root.artist !== "" ? root.artist : root.album
                     textFormat: Text.PlainText
                     color: root.secondary
-                    font.family: root.fontFamily
-                    font.pixelSize: 13
-                    font.weight: Font.Medium
-                    horizontalAlignment: Text.AlignLeft
-                    elide: Text.ElideRight
-                    maximumLineCount: 1
-                }
-                Text {
-                    width: parent.width
-                    visible: text !== ""
-                    text: root.album
-                    textFormat: Text.PlainText
-                    color: root.secondary
-                    opacity: 0.85
                     font.family: root.fontFamily
                     font.pixelSize: 12
                     horizontalAlignment: Text.AlignLeft
                     elide: Text.ElideRight
                     maximumLineCount: 1
                 }
-            }
 
-            // Seletor de players: fichas com o nome, só com mais de um.
-            Row {
-                id: chips
-                anchors.left: info.left
-                anchors.right: info.right
-                anchors.bottom: parent.bottom
-                spacing: 6
-                clip: true
-                visible: root.players.length > 1
+                // Seletor de players: fichas com o nome, só com mais de um.
+                Item {
+                    width: parent.width
+                    height: 18
+                    visible: root.players.length > 1
 
-                Repeater {
-                    model: root.players.length > 1 ? root.players : []
+                    Row {
+                        id: chips
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        spacing: 4
+                        clip: true
 
-                    Item {
-                        id: chip
-                        required property var modelData
-                        readonly property string key: root.media ? root.media.mediaKey(modelData) : ""
-                        readonly property bool selected: !!root.media && key === root.media.mediaKey(root.player)
+                        Repeater {
+                            model: root.players.length > 1 ? root.players : []
 
-                        width: Math.min(120, chipText.implicitWidth + (chipDot.visible ? 30 : 22))
-                        height: 26
+                            Item {
+                                id: chip
+                                required property var modelData
+                                readonly property string key: root.media ? root.media.mediaKey(modelData) : ""
+                                readonly property bool selected: !!root.media && key === root.media.mediaKey(root.player)
 
-                        Accessible.role: Accessible.Button
-                        Accessible.name: chipText.text
+                                width: Math.min(96, chipText.implicitWidth + (chipDot.visible ? 24 : 16))
+                                height: 18
 
-                        ContinuousRect {
-                            anchors.fill: parent
-                            radius: height / 2
-                            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b,
-                                chip.selected ? root.metrics.alphaPressed
-                                : chipHover.hovered ? root.metrics.alphaHover : root.metrics.alphaIdle)
-                            Behavior on color {
-                                ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic }
+                                Accessible.role: Accessible.Button
+                                Accessible.name: chipText.text
+
+                                ContinuousRect {
+                                    anchors.fill: parent
+                                    radius: height / 2
+                                    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b,
+                                        chip.selected ? root.metrics.alphaPressed
+                                        : chipHover.hovered ? root.metrics.alphaHover : root.metrics.alphaIdle)
+                                    Behavior on color {
+                                        ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic }
+                                    }
+                                }
+
+                                // Ponto no destaque: este player está tocando.
+                                Rectangle {
+                                    id: chipDot
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 7
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !!chip.modelData.isPlaying
+                                    width: 5
+                                    height: 5
+                                    radius: 2.5
+                                    color: root.accent
+                                }
+
+                                Text {
+                                    id: chipText
+                                    anchors.left: chipDot.visible ? chipDot.right : parent.left
+                                    anchors.leftMargin: chipDot.visible ? 4 : 8
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: root.media ? root.media.mediaLabel(chip.modelData) : ""
+                                    textFormat: Text.PlainText
+                                    color: chip.selected ? root.fg : root.secondary
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: chip.selected ? Font.DemiBold : Font.Normal
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+
+                                HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
+                                TapHandler {
+                                    onTapped: if (root.media) root.media.selectMedia(chip.key)
+                                }
                             }
                         }
+                    }
+                }
+            }
 
-                        // Ponto no destaque: este player está tocando.
-                        Rectangle {
-                            id: chipDot
-                            anchors.left: parent.left
-                            anchors.leftMargin: 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: !!chip.modelData.isPlaying
-                            width: 5
-                            height: 5
-                            radius: 2.5
-                            color: root.accent
-                        }
+            // Transporte: a caixa segue o espelho da ilha (vai para a esquerda
+            // no RTL); a fileira dentro fica LTR, como os ícones.
+            Item {
+                id: transportBox
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                width: transport.width
+                height: transport.height
 
-                        Text {
-                            id: chipText
-                            anchors.left: chipDot.visible ? chipDot.right : parent.left
-                            anchors.leftMargin: chipDot.visible ? 5 : 11
-                            anchors.right: parent.right
-                            anchors.rightMargin: 11
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: root.media ? root.media.mediaLabel(chip.modelData) : ""
-                            textFormat: Text.PlainText
-                            color: chip.selected ? root.fg : root.secondary
-                            font.family: root.fontFamily
-                            font.pixelSize: 11
-                            font.weight: chip.selected ? Font.DemiBold : Font.Normal
-                            elide: Text.ElideRight
-                            maximumLineCount: 1
-                        }
+                Row {
+                    id: transport
+                    LayoutMirroring.enabled: false
+                    LayoutMirroring.childrenInherit: true
+                    spacing: 4
 
-                        HoverHandler { id: chipHover; cursorShape: Qt.PointingHandCursor }
-                        TapHandler {
-                            onTapped: if (root.media) root.media.selectMedia(chip.key)
-                        }
+                    RoundButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        diameter: 32
+                        iconName: "skip_previous"
+                        iconSize: 18
+                        available: root.canPrev
+                        label: root.tr("media.previous")
+                        onTapped: root.act("previous")
+                    }
+                    RoundButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        diameter: 40
+                        iconName: root.playing ? "pause" : "play_arrow"
+                        iconSize: 22
+                        primary: true
+                        available: root.canToggle
+                        label: root.tr(root.playing ? "media.pause" : "media.play")
+                        onTapped: root.act("playPause")
+                    }
+                    RoundButton {
+                        anchors.verticalCenter: parent.verticalCenter
+                        diameter: 32
+                        iconName: "skip_next"
+                        iconSize: 18
+                        available: root.canNext
+                        label: root.tr("media.next")
+                        onTapped: root.act("next")
                     }
                 }
             }
         }
 
-        // ---- Progresso (sempre LTR: o tempo anda para a direita) ----
-        Item {
-            id: progressBox
+        // ---- Linha 2: [aleatório] tempo · trilho · duração [repetir] ----
+        // Sempre LTR: o tempo anda para a direita.
+        Row {
+            id: progressRow
             width: parent.width
-            height: 30
+            height: 24
+            spacing: 8
             LayoutMirroring.enabled: false
             LayoutMirroring.childrenInherit: true
 
             readonly property bool hot: seekHover.hovered || root.scrubbing
+            // O trilho fica com o que sobra da fileira.
+            readonly property real trackWidth: Math.max(0, width
+                - (shuffleBtn.visible ? shuffleBtn.width + spacing : 0)
+                - elapsedText.width - spacing
+                - spacing - totalText.width
+                - (repeatBtn.visible ? spacing + repeatBtn.width : 0))
 
-            ContinuousRect {
-                id: track
-                x: 0
-                y: 4
-                width: parent.width
-                height: 6
-                radius: root.metrics.fit(3)
-                color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
-
-                ContinuousRect {
-                    x: 0
-                    width: Math.max(height, track.width * root.progress)
-                    height: parent.height
-                    radius: root.metrics.fit(3)
-                    color: root.accent
-                    visible: root.length > 0
-                }
-
-                // Botão do trilho: só no hover ou arrastando.
-                Rectangle {
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: track.width * root.progress - width / 2
-                    width: 12
-                    height: 12
-                    radius: root.metrics.fit(6)
-                    color: root.fg
-                    visible: root.canSeek
-                    opacity: progressBox.hot ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic }
-                    }
-                }
+            RoundButton {
+                id: shuffleBtn
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.hasShuffle
+                diameter: visible ? 24 : 0
+                iconName: "shuffle"
+                iconSize: 16
+                on: root.shuffleOn
+                label: root.tr("media.shuffle")
+                onTapped: root.toggleShuffle()
             }
 
             Text {
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
+                id: elapsedText
+                anchors.verticalCenter: parent.verticalCenter
+                // Largura da duração: o tempo não empurra o trilho ao virar 10:00.
+                width: Math.max(implicitWidth, totalText.implicitWidth)
+                horizontalAlignment: Text.AlignRight
                 text: root.length > 0 || root.position > 0 ? root.clockText(root.shownPosition) : ""
                 textFormat: Text.PlainText
                 color: root.secondary
@@ -507,9 +544,80 @@ Item {
                 font.pixelSize: 11
                 font.features: ({ "tnum": 1 })
             }
+
+            Item {
+                id: trackBox
+                anchors.verticalCenter: parent.verticalCenter
+                width: progressRow.trackWidth
+                height: 18
+
+                ContinuousRect {
+                    id: track
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: 0
+                    width: parent.width
+                    height: 4
+                    radius: root.metrics.fit(2)
+                    color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, root.metrics.alphaHover)
+
+                    ContinuousRect {
+                        x: 0
+                        width: Math.max(height, track.width * root.progress)
+                        height: parent.height
+                        radius: root.metrics.fit(2)
+                        color: root.accent
+                        visible: root.length > 0
+                    }
+
+                    // Botão do trilho: só no hover ou arrastando.
+                    Rectangle {
+                        anchors.verticalCenter: parent.verticalCenter
+                        x: track.width * root.progress - width / 2
+                        width: 10
+                        height: 10
+                        radius: root.metrics.fit(5)
+                        color: root.fg
+                        visible: root.canSeek
+                        opacity: progressRow.hot ? 1 : 0
+                        Behavior on opacity {
+                            NumberAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic }
+                        }
+                    }
+                }
+
+                // Clique ou arraste no trilho (faixa de 18 px em volta dele).
+                MouseArea {
+                    id: seekArea
+                    anchors.fill: parent
+                    enabled: root.canSeek
+                    cursorShape: root.canSeek ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    preventStealing: true
+
+                    function fracAt(px) {
+                        return Math.max(0, Math.min(1, px / Math.max(1, width)))
+                    }
+                    onPressed: mouse => {
+                        root.scrubFrac = fracAt(mouse.x)
+                        root.scrubbing = true
+                    }
+                    onPositionChanged: mouse => {
+                        if (root.scrubbing)
+                            root.scrubFrac = fracAt(mouse.x)
+                    }
+                    onReleased: {
+                        if (!root.scrubbing)
+                            return
+                        root.scrubbing = false
+                        root.seekTo(root.scrubFrac * root.length)
+                    }
+                    onCanceled: root.scrubbing = false
+                }
+                HoverHandler { id: seekHover; enabled: root.canSeek }
+            }
+
             Text {
-                anchors.right: parent.right
-                anchors.bottom: parent.bottom
+                id: totalText
+                anchors.verticalCenter: parent.verticalCenter
                 text: root.length > 0 ? root.clockText(root.length) : ""
                 textFormat: Text.PlainText
                 color: root.secondary
@@ -518,98 +626,16 @@ Item {
                 font.features: ({ "tnum": 1 })
             }
 
-            // Clique ou arraste no trilho (faixa de 18 px em volta dele).
-            MouseArea {
-                id: seekArea
-                x: 0
-                y: -2
-                width: parent.width
-                height: 18
-                enabled: root.canSeek
-                cursorShape: root.canSeek ? Qt.PointingHandCursor : Qt.ArrowCursor
-                preventStealing: true
-
-                function fracAt(px) {
-                    return Math.max(0, Math.min(1, px / Math.max(1, width)))
-                }
-                onPressed: mouse => {
-                    root.scrubFrac = fracAt(mouse.x)
-                    root.scrubbing = true
-                }
-                onPositionChanged: mouse => {
-                    if (root.scrubbing)
-                        root.scrubFrac = fracAt(mouse.x)
-                }
-                onReleased: {
-                    if (!root.scrubbing)
-                        return
-                    root.scrubbing = false
-                    root.seekTo(root.scrubFrac * root.length)
-                }
-                onCanceled: root.scrubbing = false
-            }
-            HoverHandler { id: seekHover; enabled: root.canSeek }
-        }
-
-        // ---- Transporte (sempre LTR, como os ícones) ----
-        Item {
-            width: parent.width
-            height: 60
-            LayoutMirroring.enabled: false
-            LayoutMirroring.childrenInherit: true
-
-            Row {
-                anchors.centerIn: parent
-                spacing: 14
-
-                RoundButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: root.hasShuffle
-                    diameter: 40
-                    iconName: "shuffle"
-                    iconSize: 18
-                    on: root.shuffleOn
-                    label: root.tr("media.shuffle")
-                    onTapped: root.toggleShuffle()
-                }
-                RoundButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    diameter: 48
-                    iconName: "skip_previous"
-                    iconSize: 24
-                    available: root.canPrev
-                    label: root.tr("media.previous")
-                    onTapped: root.act("previous")
-                }
-                RoundButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    diameter: 60
-                    iconName: root.playing ? "pause" : "play_arrow"
-                    iconSize: 30
-                    primary: true
-                    available: root.canToggle
-                    label: root.tr(root.playing ? "media.pause" : "media.play")
-                    onTapped: root.act("playPause")
-                }
-                RoundButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    diameter: 48
-                    iconName: "skip_next"
-                    iconSize: 24
-                    available: root.canNext
-                    label: root.tr("media.next")
-                    onTapped: root.act("next")
-                }
-                RoundButton {
-                    anchors.verticalCenter: parent.verticalCenter
-                    visible: root.hasLoop
-                    diameter: 40
-                    iconName: root.loopMode === MprisLoopState.Track ? "repeat_one" : "repeat"
-                    iconSize: 18
-                    on: root.loopMode !== MprisLoopState.None
-                    label: root.tr("media.repeat")
-                    onTapped: root.cycleLoop()
-                }
+            RoundButton {
+                id: repeatBtn
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.hasLoop
+                diameter: visible ? 24 : 0
+                iconName: root.loopMode === MprisLoopState.Track ? "repeat_one" : "repeat"
+                iconSize: 16
+                on: root.loopMode !== MprisLoopState.None
+                label: root.tr("media.repeat")
+                onTapped: root.cycleLoop()
             }
         }
     }

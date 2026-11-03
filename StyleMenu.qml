@@ -4,18 +4,18 @@ import Quickshell
 import Quickshell.Io
 import qs.Commons as Commons
 
-// Estilo (spec §3.4): como o sistema parece.
+// Estilo (spec §3.4): como o sistema parece, em três páginas enxutas com a
+// mesma largura (só a altura muda). Abas no cabeçalho; Tab / ⇧Tab trocam.
 //
-//   TEMA            linha de busca e carrossel de amostras: o fundo do tema, a
-//                   paleta e o nome nas cores dele. ←→ escolhem, ↵ aplica. O
-//                   ponto de destaque marca o tema em uso. / abre a busca.
+//   TEMA            carrossel de amostras: o fundo do tema, a paleta e o nome
+//                   nas cores dele. ←→ escolhem, ↵ aplica. O ponto de destaque
+//                   marca o tema em uso. / abre a busca. R ou o botão de grade
+//                   abre Todos os temas (grade de 4 colunas, ←→ ±1, ↑↓ ±4).
 //   FUNDO           carrossel do tema no centro. A escolhida fica inteira e
 //                   contornada; as vizinhas encolhem. Rodapé: arquivo e 1/13.
 //                   ←→ escolhem, ↵ e o clique na escolhida aplicam.
-//                   Q Próximo fundo · W Escolher fundo… · E Cores do fundo · R Todos os temas…
-//   TODOS OS TEMAS  grade de 4 colunas com todos os temas (←→ ±1, ↑↓ ±4),
-//                   sem os outros controles. O fundo segue o tema do cursor. Esc volta.
-//   JANELAS E FONTE Cantos (S D F) · Transparência (X C V) · Fonte ‹ chips › ([ ])
+//                   Q Próximo fundo · W Escolher fundo… · E Cores do fundo
+//   JANELAS E FONTE Cantos (W E R) · Transparência (S D F) · Fonte ‹ chips › ([ ])
 //
 // Contrato de estado: active, fg/bg/accent/danger, metrics, keyboardMode,
 // footerStatus, footerHints, handleKey(event) → bool, handleEscape() → bool,
@@ -59,24 +59,95 @@ Item {
     signal lookGlass(string mode)
     signal lookFont(string name)
 
-    implicitWidth: metrics.content
+    // Largura fixa nas três páginas (ilha de 564): trocar de aba só mexe na altura.
+    readonly property int panelContent: 536
+    implicitWidth: panelContent
     implicitHeight: grid.implicitHeight
+
+    // Página à vista: "theme" | "background" | "windows".
+    property string page: "theme"
+    readonly property var pages: ["theme", "background", "windows"]
+
+    // Troca de página: as buscas e a grade de Todos os temas não atravessam
+    // abas (nada fica filtrando escondido). O foco vai para o primeiro item.
+    function setPage(next, reason) {
+        if (root.pages.indexOf(next) < 0) return;
+        if (next !== root.page) {
+            root.themeQuery = "";
+            root.themeTyping = false;
+            root.wallQuery = "";
+            root.wallTyping = false;
+            if (next !== "theme") root.allThemesOpen = false;
+            root.page = next;
+        }
+        root.focusPage(reason === undefined ? Qt.TabFocusReason : reason);
+    }
+    function stepPage(d) {
+        const i = root.pages.indexOf(root.page);
+        const n = root.pages.length;
+        root.setPage(root.pages[(i + d + n) % n], Qt.TabFocusReason);
+    }
+    function focusPage(reason) {
+        const r = reason === undefined ? Qt.TabFocusReason : reason;
+        if (root.page === "background") {
+            wallStrip.forceActiveFocus(r);
+            return true;
+        }
+        if (root.page === "windows") {
+            const it = cornersRow.focusItems()[0];
+            if (it) it.forceActiveFocus(r);
+            return !!it;
+        }
+        themeStrip.forceActiveFocus(r);
+        return true;
+    }
     // Fonte do Estilo (o host liga a mesma da ilha).
     property string fontFamily: Commons.Style.fontFamily
 
     Commons.Translations { id: strings; directory: Qt.resolvedUrl("i18n") }
 
     // ---------- Contrato ----------
-    readonly property string footerStatus: [root.currentTheme, root.background].filter(s => s !== "").join(" · ")
-    readonly property string footerHints: allThemesOpen ? strings.t("hint.styleAll") : strings.t("hint.style")
+    // Rodapé só no modo teclado: com o ponteiro, as abas já dizem tudo.
+    readonly property string footerStatus: !root.keyboardMode ? ""
+                                         : [root.currentTheme, root.background].filter(s => s !== "").join(" · ")
+    readonly property string footerHints: !root.keyboardMode ? ""
+                                        : root.allThemesOpen ? strings.t("hint.styleAllThemes", strings.t("hint.styleAll"))
+                                        : strings.t("hint.stylePages", strings.t("hint.style"))
 
     function handleKey(event) {
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
+        // Tab / ⇧Tab trocam de página (Ctrl+Tab segue com a ilha: troca de painel).
+        if (!mods && (event.key === Qt.Key_Tab || event.key === Qt.Key_Backtab)) {
+            grid.navigated = true;
+            if (!event.isAutoRepeat)
+                root.stepPage(event.key === Qt.Key_Backtab || (event.modifiers & Qt.ShiftModifier) ? -1 : 1);
+            return true;
+        }
+        // R na página Tema, sem busca: abre ou fecha Todos os temas.
+        if (!mods && event.key === Qt.Key_R && root.page === "theme"
+                && root.themeQuery === "" && !root.themeTyping
+                && !(event.modifiers & Qt.ShiftModifier)) {
+            if (!event.isAutoRepeat) {
+                grid.navigated = true;
+                root.allThemesOpen = !root.allThemesOpen;
+                themeStrip.forceActiveFocus(Qt.ShortcutFocusReason);
+            }
+            return true;
+        }
         if (!mods && (event.key === Qt.Key_BracketLeft || event.key === Qt.Key_BracketRight)) {
             // [ ] só escolhem a fonte e levam o foco até ela; Enter aplica.
-            // Em Todos os temas a fonte some: a tecla é consumida sem efeito.
-            if (!fontRow.visible) return true;
+            // Fora da página Janelas, o primeiro toque só leva até ela.
+            if (root.page !== "windows") {
+                if (!event.isAutoRepeat) {
+                    grid.navigated = true;
+                    root.setPage("windows", Qt.ShortcutFocusReason);
+                    const box = fontRow.focusItems()[0];
+                    if (box) box.forceActiveFocus(Qt.ShortcutFocusReason);
+                }
+                return true;
+            }
             if (!event.isAutoRepeat) {
+                grid.navigated = true;
                 const box = fontRow.focusItems()[0];
                 if (box) box.forceActiveFocus(Qt.TabFocusReason);
                 if (event.key === Qt.Key_BracketLeft) fontRow.prev();
@@ -93,7 +164,7 @@ Item {
     // sendo atalhos; / arma a busca e aí tudo vira texto. Esc ou apagar a
     // busca inteira desarma.
     function typeTheme(event) {
-        if (!themeStrip.activeFocus) return false;
+        if (root.page !== "theme" || !themeStrip.activeFocus) return false;
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (mods || event.isAutoRepeat) return false;
         if (event.key === Qt.Key_Backspace) {
@@ -119,7 +190,7 @@ Item {
         return true;
     }
     function typeWall(event) {
-        if (!wallStrip.activeFocus) return false;
+        if (root.page !== "background" || !wallStrip.activeFocus) return false;
         const mods = event.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier);
         if (mods || event.isAutoRepeat) return false;
         if (event.key === Qt.Key_Backspace) {
@@ -144,8 +215,9 @@ Item {
         root.wallQuery += text;
         return true;
     }
+    // Esc: busca → Todos os temas → volta à página Tema → o que a grade tiver armado.
     function handleEscape() {
-        if (wallStrip.activeFocus && (wallQuery !== "" || wallTyping)) {
+        if (wallQuery !== "" || wallTyping) {
             wallQuery = ""
             wallTyping = false
             return true
@@ -159,9 +231,14 @@ Item {
             allThemesOpen = false
             return true
         }
+        if (page !== "theme") {
+            grid.disarmAll()
+            setPage("theme", Qt.ShortcutFocusReason)
+            return true
+        }
         return grid.handleEscape()
     }
-    function focusFirst() { themeStrip.forceActiveFocus(Qt.TabFocusReason); return true; }
+    function focusFirst() { return root.focusPage(Qt.TabFocusReason); }
 
     // Cartão do meio em cada carrossel. galleryUserMoved evita puxar o tema
     // de volta para o atual enquanto a pessoa ainda está folheando.
@@ -235,8 +312,8 @@ Item {
         return -1;
     }
 
-    // Todos os temas: a faixa de temas vira uma grade de 4 colunas e os outros
-    // controles somem. Os fundos seguem o tema do cursor. Esc volta ao Estilo.
+    // Todos os temas (só na página Tema): a faixa vira uma grade de 4 colunas,
+    // até 3 linhas à vista. Os fundos seguem o tema do cursor. Esc volta à faixa.
     property bool allThemesOpen: false
 
     onActiveChanged: {
@@ -249,6 +326,7 @@ Item {
             wallTyping = false
         }
         if (active) {
+            root.page = "theme";
             refresh();
             root.galleryUserMoved = false;
             root.galleryCursor = root.currentThemeIndex;
@@ -678,44 +756,21 @@ Item {
     }
 
     // ---------- Componentes internos ----------
-    // Legenda de 16 px (mesmo desenho da legenda do GridRow): frase comum, 12 px.
-    component Caption: Item {
-        id: cap
-        property string text: ""
-        property string status: ""
-        property bool statusStrong: false
-        width: root.metrics.content
-        height: root.metrics.caption
-
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 2
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, parent.width / 2)
-            text: cap.text
-            textFormat: Text.PlainText
-            font.family: root.fontFamily
-            font.pixelSize: 12
-            font.weight: Font.Medium
-            font.letterSpacing: 0
-            elide: Text.ElideRight
-            color: Qt.rgba(root.fg.r, root.fg.g, root.fg.b, 0.6)
-        }
-        Text {
-            anchors.right: parent.right
-            anchors.rightMargin: 2
-            anchors.verticalCenter: parent.verticalCenter
-            width: Math.min(implicitWidth, parent.width / 2)
-            horizontalAlignment: Text.AlignRight
-            text: cap.status
-            textFormat: Text.PlainText
-            font.family: root.fontFamily
-            font.pixelSize: 12
-            font.weight: cap.statusStrong ? Font.DemiBold : Font.Normal
-            elide: Text.ElideRight
-            color: cap.statusStrong ? root.fg : root.textSecondary
-            Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-        }
+    // Aba do cabeçalho: 13 px, a ativa em DemiBold fg; as outras em Medium secundário.
+    component PageTab: Text {
+        id: tab
+        property string pageName: ""
+        readonly property bool current: root.page === tab.pageName
+        textFormat: Text.PlainText
+        font.family: root.fontFamily
+        font.pixelSize: 13
+        font.weight: tab.current ? Font.DemiBold : Font.Medium
+        color: tab.current ? root.fg : root.textSecondary
+        Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
+        Accessible.role: Accessible.PageTab
+        Accessible.name: tab.text
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+        TapHandler { onTapped: root.setPage(tab.pageName, Qt.MouseFocusReason) }
     }
 
     // Máscara das bordas das faixas: opaca no meio e some em `edge` px nos
@@ -877,10 +932,11 @@ Item {
         signal cursorMoved(int index)
         signal chosen(int index)
 
-        readonly property int thumbW: 128
-        readonly property int thumbH: 72
+        // 160 × 90 no centro: menor que o seletor do sistema, sem cabeçalho
+        // próprio (as abas do Estilo fazem esse papel).
+        readonly property int thumbW: 160
+        readonly property int thumbH: 90
         readonly property int gap: 12
-        readonly property int header: 24
         readonly property int footerH: 16
         readonly property int thumbRadius: root.metrics.fit(10)
         readonly property var listed: {
@@ -929,54 +985,15 @@ Item {
         Component.onCompleted: Qt.callLater(() => { picker.settle = true; })
 
         implicitWidth: root.metrics.content
-        implicitHeight: header + 8 + row.height + 6 + footerH
+        implicitHeight: row.height + 6 + footerH
         width: implicitWidth
         height: implicitHeight
         activeFocusOnTab: true
         Accessible.role: Accessible.List
         Accessible.name: strings.t("style.section.background")
 
-        // Cabeçalho: a seção (ou a busca) à esquerda, o tema à direita.
-        Item {
-            id: headerRow
-            width: parent.width
-            height: picker.header
-
-            Text {
-                anchors.left: parent.left
-                anchors.leftMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width * 0.55)
-                text: root.wallQuery !== "" ? "⌕ " + root.wallQuery
-                      : root.wallTyping ? "⌕ " + strings.t("style.wallSearch")
-                      : strings.t("style.section.background")
-                textFormat: Text.PlainText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-                elide: Text.ElideRight
-                color: picker.activeFocus && !(root.wallTyping && root.wallQuery === "") ? root.fg : root.textSecondary
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-            }
-            Text {
-                anchors.right: parent.right
-                anchors.rightMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, parent.width * 0.4)
-                horizontalAlignment: Text.AlignRight
-                text: root.wallTheme + (root.pendingWallpaper !== "" ? " · " + strings.t("style.applying") : "")
-                textFormat: Text.PlainText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-                elide: Text.ElideRight
-                color: root.textSecondary
-            }
-            TapHandler { onTapped: picker.forceActiveFocus(Qt.MouseFocusReason) }
-        }
-
         Item {
             id: row
-            y: picker.header + 8
             width: parent.width
             // Folga de 4 px em cima e embaixo para o contorno da escolhida.
             height: picker.thumbH + 8
@@ -1189,19 +1206,27 @@ Item {
         signal cursorMoved(int index)
         signal chosen(int index)
 
-        readonly property int cardW: 112
-        readonly property int cardH: 72
+        readonly property int cardW: 140
+        readonly property int cardH: 80
         readonly property int gap: 10
-        readonly property int header: 32
-        // Grade de Todos os temas: 4 colunas, no máximo 4 linhas à vista.
+        // Folga de 4 px em cima e embaixo para o contorno de 2 px do cursor.
+        readonly property int stripH: cardH + 8
+        // Linha de 16 px sob a faixa: o tema em uso e a contagem.
+        readonly property int lineH: 16
+        // Grade de Todos os temas: 4 colunas, no máximo 3 linhas à vista.
         readonly property bool gridMode: root.allThemesOpen
         readonly property int columns: 4
         readonly property int cellH: 64
         readonly property real cellW: (width - (columns - 1) * gap) / columns
         readonly property int rowCount: Math.ceil(themes.listed.length / columns)
-        readonly property int rowsShown: Math.max(1, Math.min(4, rowCount))
+        readonly property int rowsShown: Math.max(1, Math.min(3, rowCount))
         readonly property real gridH: rowsShown * cellH + (rowsShown - 1) * gap
-        readonly property real bodyH: gridMode ? gridH : cardH
+        readonly property real bodyH: gridMode ? gridH : stripH + 6 + lineH
+        // Contagem "n/N" (ou "Aplicando…"), lida também pelo cabeçalho do Estilo.
+        readonly property string countText: !themes.loaded ? ""
+                                            : root.pendingTheme !== "" ? strings.t("style.applying")
+                                            : themes.listed.length === 0 ? "0/0"
+                                            : ((themes.listedPos < 0 ? 1 : themes.listedPos + 1) + "/" + themes.listed.length)
 
         readonly property var listed: {
             const q = root.themeQuery.trim().toLowerCase();
@@ -1287,93 +1312,18 @@ Item {
         Component.onCompleted: Qt.callLater(() => { themes.settle = true; })
 
         implicitWidth: root.metrics.content
-        implicitHeight: header + 8 + bodyH
+        implicitHeight: bodyH
         width: implicitWidth
         height: implicitHeight
         activeFocusOnTab: true
         Accessible.role: Accessible.List
         Accessible.name: strings.t("style.gallery")
 
-        // Linha de busca, sem placa: seção, lupa e texto, / e a contagem.
-        Item {
-            id: searchLine
-            width: parent.width
-            height: themes.header
-
-            Text {
-                id: sectionText
-                anchors.left: parent.left
-                anchors.leftMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                text: strings.t("style.section.theme")
-                textFormat: Text.PlainText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-                font.weight: Font.DemiBold
-                color: themes.activeFocus ? root.fg : root.textSecondary
-                Behavior on color { ColorAnimation { duration: Commons.Style.duration(root.metrics.msState); easing.type: Easing.OutCubic } }
-            }
-            Icon {
-                id: searchIcon
-                anchors.left: sectionText.right
-                anchors.leftMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                name: "search"
-                size: 16
-                color: root.textSecondary
-            }
-            Text {
-                anchors.left: searchIcon.right
-                anchors.leftMargin: 8
-                anchors.right: slashBadge.left
-                anchors.rightMargin: 12
-                anchors.verticalCenter: parent.verticalCenter
-                text: root.themeQuery !== "" ? root.themeQuery : strings.t("style.themeSearch")
-                textFormat: Text.PlainText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-                elide: Text.ElideRight
-                color: root.themeQuery !== "" ? root.fg : root.textSecondary
-                opacity: root.themeQuery !== "" || root.themeTyping ? 1 : 0.7
-            }
-            KeyBadge {
-                id: slashBadge
-                anchors.right: themeCount.left
-                anchors.rightMargin: 10
-                anchors.verticalCenter: parent.verticalCenter
-                letter: "/"
-                keyboardMode: root.keyboardMode
-                strong: root.themeTyping
-                fg: root.fg
-                bg: root.bg
-                accent: root.accent
-                muted: root.muted
-                metrics: root.metrics
-            }
-            Text {
-                id: themeCount
-                anchors.right: parent.right
-                anchors.rightMargin: 2
-                anchors.verticalCenter: parent.verticalCenter
-                text: !themes.loaded ? ""
-                      : root.pendingTheme !== "" ? strings.t("style.applying")
-                      : themes.listed.length === 0 ? "0/0"
-                      : ((themes.listedPos < 0 ? 1 : themes.listedPos + 1) + "/" + themes.listed.length)
-                textFormat: Text.PlainText
-                font.family: root.fontFamily
-                font.pixelSize: 13
-                font.features: ({ "tnum": 1 })
-                color: root.textSecondary
-            }
-            TapHandler { onTapped: themes.forceActiveFocus(Qt.MouseFocusReason) }
-        }
-
         // Carrossel: o cartão do cursor no centro, os vizinhos deslizam.
         Item {
             id: carousel
-            y: themes.header + 8
             width: parent.width
-            height: themes.cardH
+            height: themes.stripH
             visible: !themes.gridMode
             clip: true
             // As amostras que saem pela borda esmaecem em vez de serem cortadas.
@@ -1399,6 +1349,7 @@ Item {
                     focused: themes.activeFocus
                     width: themes.cardW
                     height: themes.cardH
+                    y: (carousel.height - height) / 2
                     x: carousel.width / 2 + (index - themes.focusPos) * (themes.cardW + themes.gap) * (root.rtl ? -1 : 1) - themes.cardW / 2
                     z: 100 - dist
                     visible: dist <= 3
@@ -1426,10 +1377,43 @@ Item {
             edge: 64
         }
 
+        // Sob a faixa: o tema em uso à esquerda, a contagem e o ↵ à direita.
+        Item {
+            y: carousel.height + 6
+            width: parent.width
+            height: themes.lineH
+            visible: !themes.gridMode
+
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, parent.width - lineCount.implicitWidth - 16)
+                text: root.currentTheme
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                color: root.textSecondary
+            }
+            Text {
+                id: lineCount
+                anchors.right: parent.right
+                anchors.rightMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                text: themes.countText === "" || root.pendingTheme !== "" ? themes.countText
+                      : themes.countText + " · " + strings.t("style.wallApply")
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 11
+                font.features: ({ "tnum": 1 })
+                color: root.textSecondary
+            }
+        }
+
         // Todos os temas: grade de 4 colunas que rola até o cursor.
         Flickable {
             id: gridView
-            y: themes.header + 8
             width: parent.width
             height: themes.gridH
             visible: themes.gridMode
@@ -1474,9 +1458,8 @@ Item {
 
         Text {
             x: 0
-            y: themes.header + 8
             width: parent.width
-            height: themes.bodyH
+            height: themes.gridMode ? themes.bodyH : themes.stripH
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             visible: !themes.loaded || themes.listed.length === 0
@@ -1506,9 +1489,120 @@ Item {
         strings: strings
         keyboardMode: root.keyboardMode
         fg: root.fg
-        // ----- Tema: busca e paletas -----
+
+        // ----- Cabeçalho (28 px): abas à esquerda, contexto da página à direita -----
+        Item {
+            id: pageHeader
+            width: root.metrics.content
+            height: 28
+
+            // A busca armada ou digitada na página toma o lugar das abas.
+            readonly property bool searching: root.page === "theme" ? (root.themeQuery !== "" || root.themeTyping)
+                                            : root.page === "background" ? (root.wallQuery !== "" || root.wallTyping)
+                                            : false
+            readonly property Item activeTab: root.page === "background" ? tabBackground
+                                            : root.page === "windows" ? tabWindows : tabTheme
+
+            // Uma Row: espelha sozinha em RTL (e o x das abas já vem espelhado).
+            Row {
+                id: tabs
+                anchors.left: parent.left
+                anchors.leftMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: -1
+                spacing: 16
+                visible: !pageHeader.searching
+
+                PageTab { id: tabTheme; pageName: "theme"; text: strings.t("style.section.theme") }
+                PageTab { id: tabBackground; pageName: "background"; text: strings.t("style.section.background") }
+                PageTab { id: tabWindows; pageName: "windows"; text: strings.t("style.section.windows") }
+            }
+            // Sublinhado de 2 px sob a aba ativa.
+            Rectangle {
+                visible: !pageHeader.searching
+                y: 26
+                height: 2
+                radius: 1
+                x: tabs.x + pageHeader.activeTab.x
+                width: pageHeader.activeTab.width
+                color: root.accent
+                Behavior on x { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
+                Behavior on width { NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic } }
+            }
+
+            // Busca: "⌕ texto" ou o convite quando só armada.
+            Text {
+                id: searchText
+                readonly property string query: root.page === "theme" ? root.themeQuery : root.wallQuery
+                anchors.left: parent.left
+                anchors.leftMargin: 2
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, parent.width - rightSide.width - 16)
+                visible: pageHeader.searching
+                text: searchText.query !== "" ? "⌕ " + searchText.query
+                      : "⌕ " + strings.t(root.page === "theme" ? "style.themeSearch" : "style.wallSearch")
+                textFormat: Text.PlainText
+                font.family: root.fontFamily
+                font.pixelSize: 13
+                font.weight: Font.DemiBold
+                elide: Text.ElideRight
+                color: searchText.query !== "" ? root.fg : root.textSecondary
+            }
+
+            // Direita: Tema → n/N e a grade; Fundo → o tema dos fundos; Janelas → nada.
+            Row {
+                id: rightSide
+                anchors.right: parent.right
+                anchors.rightMargin: root.page === "theme" ? 0 : 2
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 8
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.page === "theme"
+                    text: themeStrip.countText
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: 12
+                    font.features: ({ "tnum": 1 })
+                    color: root.textSecondary
+                }
+                IconButton {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.page === "theme"
+                    size: 24
+                    iconSize: 16
+                    icon: "grid_view"
+                    label: strings.t("style.allThemes")
+                    highlighted: root.allThemesOpen
+                    fg: root.fg
+                    accent: root.accent
+                    muted: root.muted
+                    fontFamily: root.fontFamily
+                    metrics: root.metrics
+                    onTapped: {
+                        root.allThemesOpen = !root.allThemesOpen;
+                        themeStrip.forceActiveFocus(Qt.MouseFocusReason);
+                    }
+                }
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: root.page === "background"
+                    width: Math.min(implicitWidth, pageHeader.width * 0.4)
+                    text: root.wallTheme + (root.pendingWallpaper !== "" ? " · " + strings.t("style.applying") : "")
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: 12
+                    elide: Text.ElideRight
+                    color: root.textSecondary
+                }
+            }
+        }
+
+        // ----- Tema: carrossel de paletas (ou a grade de Todos os temas) -----
         Item {
             id: themeBlock
+            visible: root.page === "theme"
             width: root.metrics.content
             height: themeStrip.implicitHeight
 
@@ -1536,9 +1630,10 @@ Item {
             }
         }
 
-        // ----- Fundos do tema em vista: a escolhida no centro, largura da pílula -----
+        // ----- Fundo: os fundos do tema em vista, a escolhida no centro -----
         Item {
             id: wallBlock
+            visible: root.page === "background"
             width: root.metrics.content
             height: wallStrip.implicitHeight
 
@@ -1562,21 +1657,26 @@ Item {
             }
         }
 
-        // ----- Fundo: Q W E R -----
+        // ----- Fundo: Q W E, botões compactos de 32 px em 3 colunas -----
         GridRow {
-            visible: !root.allThemesOpen
+            visible: root.page === "background"
+            columns: 3
+            tileHeight: root.metrics.compact
             Tile {
+                compact: true
                 icon: "skip_next"
                 label: strings.t("style.backgroundNext")
                 onActivated: root.run(["omarchy", "theme", "bg", "next"])
             }
             Tile {
+                compact: true
                 icon: "wallpaper"
                 label: strings.t("style.backgroundPick")
                 closesIsland: true
                 onActivated: root.runAfterClose(["omarchy", "theme", "bg-switcher"])
             }
             Tile {
+                compact: true
                 icon: "auto_awesome"
                 label: strings.t("style.wallpaperColorsShort")
                 busy: root.paletteBusy
@@ -1584,59 +1684,37 @@ Item {
                 unavailableText: strings.t("style.wallpaperVideoShort")
                 onActivated: root.generateFromWallpaper()
             }
-            Tile {
-                icon: "grid_view"
-                label: strings.t("style.allThemes")
-                onActivated: {
-                    root.allThemesOpen = true
-                    themeStrip.forceActiveFocus(Qt.TabFocusReason)
-                }
-            }
         }
 
-        // ----- Janelas e fonte: Cantos (S D F) com a legenda -----
-        Item {
-            id: cornersBlock
-            visible: !root.allThemesOpen
-            width: root.metrics.content
-            height: root.metrics.caption + root.metrics.captionGap + root.metrics.slim
-
-            // O PanelGrid numera esta linha como se fosse a própria LabeledRow.
-            property int autoKeyRow: -1
-            readonly property bool keyable: true
-            function focusItems() { return cornersRow.focusItems(); }
-
-            Caption { text: strings.t("style.section.windows") }
-
-            LabeledRow {
-                id: cornersRow
-                y: root.metrics.caption + root.metrics.captionGap
-                variant: "segmented"
-                keyRow: cornersBlock.autoKeyRow
-                label: strings.t("style.corners")
-                // O segmento ligado já diz o modo: sem repetir à direita.
-                value: ""
-                current: root.corners
-                options: [
-                    { value: "theme", label: strings.t("style.corners.theme") },
-                    { value: "sharp", label: strings.t("style.corners.sharp") },
-                    { value: "rounded", label: strings.t("style.corners.rounded") }
-                ]
-                metrics: root.metrics
-                strings: strings
-                keyboardMode: root.keyboardMode
-                fg: root.fg
-                bg: root.bg
-                accent: root.accent
-                danger: root.danger
-                muted: root.textSecondary
-                onPicked: value => root.setCorners(value)
-            }
-        }
-
-        // ----- Transparência: X C V -----
+        // ----- Janelas e fonte: Cantos (W E R) -----
+        // Sem legenda: a aba já diz "Janelas e fonte".
         LabeledRow {
-            visible: !root.allThemesOpen
+            id: cornersRow
+            visible: root.page === "windows"
+            variant: "segmented"
+            label: strings.t("style.corners")
+            // O segmento ligado já diz o modo: sem repetir à direita.
+            value: ""
+            current: root.corners
+            options: [
+                { value: "theme", label: strings.t("style.corners.theme") },
+                { value: "sharp", label: strings.t("style.corners.sharp") },
+                { value: "rounded", label: strings.t("style.corners.rounded") }
+            ]
+            metrics: root.metrics
+            strings: strings
+            keyboardMode: root.keyboardMode
+            fg: root.fg
+            bg: root.bg
+            accent: root.accent
+            danger: root.danger
+            muted: root.textSecondary
+            onPicked: value => root.setCorners(value)
+        }
+
+        // ----- Transparência: S D F -----
+        LabeledRow {
+            visible: root.page === "windows"
             variant: "segmented"
             label: strings.t("style.transparency")
             value: ""
@@ -1660,7 +1738,7 @@ Item {
         // ----- Fonte: ‹ chips › ([ ]) -----
         LabeledRow {
             id: fontRow
-            visible: !root.allThemesOpen
+            visible: root.page === "windows"
             variant: "chips"
             label: strings.t("style.font")
             // Só avisa que falta o ↵ enquanto a fonte marcada não foi aplicada.
