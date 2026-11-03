@@ -8,17 +8,32 @@ import Quickshell.Services.UPower
 import qs.Commons as Commons
 
 // Faixa do topo da ilha. No hover (o caminho vivo) é uma linha só, sem vão:
-// pontos dos workspaces à esquerda, a hora no centro exato, rede, bateria e
-// no máximo dois avisos à direita. O workspace ativo é uma pílula alongada
-// no destaque; o nome do layout sai na dica e no nome acessível. Tocar na
-// rede ou na bateria abre o Controle, nos dois níveis; as marcas de aviso
-// ficam fora desse grupo e guardam o próprio toque.
+// os workspaces numerados à esquerda, a hora, rede, bateria e no máximo
+// dois avisos à direita. Cada workspace é uma cápsula pequena com o número;
+// a do ativo é mais larga, no destaque. O nome do layout sai na dica e no
+// nome acessível. Tocar na rede ou na bateria abre o Controle, nos dois
+// níveis; as marcas de aviso ficam fora desse grupo e guardam o próprio toque.
 //
 // Nível 2 (expanded): cápsula larga de três colunas. Quem decide é o host
 // (o ponteiro parado em cima da própria pílula, e só com a chave "Nível 2
 // ao parar" do Estilo ligada); aqui expanded é só entrada.
-// Esquerda: app focado sobre os pontos. Centro: hora grande e data.
+// Esquerda: app focado sobre os workspaces. Centro: hora grande e data.
 // Direita: estado das notificações sobre rede e bateria.
+//
+// Relógio único: a hora que se vê é a do Island (a mesma do repouso). Os
+// relógios dos dois níveis aqui são só lugar (texto transparente, com o
+// toque): medem a linha e dizem onde a hora fica (clockOffset) e em que
+// tamanho (clockPx). O Island anda e escala a hora até lá; nunca há duas.
+//
+// Troca de conteúdo (live, expanded, picker): cada linha tem a própria
+// largura e altura, calculadas do estado (nunca do que está visível), e
+// fica presa ao topo e ao centro da faixa. A que sai some rápido no
+// próprio lugar (msSwapOut, quase toda nos primeiros 30 ms, antes de a
+// hora única começar a andar por cima); a que entra espera a pílula quase
+// chegar (msSwapDelay, ≈65% do morph) e aparece já no lugar final
+// (SwapLayer). Uma linha que volta no meio da saída termina de sumir antes
+// de esperar e subir: nunca fica parada a meia opacidade durante o morph.
+// A pílula recorta o resto.
 //
 // Seletor (picker): a fileira dos seis painéis (Apps … Energia) em vagas de
 // 36 px, ícone de 18 e o dígito sempre embaixo, 10 px de folga dos lados
@@ -33,7 +48,7 @@ import qs.Commons as Commons
 // vira, para um drift lento do trackpad nunca chegar a trocar.
 //
 // Música (MPRIS, via indicatorSource): tocando, o nível 1 ganha o elemento
-// "tocando agora" (capa ou nota + título curto) à esquerda dos pontos. No
+// "tocando agora" (capa ou nota + título curto) à esquerda dos workspaces. No
 // nível 2, com faixa (tocando ou pausada), a linha do app focado vira
 // "título — artista" com um play/pausa pequeno. Tocar no elemento abre o
 // painel de música. Sem player, nada disso aparece.
@@ -50,15 +65,26 @@ import qs.Commons as Commons
 //   activeView: string        painel aberto ("" = nenhum): pílula + cursor (caret)
 //   menuMode: bool            painel aberto: repousar 150 ms num ícone troca de painel
 //   keyboardMode, altHeld     mostram os dígitos (0–6) dos ícones
+//   live: bool                a pílula está na linha (ou crescendo até ela): o
+//                             conteúdo entra; false, tudo some rápido no lugar
 //   expanded: bool            hover nível 2 (até 640 × 64, abraça o conteúdo; três colunas),
 //                             decidido pelo host
 //   picker: bool              seletor dos seis painéis (236 × 46), por cima dos dois níveis
-//   readonly centerClock      o relógio central do nível 1 (o Island alinha o do repouso)
+//   readonly centerClock      o lugar do relógio do nível 1
+//   readonly clockOffset      centro da hora menos o centro da faixa, no nível
+//                             atual, já do lado visual (RTL incluído)
+//   readonly clockPx          tamanho da hora no nível atual (16 ou 24)
+//   readonly contentVisible   alguma linha está na tela (mesmo no meio do fade)
+//   readonly msSwapOut, msSwapIn, msSwapDelay, msSwapDelayRest
+//                             tempos da troca (o Island usa os mesmos na hora
+//                             única e na marca do repouso)
+//   SwapLayer                 a camada da troca (Strip.SwapLayer no Island)
 //   wheelPanels(delta)        roda vinda do host (borda de cima de um painel aberto)
 //   indicatorSource           a instância de Indicators que lê o sistema
 //   strings                   Commons.Translations da ilha
 //   now: date                 hora do relógio
-//   fg, bg, accent, danger, muted, metrics
+//   fg, bg, surface, accent, danger, muted, metrics
+//       (surface: o fundo da pílula; o número do workspace ativo usa essa cor)
 //   readonly tooltipShown, tooltipText, tooltipX   dica para o host desenhar
 //       (a faixa fica dentro do notch recortado; a dica sai por baixo dele)
 // Sinais:
@@ -83,6 +109,8 @@ Item {
     property var shell: null
     property var strings: null
     property var now: new Date()
+    // A pílula está na linha (ou crescendo até ela): o host liga e desliga.
+    property bool live: false
     // Nível 2: o host decide (ponteiro parado na pílula, chave do Estilo).
     property bool expanded: false
     // Seletor dos seis painéis (o host liga e desliga).
@@ -90,6 +118,8 @@ Item {
 
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
+    // Fundo da pílula (o número do workspace ativo, sobre o destaque).
+    property color surface: bg
     property color accent: Commons.Color.accent
     property color danger: Commons.Color.urgent
     property color muted: Commons.Color.muted
@@ -121,17 +151,26 @@ Item {
     readonly property int pickerPad: 10
     readonly property int pickerWidth: categories.length * metrics.iconSlot + 2 * pickerPad
 
-    // Nível 1: o relógio no centro exato e os dois grupos a 14 px dele; a
-    // largura cobre o lado maior dos dois, mais 18 px de folga de cada lado.
+    // Nível 1: 15 px de borda, o grupo da esquerda, 11 px, a hora, 11 px, o
+    // grupo da direita, 15 px. Abraça cada lado: a hora fica a (esquerda −
+    // direita) / 2 do centro, e a pílula não paga duas vezes o lado maior
+    // (os workspaces numerados cabem com ~30 px a mais que os pontos).
     // Nível 2: até 640 × 64, abraça o conteúdo. Os dois lados ganham a mesma
-    // largura (o maior dos dois), para a hora ficar no centro exato; 32 px de
-    // respiro entre cada coluna e a hora, 20 px de borda. Teto de 640: nunca
-    // mais largo que a referência (típico ≈ 480–590).
+    // largura (o maior dos dois), para o par hora + data ficar no centro; 32 px
+    // de respiro entre cada coluna e o centro, 20 px de borda. Teto de 640:
+    // nunca mais largo que a referência (típico ≈ 480–590).
     // Seletor: 236 × 46, a altura do nível 1.
+    // As larguras vêm das linhas, que seguem medidas mesmo apagadas (um Row
+    // dentro de um item invisível continua posicionando): a pílula nunca
+    // passa por um tamanho errado na troca.
+    readonly property real lineWidth: Math.ceil(15 + leftGroup.implicitWidth + 11 + stateClock.implicitWidth
+        + 11 + rightGroup.implicitWidth + 15)
+    readonly property real wideWidth: Math.min(640, Math.ceil(wideCenter.implicitWidth
+        + 2 * (Math.max(wideLeft.implicitWidth, wideRight.implicitWidth) + 32) + 2 * 20))
     implicitWidth: picker ? pickerWidth
         : menus ? metrics.content
-        : expanded ? Math.min(640, Math.ceil(wideCenter.implicitWidth + 2 * (Math.max(wideLeft.implicitWidth, wideRight.implicitWidth) + 32) + 2 * 20))
-        : Math.ceil(stateClock.implicitWidth + 2 * (Math.max(leftGroup.implicitWidth, rightGroup.implicitWidth) + 14) + 36)
+        : expanded ? wideWidth
+        : lineWidth
     implicitHeight: picker ? 46 : menus ? metrics.strip : expanded ? 64 : 46
     // A máscara de hover usa a largura final, para a pílula encolher sem o
     // ponteiro cair no papel de parede.
@@ -139,6 +178,28 @@ Item {
     readonly property Item centerClock: stateClock
     width: implicitWidth
     height: implicitHeight
+
+    // ---- Relógio único (desenhado pelo Island) ----
+    // Centro da hora menos o centro da faixa, lido das próprias linhas: as
+    // âncoras e o Row já espelham em RTL, então o valor sai do lado visual.
+    // As linhas são centradas na faixa, que é centrada na pílula.
+    readonly property real clockOffset: expanded
+        ? wideCenter.x + wideClock.x + wideClock.width / 2 - wideRow.width / 2
+        : stateClock.x + stateClock.width / 2 - stateRow.width / 2
+    readonly property int clockPx: expanded ? 24 : 16
+    readonly property bool contentVisible: stateRow.visible || wideRow.visible || pickerRow.visible
+
+    // ---- Troca de conteúdo ----
+    // O que sai some em 70 ms, numa curva que derruba cedo (OutQuint: 0,30 no
+    // primeiro quadro, 0,06 aos 33 ms), porque a hora única começa a andar
+    // por cima por volta dos 30 ms; o que entra espera 130 ms (≈65% do morph
+    // de 200 ms da pílula ao crescer; 104 depois do encolher de 160 ms) e
+    // aparece em 110 ms, já no lugar final. O SwapLayer tem os mesmos valores
+    // de padrão.
+    readonly property int msSwapOut: 70
+    readonly property int msSwapIn: 110
+    readonly property int msSwapDelay: 130
+    readonly property int msSwapDelayRest: 104
 
     function tr(key) { return strip.strings ? strip.strings.t(key) : key }
     // Ordem curta de dia da semana, dia e mês de cada idioma (padrão Qt).
@@ -259,7 +320,7 @@ Item {
     }
 
     // Na linha de hover a única dica é o layout do workspace ativo
-    // (hoverTarget "layout"), posta pela pílula do workspace.
+    // (hoverTarget "layout"), posta pela cápsula do workspace ativo.
     property real layoutTipX: -1
 
     function layoutTip(item, on) {
@@ -918,24 +979,45 @@ Item {
     }
 
     // ================= Hover nível 1 =================
-    // O relógio no centro exato; os grupos se penduram nele a 14 px.
-    Item {
+    // Grupo da esquerda, a hora e o grupo da direita, a 11 px dela; 15 px de
+    // borda. Largura própria (lineWidth), presa ao topo e ao centro da
+    // faixa: na troca de nível ela não se reacomoda na pílula que muda.
+    SwapLayer {
         id: stateRow
-        visible: !strip.menus && opacity > 0
-        enabled: !strip.menus && !strip.expanded && !strip.picker
-        anchors.fill: parent
-        opacity: strip.expanded || strip.picker ? 0 : 1
+        shown: strip.live && !strip.menus && !strip.expanded && !strip.picker
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: strip.lineWidth
+        height: 46
 
-        Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(strip.expanded || strip.picker ? strip.metrics.msFadeOut : strip.metrics.msFadeIn); easing.type: Easing.OutCubic }
+        Row {
+            id: leftGroup
+            anchors.left: parent.left
+            anchors.leftMargin: 15
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 12
+
+            // Tocando agora: capa pequena (ou a nota) e o título curto.
+            NowPlaying {
+                anchors.verticalCenter: parent.verticalCenter
+                host: strip
+                visible: strip.mediaPlaying
+                artSize: 18
+                textWidth: 100
+            }
+
+            SpaceChips { anchors.verticalCenter: parent.verticalCenter; host: strip }
         }
 
+        // Só o lugar da hora e o toque: a hora que se vê é a única, do Island.
         Text {
             id: stateClock
-            anchors.centerIn: parent
+            anchors.left: leftGroup.right
+            anchors.leftMargin: 11
+            anchors.verticalCenter: parent.verticalCenter
             text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
             textFormat: Text.PlainText
-            color: strip.fg
+            color: "transparent"
             font.family: strip.fontFamily
             font.pixelSize: 16
             font.weight: Font.DemiBold
@@ -949,28 +1031,9 @@ Item {
         }
 
         Row {
-            id: leftGroup
-            anchors.right: stateClock.left
-            anchors.rightMargin: 14
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: 12
-
-            // Tocando agora: capa pequena (ou a nota) e o título curto.
-            NowPlaying {
-                anchors.verticalCenter: parent.verticalCenter
-                host: strip
-                visible: strip.mediaPlaying
-                artSize: 18
-                textWidth: 100
-            }
-
-            SpaceDots { anchors.verticalCenter: parent.verticalCenter; host: strip }
-        }
-
-        Row {
             id: rightGroup
             anchors.left: stateClock.right
-            anchors.leftMargin: 14
+            anchors.leftMargin: 11
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
 
@@ -982,20 +1045,18 @@ Item {
     }
 
     // ================= Hover nível 2 =================
-    // Três colunas ancoradas (folga 20, linhas a 4 px), em fade cruzado com
-    // a linha de cima enquanto a pílula cresce.
-    Item {
+    // Três colunas ancoradas (folga 20, linhas a 4 px), com a própria
+    // largura (wideWidth), presas ao topo e ao centro da faixa. Entram
+    // depois que a pílula quase cresceu; saem rápido sem encolher junto.
+    SwapLayer {
         id: wideRow
-        visible: !strip.menus && opacity > 0
-        enabled: !strip.menus && strip.expanded && !strip.picker
-        anchors.fill: parent
-        opacity: strip.expanded && !strip.picker ? 1 : 0
+        shown: strip.live && !strip.menus && strip.expanded && !strip.picker
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: strip.wideWidth
+        height: 64
 
-        Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(strip.expanded && !strip.picker ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
-        }
-
-        // Esquerda: app focado sobre os pontos dos workspaces.
+        // Esquerda: app focado sobre os workspaces.
         Column {
             id: wideLeft
             anchors.left: parent.left
@@ -1101,10 +1162,11 @@ Item {
                 }
             }
 
-            SpaceDots { host: strip }
+            SpaceChips { host: strip }
         }
 
         // Centro: hora grande e a data, mais apagada, na mesma linha de base.
+        // A hora aqui é só o lugar (e o toque): a que se vê é a única, do Island.
         Row {
             id: wideCenter
             anchors.centerIn: parent
@@ -1115,7 +1177,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: Qt.locale(Commons.I18n.formatLocale).toString(strip.now, "HH:mm")
                 textFormat: Text.PlainText
-                color: strip.fg
+                color: "transparent"
                 font.family: strip.fontFamily
                 font.pixelSize: 24
                 font.weight: Font.DemiBold
@@ -1192,18 +1254,15 @@ Item {
 
     // ================= Seletor (picker) =================
     // A fileira dos seis painéis, por um instante (o host liga e desliga).
-    // Em fade cruzado com os dois níveis; em RTL o Row espelha sozinho e
-    // targetAt/centerOf espelham a conta das dicas.
-    Item {
+    // Troca com os dois níveis como eles trocam entre si; em RTL o Row
+    // espelha sozinho e targetAt/centerOf espelham a conta das dicas.
+    SwapLayer {
         id: pickerRow
-        anchors.fill: parent
-        opacity: strip.picker ? 1 : 0
-        visible: opacity > 0
-        enabled: strip.picker
-
-        Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(strip.picker ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
-        }
+        shown: strip.live && strip.picker
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: strip.pickerWidth
+        height: 46
 
         Row {
             anchors.centerIn: parent
@@ -1368,23 +1427,30 @@ Item {
         }
     }
 
-    // Pontos dos workspaces: o ativo é uma pílula alongada no destaque;
-    // ocupado é ponto claro, vazio é ponto quieto. Tocar troca; tocar no
-    // ativo percorre os layouts (o nome sai na dica).
-    component SpaceDots: Row {
-        id: dots
+    // Workspaces numerados: os mesmos de antes (spaceCount, na mesma ordem),
+    // cada um uma cápsula de 18 px de altura com o número (11 px, DemiBold,
+    // dígitos tabulares). Vazio: 18 de largura em fg 0.12, número em fg 0.65;
+    // com janelas, o fundo sobe para fg 0.2. O ativo alarga para 26, cheio
+    // no destaque, com o número na cor da superfície da ilha. Cápsula de
+    // verdade como a pílula (quina viva só no Reto). Tocar troca; tocar no
+    // ativo percorre os layouts (o nome sai na dica). Em RTL o Row espelha
+    // sozinho: o 1 fica à direita. O décimo do bloco aparece como 0, como na
+    // barra do Omarchy: o número é a tecla (Super + 0).
+    component SpaceChips: Row {
+        id: chips
         property var host: null
-        spacing: 4
+        spacing: 3
 
         Repeater {
-            model: dots.host ? dots.host.spaceCount : 0
+            model: chips.host ? chips.host.spaceCount : 0
 
             Item {
-                id: wsDot
+                id: wsChip
                 required property int index
-                readonly property var host: dots.host
+                readonly property var host: chips.host
                 readonly property int wsId: host.workspaceBlock * 10 + index + 1
                 readonly property int slot: (wsId - 1) % 10 + 1
+                readonly property string digit: slot === 10 ? "0" : String(slot)
                 readonly property var ws: host.workspaceById(wsId)
                 readonly property bool current: {
                     const mon = host.monitorObj
@@ -1393,46 +1459,131 @@ Item {
                 readonly property bool occupied: !!(ws && ws.toplevels && ws.toplevels.values.length > 0)
 
                 anchors.verticalCenter: parent.verticalCenter
-                width: 10
-                height: 22
+                width: current ? 26 : 18
+                height: 18
+
+                Behavior on width {
+                    NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                }
 
                 Accessible.role: Accessible.Button
                 Accessible.name: current && host.layoutName(host.spaceMode) !== ""
-                    ? String(slot) + ", " + host.layoutName(host.spaceMode)
-                    : String(slot)
+                    ? digit + ", " + host.layoutName(host.spaceMode)
+                    : digit
 
                 Rectangle {
-                    anchors.centerIn: parent
-                    width: wsDot.current ? 8 : 6
-                    height: wsDot.current ? 18 : 10
-                    radius: width / 2
-                    color: wsDot.current ? wsDot.host.accent
-                        : Qt.rgba(wsDot.host.fg.r, wsDot.host.fg.g, wsDot.host.fg.b, wsDot.occupied ? 0.55 : 0.22)
+                    anchors.fill: parent
+                    radius: wsChip.host.metrics.corners === "sharp" ? 0 : height / 2
+                    color: wsChip.current ? wsChip.host.accent
+                        : Qt.rgba(wsChip.host.fg.r, wsChip.host.fg.g, wsChip.host.fg.b,
+                                  chipHover.hovered ? 0.28 : wsChip.occupied ? 0.2 : 0.12)
 
-                    Behavior on width {
-                        NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
+                    Behavior on color {
+                        ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
                     }
-                    Behavior on height {
-                        NumberAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
-                    }
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: wsChip.digit
+                    textFormat: Text.PlainText
+                    color: wsChip.current ? wsChip.host.surface
+                        : Qt.rgba(wsChip.host.fg.r, wsChip.host.fg.g, wsChip.host.fg.b, 0.65)
+                    font.family: wsChip.host.fontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.DemiBold
+                    font.features: ({ "tnum": 1 })
+
                     Behavior on color {
                         ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
                     }
                 }
 
                 HoverHandler {
+                    id: chipHover
                     cursorShape: Qt.PointingHandCursor
-                    onHoveredChanged: wsDot.host.layoutTip(wsDot, hovered && wsDot.current)
+                    onHoveredChanged: wsChip.host.layoutTip(wsChip, hovered && wsChip.current)
                 }
 
                 TapHandler {
                     onTapped: {
-                        if (wsDot.current) wsDot.host.cycleSpace()
-                        else wsDot.host.focusSpace(wsDot.wsId)
+                        if (wsChip.current) wsChip.host.cycleSpace()
+                        else wsChip.host.focusSpace(wsChip.wsId)
                     }
                 }
             }
         }
+    }
+
+    // Camada que troca junto com a pílula: as linhas aqui; a hora única e a
+    // marca do repouso no Island (Strip.SwapLayer). Saindo: some em fadeOut
+    // no próprio lugar, numa curva que derruba cedo (OutQuint). Entrando:
+    // espera delay (≈65% do morph) e aparece em fadeIn, já no lugar final.
+    // Mostrada de novo no meio da saída: primeiro termina de sumir (o resto
+    // do fadeOut), espera o que falta do delay e só então sobe; nunca fica
+    // parada a meia opacidade enquanto a pílula ainda muda. Animações
+    // explícitas, decididas depois que os bindings do mesmo instante
+    // assentam (callLater): a duração nunca depende da ordem em que eles
+    // reavaliam. Apagada, não desenha nem recebe toque, mas segue com a
+    // medida dos filhos.
+    component SwapLayer: Item {
+        id: swap
+        property bool shown: false
+        property int delay: 130
+        property int fadeOut: 70
+        property int fadeIn: 110
+
+        opacity: 0
+        visible: swap.opacity > 0
+        enabled: swap.shown
+
+        // O que falta da saída, a partir da opacidade de agora: na OutQuint a
+        // opacidade é (1 − t / fadeOut)^5, então faltam fadeOut × opacidade^(1/5).
+        function outLeft() {
+            return swap.opacity > 0 ? Math.ceil(swap.fadeOut * Math.pow(swap.opacity, 0.2)) : 0
+        }
+
+        function settle() {
+            // Animações desligadas (Style.duration dá 0): direto ao fim.
+            if (Commons.Style.duration(1) <= 0) {
+                layerIn.stop()
+                layerOut.stop()
+                swap.opacity = swap.shown ? 1 : 0
+                return
+            }
+            if (swap.shown) {
+                // Já entrando (ou terminando de sumir para entrar): segue.
+                if (layerIn.running)
+                    return
+                layerOut.stop()
+                if (swap.opacity >= 1)
+                    return
+                const left = swap.outLeft()
+                layerDrop.duration = left
+                layerWait.duration = Math.max(0, swap.delay - left)
+                layerRise.duration = swap.fadeIn
+                layerIn.start()
+            } else {
+                if (layerOut.running)
+                    return
+                layerIn.stop()
+                if (swap.opacity > 0) {
+                    layerOut.duration = swap.outLeft()
+                    layerOut.start()
+                }
+            }
+        }
+        onShownChanged: Qt.callLater(swap.settle)
+        // Nasce no estado certo, sem animar.
+        Component.onCompleted: swap.opacity = swap.shown ? 1 : 0
+
+        SequentialAnimation {
+            id: layerIn
+            NumberAnimation { id: layerDrop; target: swap; property: "opacity"; to: 0; easing.type: Easing.OutQuint }
+            PauseAnimation { id: layerWait }
+            NumberAnimation { id: layerRise; target: swap; property: "opacity"; to: 1; easing.type: Easing.OutCubic }
+        }
+        NumberAnimation { id: layerOut; target: swap; property: "opacity"; to: 0; easing.type: Easing.OutQuint }
     }
 
     // Rede: quatro barras (acesas em fg, apagadas em fg 0.25); cabo vira o

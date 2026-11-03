@@ -12,7 +12,7 @@ Ilha replaces the bar (`kinds: ["bar"]`, id `esegnorelli.ilha`). It is not a wid
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` switches the bar to Ilha. Omarchy asks you to confirm, because a plugin runs inside the long-lived shell. There is no extra package, no sudo, and no setup step: everything Ilha uses ships with Omarchy. `omarchy plugin add` only clones the repo and validates `manifest.json`, and that is all Ilha needs. It writes nothing outside its own folder.
+`--enable` switches the bar to Ilha. Omarchy asks you to confirm, because a plugin runs inside the long-lived shell. There is no extra package, no sudo, and no setup step: everything Ilha uses ships with Omarchy. `omarchy plugin add` only clones the repo and validates `manifest.json`, and that is all Ilha needs. Outside its own folder it writes only the three Estilo switches (see Appearance), inside Omarchy's own `~/.config/omarchy/shell.json`, through the host's plugin API (`mutateShellConfig`).
 
 If the bar was hidden, show it again with `omarchy toggle bar`.
 
@@ -50,20 +50,28 @@ The pill floats 12 px from the top edge, on the overlay layer, and does not rese
 
 | State | What is on the pill |
 |---|---|
-| Rest | The clock, in a true capsule of 108 × 38. If something is on (recording, Do not disturb, stay awake, a reminder, …) a single mark sits with the time. When music is playing and nothing else is on, the mark is three small accent bars. |
-| Hover | Level 1: the clock fixed at the centre, the workspaces as small numbered capsules on one side (the active one filled with the accent), network bars and battery on the other. While music plays, a now-playing element (the cover, or a note, and the short title) sits before the workspaces. |
-| Hover, held | Level 2, after resting the pointer for about 1.6 s: the pill widens to three columns, at most 640 × 64. Left, the focused app over the workspaces. Centre, a big clock over the date. Right, the notification status over network and battery. With a track loaded (playing or paused), the focused-app line becomes "title — artist" with a small play/pause button. |
+| Rest | The clock, in a true capsule of 108 × 38. When something is on, a mark sits beside the time and the capsule grows to fit it: the icon of the highest-priority active indicator, in its own color, in this order: recording, reminder, update, Do not disturb, night light, stay awake. While recording, the elapsed time follows the icon and counts seconds (only then; the clock itself stays in minutes). While music plays, three small accent bars sit beside the icon, or alone when nothing else is on. Notifications on screen do not count here; they live on the bell. |
+| Hover | Level 1: the clock fixed at the centre, the workspaces as dots on one side (the active one a tall pill in the accent), network bars, battery, and up to two status marks on the other. While music plays, a now-playing element (the cover, or a note, and the short title) sits before the workspaces. |
+| Hover, held | Level 2, after the pointer rests still on the pill for 900 ms: the pill widens to three columns, at most 640 × 64. Left, the focused app over the workspaces. Centre, a big clock with the date beside it. Right, the notification status (the count, or "All caught up", and the bell) over network, battery, and the status marks. With a track loaded (playing or paused), the focused-app line becomes "title — artist" with a small play/pause button. |
+| Picker | The six panel icons in one row of 236 × 46, each with its digit underneath. See below. |
+| Live notice | One short line that grows out of the pill and returns: "Recording 0:42", "Reminder in 15 min", or an urgent notification. See below. |
 | Panel | The same object morphs into one panel. There is no header line on top of it. |
 
-There are two hover levels. Move the pointer into the top-center strip (600 px) or onto the pill to open level 1, the line. Rest it there for about 1.6 s and level 2 follows, so passing over the top edge does not unfold the pill. Leave, and it returns to the clock. Nothing rotates on its own. A click on the now-playing element, at either level, opens Media. With no player, none of the music parts appear.
+There are two hover levels. A 3 px invisible strip across the central 600 px of the top edge, the 12 px gap under it, or the pill itself opens level 1, the line. Level 2 opens only when the pointer rests still on the pill itself: 900 ms without moving more than 3 px (moving further restarts the count). The strip and the gap never open level 2, so passing over the top edge does not unfold the pill, and Estilo can turn level 2 off. Leave, and it returns to the clock. Nothing rotates on its own. A click on the now-playing element, at either level, opens Media. With no player, none of the music parts appear. The first time the pointer opens the line in a session, a short hint shows under the pill for 3 s: "0 time · 1 apps · scroll switches".
+
+At rest, a tap on the mark opens the panel that owns it: recording opens Captura, a reminder Tempo, an update Ferramentas, and Do not disturb, night light, and stay awake open Controle. The music bars open Media, and a tap elsewhere on the capsule opens Tempo. With the pointer on the mark the line does not open, so the tap lands on the mark, and its short name shows in a tooltip.
 
 | Place | Content | Click |
 |---|---|---|
-| Left | Workspaces for this monitor, each a small capsule with its number. The active one is filled with the theme accent. Occupied ones are bright. Empty ones are quiet. | Click a capsule to focus that workspace |
+| Left | Workspaces for this monitor as dots: the first five of the monitor's block, plus any higher one that exists. The active one is a tall pill in the theme accent. Occupied ones are bright. Empty ones are quiet. | Click a dot to focus that workspace. Click the active one to cycle its layout (Tiling, Scrolling, Floating); its name shows in a tooltip |
 | Center | Time | Open Tempo |
-| Right | Network bars and battery, the battery filled in the accent | Open Controle |
+| Right | Network bars and battery, the battery filled in the accent, then up to two status marks in the same order as the rest mark, notifications last | Network or battery opens Controle. A mark acts on its own: recording stops; Do not disturb, night light, and stay awake turn off; a reminder opens Tempo; an update opens Ferramentas; the bell opens the newest notification |
 
-Apps, Controle, Captura, Estilo, Ferramentas, and Energia are not drawn on the pill. The palette is gone from the line: Estilo stays on key `4` and on the wheel. Each panel opens in the pill, one at a time. When something is on, rest shows a single dot.
+Apps, Controle, Captura, Estilo, Ferramentas, and Energia are not drawn on the line. They appear together only in the picker. Each panel opens in the pill, one at a time.
+
+**Picker.** Long press or right click on the capsule (or on the line) shows the six panel icons: Apps, Controle, Captura, Estilo, Ferramentas, Energia, each with its digit underneath. Resting on an icon shows "name · digit"; a tap opens that panel. The picker goes away on its own: 2.6 s without the pointer on it, or 0.7 s after the pointer has been on it and left. Another right click on the same monitor hides it. It does not open while a panel is open.
+
+**Live notice.** When an indicator turns on, the pill grows into one short line, in the notification format with the indicator's icon and color: "Recording 0:42" (the time keeps counting), "Reminder in 15 min", "Update available", "Do not disturb on", "Night light on", "Stay awake on". It stays 2.6 s, and only while the indicator is still on, then returns to the clock. An urgent notification shows the same way, as one line (icon, app, summary), for 4 s. Resting the pointer on the notice pauses the count; after the pointer leaves, it stays 1 s more. A tap opens the owning panel, or, for a notification, opens it in the pill as the bell does. With a panel open, an indicator does not raise a notice, and indicators already on when Ilha loads do not raise one either. With Live notice off in Estilo, a new indicator shows the line for 2.6 s instead, and urgent notifications do not appear on their own.
 
 ## Panels
 
@@ -75,19 +83,20 @@ Every panel uses the same 4-column grid and a fixed height per page, so the pill
 | 1 | Apps | App search. Arrows, Enter. Esc clears, then closes |
 | 2 | Controle | Three rows of 56 px, each two capsule tiles (icon circle, name, state) and one round tile (icon only; its name shows in a small tooltip on hover, or in the footer in keyboard mode). `Q` Wi-Fi, `W` Do not disturb, `E` microphone; `A` Bluetooth, `S` game mode, `D` night light; `Z` stay awake, `X` animations, `C` speed test. Without Wi-Fi the first slot becomes Screensaver; without Bluetooth, Suspend. On lights only the icon circle in the accent; Wi-Fi or Bluetooth on but not connected shows a faint accent veil instead. Below the tiles, the Sound card: a volume bar (`-`/`=` ±5 %, `M` or a tap on the icon mutes) whose chevron, or Enter, opens the Sound subpage (outputs, input); a round Back button or Esc returns. Last, the network row: interface and type, IPv4 address, and a Wi-Fi QR button (`V`) when on Wi-Fi. The speed test and the QR close the island and open Omarchy's own panels |
 | 3 | Captura | Region, screen, window, or scrolling screenshot, and Smart at `V`. Recording with system audio and microphone. OCR, QR code, color picker |
-| 4 | Estilo | Three pages under tabs at the top: Theme, Background, and Windows and font. `Tab` and `Shift+Tab` switch pages; the width stays put and only the height changes. **Theme**: a carousel of 140 × 80 swatches, each the theme's own background with its palette as dots and its name in its text color; the cursor card sits in the centre, outlined, and the neighbors fade toward the edges. A small accent dot marks the theme in use. Arrows choose; Enter, or a click on the centre card, applies; a click on a neighbor only selects it. Under the strip, the current theme and `n/N`. The grid button in the header, or `R`, opens All themes (a 4-column grid). **Background**: a carousel of that theme's wallpapers, the chosen one 160 × 90 in the centre with an accent outline, the neighbors smaller and quieter; the wallpaper in use keeps an accent dot. Under it, the file name and `n/N`, then three compact buttons: Next wallpaper, Pick wallpaper, and From wallpaper colors (`Q W E`). The header shows the theme the wallpapers belong to. **Windows and font**: Corners (From theme, Sharp, Rounded), Transparency (Opaque, Transparent, Glass), and Font. On Theme and Background, `/` starts a search that takes the place of the tabs; the shortcut letters and digits keep working until you type. Esc clears the search, closes All themes, returns to the Theme page, then closes |
+| 4 | Estilo | Three pages under tabs at the top: Theme, Background, and Windows and font. `Tab` and `Shift+Tab` switch pages; the width stays put and only the height changes. **Theme**: a carousel of 140 × 80 swatches, each the theme's own background with its palette as dots and its name in its text color; the cursor card sits in the centre, outlined, and the neighbors fade toward the edges. A small accent dot marks the theme in use. Arrows choose; Enter, or a click on the centre card, applies; a click on a neighbor only selects it. Under the strip, the current theme and `n/N`. The grid button in the header, or `R`, opens All themes (a 4-column grid). **Background**: a carousel of that theme's wallpapers, the chosen one 160 × 90 in the centre with an accent outline, the neighbors smaller and quieter; the wallpaper in use keeps an accent dot. Under it, the file name and `n/N`, then three compact buttons: Next wallpaper, Pick wallpaper, and From wallpaper colors (`Q W E`). The header shows the theme the wallpapers belong to. **Windows and font**: Corners (From theme, Sharp, Rounded; `W E R`), Transparency (Opaque, Transparent, Glass; `S D F`), Font, and, under Island, three switches (`Z X C`): Level 2 on rest, Focused monitor only, and Live notice (see Appearance). On Theme and Background, `/` starts a search that takes the place of the tabs; the shortcut letters and digits keep working until you type. Esc clears the search, closes All themes, returns to the Theme page, then closes |
 | 5 | Ferramentas | Clipboard, emoji, shortcuts, the Omarchy menu, notifications, about, updates, and Plugins. The update check runs at most every 10 minutes and gives up after 30 seconds |
 | 6 | Energia | A row of rounded square buttons, icon and label: lock, suspend, hibernate. Log out, reboot, and power off ask for a second press |
 | — | Plugins | Search the shell plugins. Enter turns one on or off. Switching the bar asks for a second press. The wheel reaches it after Energia |
 | — | Media | A compact mini player, 440 × 98 inside a 468 × 126 island, for the active MPRIS player (Omarchy's media service when present). Top row: a 64 px cover, title over "artist · album", and previous, play/pause, next. Bottom row: elapsed time, progress bar, total time. Click or drag the bar to seek when the player allows. Shuffle and repeat (off, playlist, track) sit at the ends of the bar only when the player supports them. Chips to switch players appear under the artist line when there is more than one. Keys: Space or `K` play/pause, `←`/`J` previous, `→`/`L` next, `,` and `.` seek 10 s, `S` shuffle, `R` repeat, `P` next player. Nothing playing shows an empty state at the same height |
 | — | OSD | Volume, brightness, and other notices sent to the island |
-| — | Notification | Click the bell on the status line. The newest one opens inside the pill: icon, app, and summary on one line. It does not appear on its own. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
+| — | Notification | Click the bell on the status line (a status mark on level 1, the notification status on level 2). The newest one opens inside the pill: icon, app, and summary on one line. A regular notification does not appear on its own; an urgent one arrives as a live notice, and a tap on it opens this same line. Tap the pill to return to the clock. Omarchy's cards stay, because they carry the actions |
 
 Omarchy panel shortcuts land on the matching state: audio, Bluetooth, and network open Controle, the clock opens Tempo, power opens Energia, media opens Media.
 
 ## Mouse and keyboard
 
-- Scroll on the status line changes the panel. The first notch while the line is only a line opens Tempo. Later notches walk Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, and Media when a track is loaded. Scroll down goes forward. Scroll up goes back. An open panel has no line on top, but the wheel on its top edge still cycles panels.
+- The wheel switches panels only while a panel is open, on its top edge (the 14 px padding, full width). On the line and at rest it does nothing. Each notch (120 units) moves one panel: Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, and Media when a track is loaded. Scroll down goes forward. Scroll up goes back. A partial scroll resets after 200 ms without wheel events, or when the direction flips, so slow trackpad drift never switches.
+- Long press or right click on the capsule shows the picker; a tap on an icon opens that panel.
 - Lists and sliders keep their own wheel. Volume lives in Controle.
 - `0`–`6` or `Alt`+digit select the same panels. `Ctrl+Tab` and `Ctrl+Shift+Tab` walk them, Media included only when a track is loaded.
 - Arrow keys move, Enter and Space activate.
@@ -113,6 +122,11 @@ Estilo applies to the pill at the click. The system command still runs after tha
 - **Font.** The clicked family is used on the pill at once. `omarchy font set` still restarts the shell when it rewrites fontconfig.
 - **Motion.** The pill morphs in a fixed 200 ms when it grows and 160 ms when it shrinks, with a decelerating curve, and the content crossfades. Moving between panels never closes and reopens the pill. `omarchy toggle animations` off makes every change instant.
 - **Color source.** The pill uses `Commons.Color` only. There is no private palette.
+- **Island switches.** Estilo › Windows and font › Island holds three switches. Level 2 on rest (`level2Dwell`, on by default) lets a still pointer on the pill open level 2; off, the line stays at level 1. Focused monitor only (`focusedOnly`, off) draws the capsule only on Hyprland's focused monitor; another monitor shows the pill only while it is showing something (a panel, the OSD, a notification, a live notice, or the picker). Live notice (`livePeek`, on) turns the live notice on. They are stored in `~/.config/omarchy/shell.json` under `bar.ilha`, through the Omarchy plugin API (`mutateShellConfig`), which writes the file atomically. Only the key that changed is written. The pill reads them live, so a hand edit of `shell.json` counts too, and `omarchy bar reset` puts them back to the defaults. Without the host, or if the write is refused, a choice lasts only until the shell restarts.
+
+```json
+"bar": { "ilha": { "level2Dwell": true, "focusedOnly": false, "livePeek": true } }
+```
 
 Game mode, in Controle, is a separate action. Turning it on can disable animations, remove gaps, and set windows opaque, and turning it off puts back what it changed.
 
@@ -132,7 +146,7 @@ omarchy-shell ilha state
 
 ## Languages
 
-Ilha ships a catalog in `i18n/` for every language Omarchy offers. It follows Setup → Language live, without a shell restart, numbers and the clock included. A missing string falls back to English. Right-to-left languages (Arabic, Persian, Hebrew, Urdu) mirror the whole island. The clock, the network bars, the battery, and the Media progress and transport buttons stay left to right on purpose.
+Ilha ships a catalog in `i18n/` for every language Omarchy offers. It follows Setup → Language live, without a shell restart, numbers and the clock included. A missing string falls back to English. Right-to-left languages (Arabic, Persian, Hebrew, Urdu) mirror the whole island. The clock, the recording time, the network bars, the battery, and the Media progress and transport buttons stay left to right on purpose.
 
 ## Dependencies
 
@@ -146,8 +160,10 @@ A replacement bar can show installed widgets, but a third-party widget that need
 |---|---|
 | `manifest.json` | Plugin id, version, and the `bar` entry |
 | `Island.qml` | One window per monitor, the pill, panels, and IPC |
-| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, notification status, now playing |
-| `Indicators.qml` | Live status marks |
+| `Strip.qml` | The status line, levels 1 and 2: workspaces, clock, network, battery, status marks, notification status, now playing; and the picker |
+| `Indicators.qml` | Live status: the rest mark, the status marks, the live notice text, the media source |
+| `NoticeView.qml` | The one-line notification and live notice |
+| `Prefs.qml` | The three Estilo switches, read from and written to `bar.ilha` in `shell.json` |
 | `ContinuousRect.qml` | Capsule and card |
 | `Metrics.qml` | Grid sizes, radii, durations |
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Grid control and its letter |

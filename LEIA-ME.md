@@ -12,7 +12,7 @@ A Ilha substitui a barra (`kinds: ["bar"]`, id `esegnorelli.ilha`). Não é um w
 omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 ```
 
-`--enable` troca a barra para a Ilha. O Omarchy pede confirmação, porque um plugin roda dentro do shell que fica aberto. Não há pacote extra, nem sudo, nem passo de instalação: tudo o que a Ilha usa vem com o Omarchy. O `omarchy plugin add` só clona o repositório e valida o `manifest.json`, e a Ilha não precisa de mais nada. Ela não grava nada fora da própria pasta.
+`--enable` troca a barra para a Ilha. O Omarchy pede confirmação, porque um plugin roda dentro do shell que fica aberto. Não há pacote extra, nem sudo, nem passo de instalação: tudo o que a Ilha usa vem com o Omarchy. O `omarchy plugin add` só clona o repositório e valida o `manifest.json`, e a Ilha não precisa de mais nada. Fora da própria pasta ela só grava as três chaves do Estilo (veja Aparência), dentro do `~/.config/omarchy/shell.json` do próprio Omarchy, pela API de plugins do host (`mutateShellConfig`).
 
 Se a barra estiver escondida, mostre de novo com `omarchy toggle bar`.
 
@@ -50,20 +50,28 @@ A pílula flutua a 12 px da borda de cima, na camada de overlay, e não reserva 
 
 | Estado | O que está na pílula |
 |---|---|
-| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Se algo estiver ligado (gravação, Não perturbe, manter acordado, lembrete…), uma marca fica junto da hora. Com música tocando e nada mais ligado, a marca são três barrinhas na cor de destaque. |
-| Hover | Nível 1: o relógio fixo no centro, os workspaces como pequenas cápsulas numeradas de um lado (a ativa preenchida com a cor de destaque), barras de rede e bateria do outro. Com música tocando, o elemento "tocando agora" (a capa, ou uma nota, e o título curto) fica antes dos workspaces. |
-| Hover parado | Nível 2, depois de descansar o ponteiro por uns 1,6 s: a pílula alarga em três colunas, no máximo 640 × 64. À esquerda, o app em foco sobre os workspaces. No centro, um relógio grande sobre a data. À direita, o estado das notificações sobre rede e bateria. Com uma faixa carregada (tocando ou pausada), a linha do app em foco vira "título — artista" com um botão pequeno de tocar/pausar. |
+| Repouso | O relógio, numa cápsula de verdade de 108 × 38. Com algo ligado, uma marca fica ao lado da hora e a cápsula cresce para caber: o ícone do aviso mais importante que estiver ligado, na cor dele, nesta ordem: gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado. Gravando, o tempo da gravação vem depois do ícone e conta os segundos (só nessa hora; o relógio em si fica em minutos). Com música tocando, três barrinhas na cor de destaque ficam ao lado do ícone, ou sozinhas quando nada mais está ligado. Notificações na tela não contam aqui; elas ficam no sino. |
+| Hover | Nível 1: o relógio fixo no centro, os workspaces como pontos de um lado (o ativo uma pílula alta na cor de destaque), barras de rede, bateria e até duas marcas de estado do outro. Com música tocando, o elemento "tocando agora" (a capa, ou uma nota, e o título curto) fica antes dos workspaces. |
+| Hover parado | Nível 2, depois de o ponteiro ficar parado na pílula por 900 ms: a pílula alarga em três colunas, no máximo 640 × 64. À esquerda, o app em foco sobre os workspaces. No centro, um relógio grande com a data ao lado. À direita, o estado das notificações (a contagem, ou "Tudo em dia", e o sino) sobre rede, bateria e as marcas de estado. Com uma faixa carregada (tocando ou pausada), a linha do app em foco vira "título — artista" com um botão pequeno de tocar/pausar. |
+| Seletor | Os ícones dos seis painéis numa fileira de 236 × 46, cada um com o seu dígito embaixo. Veja abaixo. |
+| Aviso ao vivo | Uma linha curta que cresce da pílula e volta: "Gravando 0:42", "Lembrete em 15 min" ou uma notificação urgente. Veja abaixo. |
 | Painel | O mesmo objeto vira um painel. Não há linha de cabeçalho em cima dele. |
 
-São dois níveis de hover. O ponteiro na faixa central de cima (600 px) ou na própria pílula abre o nível 1, a linha. Descansando ali por uns 1,6 s, vem o nível 2, então passar pela borda de cima não desdobra a pílula. Ao sair, volta o relógio. Nada troca sozinho. O clique no elemento "tocando agora", nos dois níveis, abre a Mídia. Sem player, nenhuma parte da música aparece.
+São dois níveis de hover. Uma faixa invisível de 3 px nos 600 px do centro da borda de cima, o vão de 12 px abaixo dela ou a própria pílula abrem o nível 1, a linha. O nível 2 só abre com o ponteiro parado em cima da própria pílula: 900 ms sem andar mais de 3 px (andar mais recomeça a conta). A faixa e o vão nunca abrem o nível 2, então passar pela borda de cima não desdobra a pílula, e o Estilo pode desligar o nível 2. Ao sair, volta o relógio. Nada troca sozinho. O clique no elemento "tocando agora", nos dois níveis, abre a Mídia. Sem player, nenhuma parte da música aparece. Na primeira vez que o ponteiro abre a linha numa sessão, uma dica curta aparece sob a pílula por 3 s: "0 tempo · 1 apps · roda troca".
+
+No repouso, o toque na marca abre o painel dono dela: a gravação abre a Captura, o lembrete o Tempo, a atualização as Ferramentas, e Não perturbe, luz noturna e manter acordado abrem o Controle. As barrinhas da música abrem a Mídia, e o toque no resto da cápsula abre o Tempo. Com o ponteiro na marca a linha não abre, para o toque cair na marca, e o nome curto dela aparece num balão.
 
 | Lugar | Conteúdo | Toque |
 |---|---|---|
-| Esquerda | Workspaces deste monitor, cada um uma cápsula pequena com o seu número. A ativa é preenchida com a cor de destaque do tema. As ocupadas são claras. As vazias são quietas. | O clique numa cápsula foca esse workspace |
+| Esquerda | Workspaces deste monitor como pontos: os cinco primeiros do bloco do monitor, e mais os de número maior que já existirem. O ativo é uma pílula alta na cor de destaque do tema. Os ocupados são claros. Os vazios são quietos. | O clique num ponto foca esse workspace. O clique no ativo troca o layout dele (Mosaico, Rolagem, Flutuante); o nome aparece num balão |
 | Meio | Hora | Abre o Tempo |
-| Direita | Barras de rede e bateria, a bateria preenchida na cor de destaque | Abre o Controle |
+| Direita | Barras de rede e bateria, a bateria preenchida na cor de destaque, e depois até duas marcas de estado na mesma ordem da marca do repouso, com as notificações por último | Rede ou bateria abre o Controle. Cada marca age por conta própria: a gravação para; Não perturbe, luz noturna e manter acordado desligam; o lembrete abre o Tempo; a atualização abre as Ferramentas; o sino abre a notificação mais recente |
 
-Apps, Controle, Captura, Estilo, Ferramentas e Energia não ficam desenhados na pílula. A paleta saiu da linha: o Estilo continua na tecla `4` e na roda. Cada painel abre nela, um de cada vez. Com algo ligado, o repouso mostra um único ponto.
+Apps, Controle, Captura, Estilo, Ferramentas e Energia não ficam desenhados na linha. Eles só aparecem juntos no seletor. Cada painel abre na pílula, um de cada vez.
+
+**Seletor.** Toque longo ou clique direito na cápsula (ou na linha) mostra os ícones dos seis painéis: Apps, Controle, Captura, Estilo, Ferramentas, Energia, cada um com o seu dígito embaixo. Parar num ícone mostra "nome · dígito"; o toque abre aquele painel. O seletor some sozinho: 2,6 s sem o ponteiro em cima, ou 0,7 s depois de o ponteiro passar por ele e sair. Outro clique direito no mesmo monitor esconde. Ele não abre com um painel aberto.
+
+**Aviso ao vivo.** Quando um indicador liga, a pílula cresce numa linha curta, no formato da notificação, com o ícone e a cor do indicador: "Gravando 0:42" (o tempo continua contando), "Lembrete em 15 min", "Atualização disponível", "Não perturbe ligado", "Luz noturna ligada", "Manter acordado ligado". Fica 2,6 s, e só enquanto o indicador seguir ligado, depois volta o relógio. Uma notificação urgente aparece do mesmo jeito, numa linha (ícone, aplicativo, resumo), por 4 s. Parar o ponteiro em cima do aviso pausa a contagem; quando o ponteiro sai, ele fica mais 1 s. O toque abre o painel dono, ou, numa notificação, abre a notificação na pílula, como o sino. Com um painel aberto, um indicador não gera aviso, e indicadores que já estavam ligados quando a Ilha carregou também não. Com o Aviso ao vivo desligado no Estilo, um indicador novo mostra a linha por 2,6 s no lugar, e as notificações urgentes não aparecem sozinhas.
 
 ## Painéis
 
@@ -75,19 +83,20 @@ Todos usam a mesma grade de 4 colunas e altura fixa por página, então a pílul
 | 1 | Apps | Busca de aplicativos. Setas, Enter. Esc limpa e depois fecha |
 | 2 | Controle | Três linhas de 56 px, cada uma com dois blocos em cápsula (círculo do ícone, nome, estado) e um bloco redondo (só o ícone; o nome aparece num balão com o hover, ou no rodapé no modo teclado). `Q` Wi-Fi, `W` Não perturbe, `E` microfone; `A` Bluetooth, `S` modo jogo, `D` luz noturna; `Z` manter acordado, `X` animações, `C` Velocidade (teste de velocidade). Sem Wi-Fi, a primeira vaga vira Protetor de tela; sem Bluetooth, Suspensão. Ligado acende só o círculo do ícone na cor de destaque; Wi-Fi ou Bluetooth ligados sem conexão mostram só um véu leve de destaque. Abaixo dos blocos, o cartão Som: uma barra de volume (`-`/`=` ±5 %, `M` ou o toque no ícone deixa mudo) cuja seta, ou Enter, abre a subpágina Som (saídas, entrada); um botão redondo Voltar ou Esc volta. Por último, a linha da rede: interface e tipo, endereço IPv4 e um botão QR do Wi-Fi (`V`) quando no Wi-Fi. A Velocidade e o QR fecham a ilha e abrem os painéis do próprio Omarchy |
 | 3 | Captura | Print de região, tela, janela ou rolagem, e Inteligente no `V`. Gravação com som do sistema e microfone. OCR, QR code, conta-gotas |
-| 4 | Estilo | Três páginas, com abas no alto: Tema, Fundo, e Janelas e fonte. `Tab` e `Shift+Tab` trocam de página; a largura fica e só a altura muda. **Tema**: um carrossel de amostras de 140 × 80, cada uma o fundo do próprio tema com a paleta em pontos e o nome na cor do texto dele; o cartão do cursor fica no centro, com contorno, e os vizinhos esmaecem rumo às bordas. Um pontinho de destaque marca o tema em uso. As setas escolhem; Enter, ou o clique no cartão do centro, aplica; o clique num vizinho só seleciona. Sob a faixa, o tema atual e `n/N`. O botão de grade no cabeçalho, ou `R`, abre Todos os temas (uma grade de 4 colunas). **Fundo**: um carrossel dos fundos desse tema, a escolhida em 160 × 90 no centro com contorno de destaque, as vizinhas menores e mais quietas; o fundo em uso guarda um pontinho de destaque. Embaixo, o nome do arquivo e `n/N`, e depois três botões compactos: Próximo fundo, Escolher fundo e Cores do fundo (`Q W E`). O cabeçalho mostra o tema a que os fundos pertencem. **Janelas e fonte**: Cantos (Do tema, Retos, Redondos), Transparência (Opaca, Translúcida, Vidro) e Fonte. Em Tema e Fundo, `/` começa uma busca que toma o lugar das abas; as letras de atalho e os dígitos seguem funcionando até você digitar. Esc limpa a busca, fecha Todos os temas, volta à página Tema e depois fecha |
+| 4 | Estilo | Três páginas, com abas no alto: Tema, Fundo, e Janelas e fonte. `Tab` e `Shift+Tab` trocam de página; a largura fica e só a altura muda. **Tema**: um carrossel de amostras de 140 × 80, cada uma o fundo do próprio tema com a paleta em pontos e o nome na cor do texto dele; o cartão do cursor fica no centro, com contorno, e os vizinhos esmaecem rumo às bordas. Um pontinho de destaque marca o tema em uso. As setas escolhem; Enter, ou o clique no cartão do centro, aplica; o clique num vizinho só seleciona. Sob a faixa, o tema atual e `n/N`. O botão de grade no cabeçalho, ou `R`, abre Todos os temas (uma grade de 4 colunas). **Fundo**: um carrossel dos fundos desse tema, a escolhida em 160 × 90 no centro com contorno de destaque, as vizinhas menores e mais quietas; o fundo em uso guarda um pontinho de destaque. Embaixo, o nome do arquivo e `n/N`, e depois três botões compactos: Próximo fundo, Escolher fundo e Cores do fundo (`Q W E`). O cabeçalho mostra o tema a que os fundos pertencem. **Janelas e fonte**: Cantos (Do tema, Retos, Redondos; `W E R`), Transparência (Opaca, Translúcida, Vidro; `S D F`), Fonte e, sob Ilha, três chaves (`Z X C`): Nível 2 ao parar, Só no monitor focado e Aviso ao vivo (veja Aparência). Em Tema e Fundo, `/` começa uma busca que toma o lugar das abas; as letras de atalho e os dígitos seguem funcionando até você digitar. Esc limpa a busca, fecha Todos os temas, volta à página Tema e depois fecha |
 | 5 | Ferramentas | Área de transferência, emojis, atalhos, menu do Omarchy, notificações, sobre, atualizações e Plugins. A busca de atualizações roda no máximo a cada 10 minutos e desiste depois de 30 segundos |
 | 6 | Energia | Uma fileira de botões quadrados arredondados, ícone e nome: bloquear, suspender, hibernar. Sair, reiniciar e desligar pedem um segundo toque |
 | — | Plugins | Busca os plugins do shell. Enter liga ou desliga. Trocar a barra pede um segundo toque. A roda chega nele depois da Energia |
 | — | Mídia | Um mini-player compacto, 440 × 98 dentro de uma ilha de 468 × 126, para o player MPRIS ativo (o serviço de mídia do Omarchy, quando existe). Linha de cima: capa de 64 px, título sobre "artista · álbum", e anterior, tocar/pausar, próxima. Linha de baixo: tempo decorrido, barra de progresso, duração. Clique ou arraste na barra para pular, quando o player deixa. Aleatório e repetir (desligado, lista, faixa) ficam nas pontas da barra, só quando o player suporta. Fichas para trocar de player aparecem sob a linha do artista quando há mais de um. Teclas: Espaço ou `K` tocar/pausar, `←`/`J` anterior, `→`/`L` próxima, `,` e `.` voltam ou avançam 10 s, `S` aleatório, `R` repetir, `P` próximo player. Sem nada tocando, mostra o vazio na mesma altura |
 | — | OSD | Volume, brilho e outros avisos enviados para a ilha |
-| — | Notificação | O clique no sino da linha abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Ela não aparece sozinha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
+| — | Notificação | O clique no sino da linha (uma marca de estado no nível 1, o estado das notificações no nível 2) abre a mais recente dentro da pílula: ícone, aplicativo e resumo numa linha. Uma notificação comum não aparece sozinha; uma urgente chega como aviso ao vivo, e o toque nele abre esta mesma linha. O toque na pílula devolve o relógio. Os cartões do Omarchy ficam, porque são eles que trazem as ações |
 
 Os atalhos de painel do Omarchy caem no estado certo: áudio, Bluetooth e rede abrem o Controle, o relógio abre o Tempo, energia abre a Energia, mídia abre a Mídia.
 
 ## Mouse e teclado
 
-- Rolar o mouse na linha de status troca o painel. A primeira volta, com a linha ainda só linha, abre o Tempo. As seguintes andam Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, e a Mídia quando há uma faixa. Para baixo avança. Para cima volta. O painel aberto não tem linha no topo, mas a roda na borda de cima dele continua trocando os painéis.
+- A roda só troca de painel com um painel aberto, na borda de cima dele (o respiro de 14 px, na largura toda). Na linha e no repouso ela não faz nada. Cada volta (120 unidades) anda um painel: Tempo, Apps, Controle, Captura, Estilo, Ferramentas, Energia, Plugins, e a Mídia quando há uma faixa. Para baixo avança. Para cima volta. Uma volta incompleta zera depois de 200 ms sem eventos da roda, ou quando o sentido vira, então um deslize lento do trackpad nunca troca de painel.
+- Toque longo ou clique direito na cápsula mostra o seletor; o toque num ícone abre aquele painel.
 - Listas e controles deslizantes guardam a própria roda. O volume fica no Controle.
 - `0`–`6` ou `Alt`+dígito escolhem os mesmos painéis. `Ctrl+Tab` e `Ctrl+Shift+Tab` andam na ordem, com a Mídia só quando há uma faixa.
 - Setas movem o foco. Enter e Espaço ativam.
@@ -113,6 +122,11 @@ O Estilo chega na pílula no clique. O comando do sistema continua depois.
 - **Fonte.** A família escolhida entra na pílula na hora. O `omarchy font set` ainda reinicia o shell quando reescreve o fontconfig.
 - **Movimento.** A pílula muda de forma em 200 ms fixos quando cresce e 160 ms quando encolhe, numa curva que desacelera, e o conteúdo troca com um fade cruzado. Passar de um painel para outro nunca fecha e reabre a pílula. Com `omarchy toggle animations` desligado, tudo aparece na hora.
 - **Cor.** A pílula usa só `Commons.Color`. Não há paleta própria.
+- **Chaves da Ilha.** Estilo › Janelas e fonte › Ilha traz três chaves. Nível 2 ao parar (`level2Dwell`, ligada por padrão) deixa o ponteiro parado na pílula abrir o nível 2; desligada, a linha fica no nível 1. Só no monitor focado (`focusedOnly`, desligada) desenha a cápsula só no monitor focado do Hyprland; outro monitor só mostra a pílula enquanto estiver mostrando algo (um painel, o OSD, uma notificação, um aviso ao vivo ou o seletor). Aviso ao vivo (`livePeek`, ligada) liga o aviso ao vivo. Elas ficam em `~/.config/omarchy/shell.json`, sob `bar.ilha`, gravadas pela API de plugins do Omarchy (`mutateShellConfig`), que grava o arquivo de forma atômica. Só a chave que mudou é gravada. A pílula lê as chaves ao vivo, então uma edição à mão do `shell.json` também vale, e `omarchy bar reset` devolve o padrão. Sem o host, ou se a gravação for recusada, a escolha só dura até o shell reiniciar.
+
+```json
+"bar": { "ilha": { "level2Dwell": true, "focusedOnly": false, "livePeek": true } }
+```
 
 O modo jogo, no Controle, é outra ação. Ligar pode desligar animações, tirar os vãos e deixar as janelas opacas. Desligar devolve o que ele mudou.
 
@@ -132,7 +146,7 @@ omarchy-shell ilha state
 
 ## Idiomas
 
-A Ilha traz um catálogo em `i18n/` para cada idioma que o Omarchy oferece. Ela segue Configuração → Idioma ao vivo, sem reiniciar o shell, inclusive números e relógio. O que faltar cai no inglês. Idiomas da direita para a esquerda (árabe, persa, hebraico, urdu) espelham a ilha inteira. O relógio, as barras da rede, a bateria e o progresso e os botões de transporte da Mídia ficam da esquerda para a direita de propósito.
+A Ilha traz um catálogo em `i18n/` para cada idioma que o Omarchy oferece. Ela segue Configuração → Idioma ao vivo, sem reiniciar o shell, inclusive números e relógio. O que faltar cai no inglês. Idiomas da direita para a esquerda (árabe, persa, hebraico, urdu) espelham a ilha inteira. O relógio, o tempo da gravação, as barras da rede, a bateria e o progresso e os botões de transporte da Mídia ficam da esquerda para a direita de propósito.
 
 ## Dependências
 
@@ -146,8 +160,10 @@ Uma barra substituta pode mostrar widgets instalados, mas um widget de terceiro 
 |---|---|
 | `manifest.json` | Id, versão e a entrada `bar` |
 | `Island.qml` | Uma janela por monitor, a pílula, os painéis e o IPC |
-| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, estado das notificações, tocando agora |
-| `Indicators.qml` | Marcas de status ao vivo |
+| `Strip.qml` | A linha de status, níveis 1 e 2: workspaces, relógio, rede, bateria, marcas de estado, estado das notificações, tocando agora; e o seletor |
+| `Indicators.qml` | Estado ao vivo: a marca do repouso, as marcas de estado, o texto do aviso ao vivo, a fonte da música |
+| `NoticeView.qml` | A notificação e o aviso ao vivo numa linha |
+| `Prefs.qml` | As três chaves do Estilo, lidas e gravadas em `bar.ilha` no `shell.json` |
 | `ContinuousRect.qml` | Cápsula e cartão |
 | `Metrics.qml` | Medidas da grade, raios, durações |
 | `Tile.qml`, `TileArm.js`, `KeyBadge.qml` | Controle da grade e a letra |

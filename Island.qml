@@ -18,10 +18,21 @@ import "TileArm.js" as TileArm
 //
 // Nível 1: uma faixa invisível de 3 px nos 600 px do centro da borda de
 // cima, o vão de 12 px ou a própria cápsula abrem a linha de estado:
-// workspaces, hora e no máximo dois avisos, sem vão. Nível 2: só com o
-// ponteiro em cima da própria pílula, parado (900 ms sem andar mais de
-// 3 px, medidos na cena: a pílula cresce do centro). A faixa e o vão nunca
-// abrem o nível 2. O Estilo pode desligar o nível 2 (prefs.level2Dwell).
+// workspaces numerados, hora e no máximo dois avisos, sem vão. Nível 2: só
+// com o ponteiro em cima da própria pílula, parado (1600 ms sem andar mais
+// de 4 px, medidos na cena: a pílula cresce do centro). Andar recomeça a
+// conta, sair cancela. A faixa e o vão nunca abrem o nível 2. O Estilo
+// pode desligar o nível 2 (prefs.level2Dwell).
+//
+// Relógio único: no repouso e nos dois níveis a hora é um item só
+// (oneClock), que anda e muda de tamanho junto com a pílula quando a face
+// muda (repouso, nível 1, nível 2). O conteúdo que sai (a marca do
+// repouso, uma linha) some rápido no próprio lugar, e a hora só pega
+// velocidade depois que ele quase sumiu (clockCurve); o que entra espera a
+// pílula quase chegar e aparece já no lugar final (Strip.SwapLayer). Dentro
+// da mesma linha (a música entrou, o título mudou) a hora vai junto com a
+// linha no mesmo quadro, sem deslizar. A pílula recorta tudo e vai direto
+// de uma ponta à outra, sem passar por um tamanho menor que as duas.
 //
 // Seletor: toque longo ou clique direito na cápsula (ou na linha) mostra os
 // seis destinos por um instante e some. Um painel abre sozinho no lugar da
@@ -1034,11 +1045,12 @@ Item {
             // Ponteiro na marca do repouso: a linha não abre, para o toque
             // cair na marca (abre o painel dono). Sai da marca, a linha abre.
             property bool markLatch: false
-            readonly property bool markHold: markLatch && !stripLatched
+            // Só no repouso (pílula em phase 0): a linha aberta nunca é segurada.
+            readonly property bool markHold: markLatch && phase !== 2
             // A marca só segura enquanto está de fato na tela e tocável. Sumiu
             // (linha, painel, aviso), a trava cai na hora: um HoverHandler
             // escondido pode não avisar a saída e a linha ficaria presa.
-            readonly property bool markLive: markVisible && !stripOn && restClock.visible
+            readonly property bool markLive: markVisible && phase !== 2 && restFace.visible
             onMarkLiveChanged: if (!markLive) markLatch = false
             // Um aviso que entrou com o ponteiro fora segura a pílula quando o
             // ponteiro chega, para o toque cair nele. Ponteiro já em cima: a
@@ -1075,14 +1087,17 @@ Item {
             // marca + relógio continuar no centro.
             readonly property real restPillWidth: island.restWidth + (markVisible ? markRow.width + markGap : 0)
 
-            // Hover nível 2: 900 ms com o ponteiro parado em cima da própria
+            // Hover nível 2: 1600 ms com o ponteiro parado em cima da própria
             // pílula (a faixa de 3 px e o vão só abrem o nível 1). Andar mais
-            // de 3 px recomeça a conta. Saiu do hover, volta ao nível 1.
+            // de 4 px recomeça a conta (pillHover); sair da pílula cancela
+            // (running cai e o Timer zera). Saiu do hover, volta ao repouso.
             property bool expanded: false
             property point dwellAnchor: Qt.point(-1, -1)
+            readonly property int dwellMs: 1600
+            readonly property real dwellSlop: 4
             Timer {
                 id: level2Timer
-                interval: 900
+                interval: win.dwellMs
                 running: island.prefs.level2Dwell && win.mode === "hover" && win.stripOn
                     && pillHover.hovered && !win.expanded
                 onTriggered: win.expanded = true
@@ -1106,8 +1121,10 @@ Item {
             onHintArmChanged: {
                 if (!hintArm)
                     return
-                island.lineHintSeen = true
                 hintTimer.restart()
+                // Depois da notificação: hintArm lê lineHintSeen, e marcar
+                // aqui dentro reavalia hintArm no meio do próprio aviso.
+                Qt.callLater(() => island.lineHintSeen = true)
             }
             Timer {
                 id: hintTimer
@@ -1138,9 +1155,12 @@ Item {
 
             // Toque no repouso: nas barrinhas abre a Mídia, na marca o painel
             // dono, no resto da cápsula o Tempo. Coordenadas da pílula; a
-            // marca ganha 4 px de folga e a altura toda.
+            // marca ganha 4 px de folga e a altura toda. A marca só conta
+            // enquanto está de fato na tela (face do repouso, camada acesa):
+            // sumindo para a linha abrir, ou ainda por entrar, o toque ali é
+            // da hora, e não do dono de uma marca que não se vê.
             function restTarget(px) {
-                if (markVisible) {
+                if (markVisible && restFace.shown && restFace.visible) {
                     const m = markRow.mapToItem(pill, 0, 0)
                     if (px >= m.x - 4 && px <= m.x + markRow.width + 4) {
                         if (markBarsOn) {
@@ -1188,7 +1208,10 @@ Item {
             readonly property bool lineMode: mode === "hover" || mode === "picker"
             readonly property bool hasStrip: lineMode
             readonly property int contentTop: metrics.pad
-            readonly property real targetWidth: mode === "rest" ? 12
+            // Repouso: o tamanho da cápsula do relógio (nunca uma bolinha de
+            // 12): voltando, a pílula encolhe direto até ela, sem passar por
+            // um tamanho menor que as duas pontas.
+            readonly property real targetWidth: mode === "rest" ? restPillWidth
                 : faceMode ? (modeItem ? modeItem.implicitWidth + 32 : 12)
                 : lineMode ? Math.max(64, strip.implicitWidth)
                 : modeItem && modeItem.implicitWidth > 0 ? modeItem.implicitWidth + 2 * metrics.pad
@@ -1199,39 +1222,38 @@ Item {
             readonly property bool footerOn: isPanel && island.keyboardMode && footerSlot !== null
                 && (footerSlot.footerHints !== "" || footerSlot.footerStatus !== "")
             // Hover: a cápsula do elemento da vez. Painel: o cartão, sem a faixa.
-            readonly property real targetHeight: mode === "rest" ? 12
+            readonly property real targetHeight: mode === "rest" ? island.restHeight
                 : faceMode ? (modeItem ? modeItem.implicitHeight + 16 : 12)
                 : lineMode ? strip.implicitHeight
                 : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + (footerOn ? metrics.gap + metrics.footer + metrics.padBottom : metrics.pad), win.height - 16)
 
             // ---- Coreografia ----
-            // 0: repouso (sumida ou bolinha); 1: bolinha de 12 px no lugar;
-            // 2: esticada no estado atual.
+            // 0: repouso (a cápsula do relógio); 2: esticada no estado atual.
             property int phase: 0
             property bool contentLatched: false
-            property string pendingStep: ""
             readonly property bool animate: Commons.Style.duration(1) > 0
             readonly property bool shrinking: phase < 2 || !revealed
             readonly property bool contentOn: phase === 2 && revealed && contentLatched
-            // A faixa aparece quando a pílula já chegou perto do tamanho do hover.
-            // A altura do hover é a da linha (46, ou 64 no nível 2).
-            // Depois de entrar, a linha fica: o nível 2 cresce a pílula de novo
-            // e a linha faz a própria troca, sem o relógio do repouso voltar.
-            readonly property bool stripReady: phase === 2 && revealed && hasStrip
-                && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8
-            property bool stripLatched: false
-            onStripReadyChanged: if (stripReady) stripLatched = true
-            readonly property bool stripOn: phase === 2 && revealed && hasStrip && (stripReady || stripLatched)
+            // O que a pílula mostra, ou para onde está indo: o modo, com a
+            // pílula já esticada; senão o repouso. A hora única e a marca do
+            // repouso seguem a face (o modo muda um instante antes da pílula).
+            readonly property string face: phase === 2 ? mode : "rest"
+            // A linha (ou o seletor) pedida, com a pílula crescendo até ela. O
+            // conteúdo da faixa entra tarde e some rápido (Strip.SwapLayer);
+            // entre os níveis e o seletor a linha fica e só troca por dentro.
+            readonly property bool stripOn: phase === 2 && revealed && hasStrip
+            // A linha já esteve na tela desde que a pílula chegou nela. Na troca
+            // entre os níveis há um instante sem linha nenhuma (a que sai já
+            // sumiu, a que entra ainda espera): ali o toque não volta para o
+            // repouso (restPress), que abriria o Tempo sob um workspace.
+            property bool lineSeen: false
+            readonly property bool lineOnScreen: stripOn && strip.contentVisible
+            onLineOnScreenChanged: if (lineOnScreen) lineSeen = true
+            onStripOnChanged: if (!stripOn) lineSeen = false
 
             function checkLatch() {
                 if (phase === 2 && revealed && pill.width >= targetWidth * 0.8 && pill.height >= targetHeight * 0.8)
                     contentLatched = true
-            }
-
-            function step(name, ms) {
-                pendingStep = name
-                stepTimer.interval = Commons.Style.duration(ms)
-                stepTimer.restart()
             }
 
             // A cápsula do relógio se estica direto até o estado. Adiado: o
@@ -1245,17 +1267,14 @@ Item {
             }
 
             onRevealedChanged: {
-                stepTimer.stop()
                 if (revealed) {
                     Qt.callLater(growNow)
                 } else {
-                    // Conteúdo some primeiro, depois encolhe de volta ao relógio.
+                    // Volta direto ao repouso: o conteúdo que sai some rápido no
+                    // próprio lugar (a pílula recorta) enquanto ela já encolhe
+                    // até a cápsula do relógio. A hora anda junto.
                     contentLatched = false
-                    stripLatched = false
-                    if (phase === 2)
-                        step("shrink", 120)
-                    else
-                        step("rise", 0)
+                    phase = 0
                 }
             }
 
@@ -1264,8 +1283,6 @@ Item {
                 // o nível 2 não sobrevive ao seletor.
                 if (mode !== "hover")
                     expanded = false
-                if (!lineMode)
-                    stripLatched = false
                 if (mode !== "picker")
                     pickerTouched = false
                 contentLatched = false
@@ -1273,6 +1290,149 @@ Item {
             }
             onTargetWidthChanged: Qt.callLater(checkLatch)
             onTargetHeightChanged: Qt.callLater(checkLatch)
+
+            // ---- Relógio único ----
+            // No repouso e nos dois níveis a hora é oneClock. O alvo vem da
+            // face: no repouso, o centro da cápsula (cedendo metade da marca
+            // para o outro lado); no hover, o lugar que a faixa mede
+            // (clockOffset, clockPx) e o meio da linha. Visível, a hora anda
+            // até lá na mesma duração da pílula, e escala de 16 para 24 (o
+            // corpo troca na hora e a escala compensa), só quando a face muda
+            // (clockKey) e no repouso (a marca entrou ou saiu, a cápsula muda
+            // junto). Dentro da mesma linha ela segue o lugar no mesmo quadro
+            // (followClock): a linha pula para o lugar novo de uma vez, e a
+            // hora deslizando ficaria em cima dos workspaces ou da rede.
+            // Escondida, pula para lá e entra já no lugar. Saindo (painel,
+            // aviso, seletor), fica parada onde está enquanto some.
+            readonly property bool clockFace: face === "rest" || face === "hover"
+            // A face da hora com o nível: "rest", "line" (nível 1), "wide"
+            // (nível 2); vazia quando a hora some (painel, aviso, seletor).
+            function clockKeyOf(f, wide) {
+                return f === "rest" ? "rest" : f === "hover" ? (wide ? "wide" : "line") : ""
+            }
+            readonly property string clockKey: clockKeyOf(face, strip.expanded)
+            // A face para onde aimClock mirou por último.
+            property string clockAimedKey: ""
+            readonly property real restClockX: markVisible
+                ? (island.rtl ? -1 : 1) * (markRow.width + markGap) / 2 : 0
+            readonly property real clockAimX: face === "hover" ? strip.clockOffset : restClockX
+            readonly property real clockAimY: face === "hover" ? strip.implicitHeight / 2 : island.restHeight / 2
+            readonly property int clockAimPx: face === "hover" ? strip.clockPx : 16
+            // Centro da hora: x a partir do centro da pílula, y a partir do topo.
+            property real clockX: 0
+            property real clockY: island.restHeight / 2
+            property int clockPx: 16
+            property bool clockPlaced: false
+            readonly property bool clockGliding: clockGlideX.running || clockGlideY.running || clockGlidePx.running
+            // Curva da ida: quase parada nos primeiros ~30 ms (3–5% do
+            // caminho no primeiro quadro), enquanto o que sai some (OutQuint,
+            // já perto de 0,05 ali), e chega junto com a pílula. Com a curva da
+            // pílula a hora andava um terço do caminho no primeiro quadro, por
+            // cima dos workspaces e da data ainda visíveis. Mais lenta que
+            // isso no começo, ela sairia da pílula que encolhe (a música no
+            // nível 1 deixa a hora ~100 px fora do centro; aqui sobra ~1 px).
+            readonly property var clockCurve: [0.33, 0.0, 0.1, 1.0, 1.0, 1.0]
+            // Depois que os bindings do mesmo instante assentam (face, alvo,
+            // largura da marca), uma decisão só.
+            onClockKeyChanged: Qt.callLater(aimClock)
+            onClockAimXChanged: followClock()
+            onClockAimYChanged: followClock()
+            onClockAimPxChanged: Qt.callLater(aimClock)
+            Component.onCompleted: Qt.callLater(aimClock)
+
+            // O lugar mudou sem a face mudar (nível 1 ou 2 abertos e a linha
+            // mediu de novo): a hora vai junto agora, no mesmo quadro em que a
+            // linha se reposiciona (um callLater já chegaria um quadro atrasado).
+            // Troca de face, repouso ou uma ida em curso: aimClock decide. A
+            // face é lida das fontes, não de clockKey: aqui dentro de uma
+            // notificação o binding dele pode ainda não ter reavaliado, e uma
+            // troca de nível pareceria uma medida nova.
+            function followClock() {
+                const key = clockKeyOf(face, strip.expanded)
+                if (clockPlaced && !clockGliding && key === clockAimedKey
+                        && (key === "line" || key === "wide")) {
+                    clockX = clockAimX
+                    clockY = clockAimY
+                    return
+                }
+                Qt.callLater(aimClock)
+            }
+
+            function aimClock() {
+                const key = clockKey
+                if (key === "") {
+                    clockGlideX.stop()
+                    clockGlideY.stop()
+                    clockGlidePx.stop()
+                    return
+                }
+                const moved = key !== clockAimedKey
+                clockAimedKey = key
+                const ms = Commons.Style.duration(shrinking ? 160 : 200)
+                // Desliza na troca de face e no repouso; uma ida em curso só
+                // muda o alvo. Na mesma linha, vai direto (como followClock).
+                const glide = clockPlaced && ms > 0 && clockLayer.opacity > 0
+                    && (moved || key === "rest" || clockGliding)
+                clockPlaced = true
+                glideTo(clockGlideX, clockX, clockAimX, ms, glide)
+                glideTo(clockGlideY, clockY, clockAimY, ms, glide)
+                if (clockAimPx !== clockPx) {
+                    // Tamanho na tela agora: o corpo troca e a escala segura.
+                    const seen = clockPx * oneClock.scale
+                    clockGlidePx.stop()
+                    clockPx = clockAimPx
+                    if (glide) {
+                        oneClock.scale = seen / clockPx
+                        clockGlidePx.duration = ms
+                        clockGlidePx.start()
+                    } else {
+                        oneClock.scale = 1
+                    }
+                } else if (!glide) {
+                    clockGlidePx.stop()
+                    oneClock.scale = 1
+                }
+            }
+
+            // Anda (ou pula) um eixo até o alvo. Uma animação que já vai para
+            // lá continua: recomeçar esticaria o resto do caminho e a hora
+            // ficaria atrás da pílula.
+            function glideTo(anim, now, aim, ms, glide) {
+                if (glide && anim.running && Math.abs(anim.to - aim) < 0.25)
+                    return
+                anim.stop()
+                if (glide && Math.abs(now - aim) >= 0.25) {
+                    anim.from = now
+                    anim.to = aim
+                    anim.duration = ms
+                    anim.start()
+                } else {
+                    anim.target[anim.property] = aim
+                }
+            }
+
+            NumberAnimation {
+                id: clockGlideX
+                target: win
+                property: "clockX"
+                easing.type: Easing.Bezier
+                easing.bezierCurve: win.clockCurve
+            }
+            NumberAnimation {
+                id: clockGlideY
+                target: win
+                property: "clockY"
+                easing.type: Easing.Bezier
+                easing.bezierCurve: win.clockCurve
+            }
+            NumberAnimation {
+                id: clockGlidePx
+                target: oneClock
+                property: "scale"
+                to: 1
+                easing.type: Easing.Bezier
+                easing.bezierCurve: win.clockCurve
+            }
 
             // O rodapé mostra o estado que está de fato na tela (não troca de
             // texto antes do conteúdo novo entrar).
@@ -1285,22 +1445,6 @@ Item {
                 // Depois que o slot reavaliar "enabled" (senão o tile Q ainda
                 // não aceita foco).
                 Qt.callLater(focusState)
-            }
-
-            Timer {
-                id: stepTimer
-                onTriggered: {
-                    const name = win.pendingStep
-                    win.pendingStep = ""
-                    if (name === "expand") {
-                        win.phase = 2
-                        Qt.callLater(win.checkLatch)
-                    } else if (name === "shrink") {
-                        win.phase = 0
-                    } else if (name === "rise") {
-                        win.phase = 0
-                    }
-                }
             }
 
             // Folga antes de esconder, para o mouse poder voltar.
@@ -1559,9 +1703,10 @@ Item {
                     onWidthChanged: win.checkLatch()
                     onHeightChanged: win.checkLatch()
 
-                    // Nível 2: o ponteiro parado em cima da pílula. A posição
-                    // é a da cena: a pílula cresce do centro e a posição local
-                    // andaria com um ponteiro parado.
+                    // Nível 2: o ponteiro parado em cima da pílula (a faixa de
+                    // 3 px e o vão ficam fora dela). A posição é a da cena: a
+                    // pílula cresce do centro e a posição local andaria com um
+                    // ponteiro parado. Mais de 4 px da âncora recomeça os 1600 ms.
                     HoverHandler {
                         id: pillHover
                         onHoveredChanged: win.dwellAnchor = Qt.point(-1, -1)
@@ -1570,7 +1715,7 @@ Item {
                                 return
                             const p = point.scenePosition
                             const a = win.dwellAnchor
-                            if (a.x >= 0 && Math.hypot(p.x - a.x, p.y - a.y) <= 3)
+                            if (a.x >= 0 && Math.hypot(p.x - a.x, p.y - a.y) <= win.dwellSlop)
                                 return
                             win.dwellAnchor = Qt.point(p.x, p.y)
                             if (level2Timer.running)
@@ -1631,69 +1776,57 @@ Item {
                         }
                     }
 
-                    // ---- Repouso: relógio compacto + marca do indicador ----
-                    // Fica no centro da pílula (também na vertical) e só some
-                    // quando o relógio da linha já entrou no mesmo lugar: a
-                    // pílula nunca fica vazia no meio do morph.
-                    Item {
-                        id: restClock
+                    // ---- Repouso: a marca do indicador ----
+                    // Camada própria, presa ao topo da pílula (a pílula cresce
+                    // para baixo a partir dele) e com as posições do repouso: ao
+                    // abrir a linha ela some rápido no lugar, sem andar com a
+                    // hora; voltando, entra com a cápsula quase pronta, já no
+                    // lugar final. Nunca está na tela junto com uma linha: a
+                    // linha só entra depois que a marca sumiu, e vice-versa.
+                    Strip.SwapLayer {
+                        id: restFace
+                        shown: win.face === "rest" && win.markVisible
+                        delay: strip.msSwapDelayRest
+                        fadeOut: strip.msSwapOut
+                        fadeIn: strip.msSwapIn
                         anchors.horizontalCenter: parent.horizontalCenter
-                        y: Math.round((parent.height - height) / 2)
+                        y: 0
                         width: parent.width
                         height: island.restHeight
-                        opacity: (!win.revealed && pill.atRest) || (win.lineMode && !win.stripOn) ? 1 : 0
-                        visible: opacity > 0
                         // Posições calculadas à mão (o lado da marca segue island.rtl):
                         // o espelho automático fica desligado para não virar duas vezes.
                         LayoutMirroring.enabled: false
                         LayoutMirroring.childrenInherit: true
-                        Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(pill.atRest ? 160 : 120); easing.type: Easing.OutCubic }
-                        }
 
+                        // A largura da hora do repouso (16 px), para a marca
+                        // ficar do lado de fora dela sem seguir a hora única.
                         Text {
-                            id: restClockText
-                            anchors.centerIn: parent
-                            // Com a marca, o par marca + relógio é que fica centrado:
-                            // o relógio cede metade da marca (e do vão) para o outro
-                            // lado. Em RTL a marca vai para a direita e o relógio cede
-                            // para a esquerda.
-                            anchors.horizontalCenterOffset: win.markVisible && !win.revealed
-                                ? (island.rtl ? -1 : 1) * (markRow.width + win.markGap) / 2 : 0
+                            id: restGauge
+                            visible: false
                             text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
-                            Accessible.role: Accessible.Button
-                            Accessible.name: strings.t("island.time", "Time")
                             textFormat: Text.PlainText
                             font.family: island.fontFamily
                             font.pixelSize: 16
                             font.weight: Font.DemiBold
                             font.features: ({ "tnum": 1 })
-                            color: island.fg
-
-                            Behavior on anchors.horizontalCenterOffset {
-                                NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-                            }
                         }
 
                         // Marca do repouso: o ícone do aviso mais importante na cor
                         // dele, o tempo da gravação (segundos, só gravando) e, com
                         // música tocando, as três barrinhas ao lado.
-                        // x calculado: do lado de fora do relógio, à esquerda (à
-                        // direita em RTL). Em RTL a ordem também vira, e as barras
-                        // continuam encostadas no relógio.
+                        // x calculado: do lado de fora da hora do repouso, à
+                        // esquerda (à direita em RTL). Em RTL a ordem também vira,
+                        // e as barras continuam encostadas no relógio.
                         Row {
                             id: markRow
+                            readonly property real clockLeft: restFace.width / 2 + win.restClockX - restGauge.implicitWidth / 2
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: 4
                             layoutDirection: island.rtl ? Qt.RightToLeft : Qt.LeftToRight
-                            x: island.rtl ? restClockText.x + restClockText.width + win.markGap
-                                : restClockText.x - win.markGap - width
-                            opacity: win.markVisible ? 1 : 0
+                            x: island.rtl ? clockLeft + restGauge.implicitWidth + win.markGap
+                                : clockLeft - win.markGap - width
                             Accessible.role: Accessible.Button
                             Accessible.name: win.markTipText !== "" ? win.markTipText : indicatorSource.mediaTitle
-                            Behavior on opacity {
-                                NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
-                            }
 
                             Icon {
                                 id: markIcon
@@ -1782,11 +1915,13 @@ Item {
                     Strip {
                         id: strip
 
-                        // Preso ao centro da pílula (e a pílula ao centro da tela): o
-                        // relógio fica no centro exato enquanto a largura e a altura
-                        // animam, no mesmo ponto do relógio do repouso.
+                        // Presa ao topo e ao centro da pílula (e a pílula ao centro
+                        // da tela): cada linha tem a própria largura e altura e não
+                        // anda enquanto a pílula cresce ou encolhe.
                         anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.verticalCenter: parent.verticalCenter
+                        y: 0
+                        // O conteúdo entra tarde e some rápido (Strip.SwapLayer).
+                        live: win.stripOn
                         // O nível 2 só no hover e só com o interruptor do Estilo.
                         expanded: win.expanded && win.mode === "hover" && island.prefs.level2Dwell
                         // Seletor: a fileira dos seis destinos no lugar da linha.
@@ -1803,24 +1938,14 @@ Item {
                         now: clock.date
                         fg: island.fg
                         bg: island.bg
+                        surface: island.surface
                         accent: island.accent
                         danger: island.danger
                         fontFamily: island.fontFamily
                         metrics: win.metrics
 
-                        opacity: win.stripOn ? 1 : 0
-                        scale: win.stripOn ? 1 : 0.97
-                        visible: opacity > 0
+                        // Sem opacidade própria: cada linha some e entra sozinha.
                         enabled: win.stripOn
-
-                        // Entra em 160 ms enquanto o relógio do repouso sai em 120:
-                        // os dois relógios se cruzam no mesmo ponto.
-                        Behavior on opacity {
-                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? win.metrics.msFadeIn : win.metrics.msFadeOut); easing.type: Easing.OutCubic }
-                        }
-                        Behavior on scale {
-                            NumberAnimation { duration: Commons.Style.duration(win.stripOn ? win.metrics.msFadeIn : win.metrics.msFadeOut); easing.type: Easing.Bezier; easing.bezierCurve: Commons.Style.easeOut }
-                        }
 
                         onCategoryClicked: target => island.categoryClick(target, win.screenName)
                         onCategoryDwelled: target => {
@@ -1842,6 +1967,46 @@ Item {
                         onPanelWheel: step => {
                             if (island.view !== "")
                                 island.cycle(step, win.screenName)
+                        }
+                    }
+
+                    // ---- Relógio único: repouso, nível 1 e nível 2 ----
+                    // A única hora que se vê nesses três estados (os relógios
+                    // da faixa são só lugar e toque). Anda e escala junto com a
+                    // pílula (aimClock); some rápido onde está quando um painel,
+                    // um aviso ou o seletor tomam a pílula, e volta com ela
+                    // quase pronta, já no lugar. Por cima da faixa, recortada
+                    // pela pílula; sem toque próprio (repouso: restPress; linha:
+                    // o lugar da hora na faixa). Acessibilidade: no repouso ela
+                    // é o botão "Hora" (abre o Tempo); na linha o botão é o
+                    // lugar da hora na faixa, e esta sai da árvore para não
+                    // haver dois.
+                    Strip.SwapLayer {
+                        id: clockLayer
+                        anchors.fill: parent
+                        shown: win.clockFace
+                        delay: win.face === "rest" ? strip.msSwapDelayRest : strip.msSwapDelay
+                        fadeOut: strip.msSwapOut
+                        fadeIn: strip.msSwapIn
+                        // x calculado (clockX já vem do lado visual): sem espelho.
+                        LayoutMirroring.enabled: false
+                        LayoutMirroring.childrenInherit: true
+
+                        Text {
+                            id: oneClock
+                            x: Math.round(clockLayer.width / 2 + win.clockX - width / 2)
+                            y: Math.round(win.clockY - height / 2)
+                            text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
+                            Accessible.role: Accessible.Button
+                            Accessible.name: strings.t("island.time", "Time")
+                            Accessible.ignored: win.face !== "rest"
+                            Accessible.onPressAction: island.categoryClick("calendar", win.screenName)
+                            textFormat: Text.PlainText
+                            font.family: island.fontFamily
+                            font.pixelSize: win.clockPx
+                            font.weight: Font.DemiBold
+                            font.features: ({ "tnum": 1 })
+                            color: island.fg
                         }
                     }
 
@@ -1891,7 +2056,14 @@ Item {
                         enabled: !win.isPanel && !win.faceMode
                         onPressedChanged: {
                             if (pressed)
-                                restGesture = !win.isPanel && !win.faceMode && !(win.revealed && win.stripOn)
+                                // A linha já na tela cuida dos próprios toques; antes
+                                // dela entrar pela primeira vez (pílula crescendo do
+                                // repouso), o toque é do repouso. No vão da troca
+                                // entre os níveis (lineSeen, nenhuma linha na tela)
+                                // o toque não é de ninguém: o repouso abriria o
+                                // Tempo sob o workspace que a pessoa via.
+                                restGesture = !win.isPanel && !win.faceMode
+                                    && !(win.revealed && win.stripOn && (strip.contentVisible || win.lineSeen))
                         }
                         onTapped: eventPoint => {
                             const own = restGesture
@@ -1967,7 +2139,7 @@ Item {
                         : win.markTipOn ? win.markTipText : strip.tooltipText
                     // Centro x em coordenadas da pílula.
                     readonly property real liveX: win.hintOn ? strip.x + strip.width / 2
-                        : win.markTipOn ? restClock.x + markRow.x + markRow.width / 2
+                        : win.markTipOn ? restFace.x + markRow.x + markRow.width / 2
                         : strip.x + strip.tooltipX
                     property string text: ""
                     property real centerX: 0
