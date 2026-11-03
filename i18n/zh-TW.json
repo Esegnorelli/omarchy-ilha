@@ -121,6 +121,7 @@
   "island.layout.dwindle": "並排",
   "island.layout.floating": "浮動",
   "island.layout.scrolling": "捲動",
+  "island.lineHint": "0 時間 · 1 應用程式 · 捲動切換",
   "island.power": "電源",
   "island.style": "風格",
   "island.time": "時間",
@@ -141,6 +142,16 @@
   "media.previous": "上一首",
   "media.repeat": "重複",
   "media.shuffle": "隨機播放",
+  "peek.dnd": "勿擾模式已開啟",
+  "peek.hours": "%1 小時",
+  "peek.hoursMinutes": "%1 小時 %2 分鐘",
+  "peek.minutes": {
+    "other": "%1 分鐘"
+  },
+  "peek.nightlight": "夜燈已開啟",
+  "peek.reminderIn": "%1後提醒",
+  "peek.stayAwake": "保持喚醒已開啟",
+  "peek.updates": "有可用更新",
   "plugins.confirmBar": "再按 ↵ 切換列",
   "plugins.count": {
     "other": "%1 個外掛"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "圓角",
   "style.corners.sharp": "直角",
   "style.corners.theme": "依主題",
+  "style.focusedOnly": "僅焦點顯示器",
   "style.font": "字型",
   "style.gallery": "主題",
+  "style.island": "浮島",
+  "style.level2Dwell": "懸停展開第 2 級",
+  "style.livePeek": "即時提示",
   "style.section.background": "背景",
   "style.section.theme": "主題",
   "style.section.windows": "視窗與字型",

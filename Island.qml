@@ -9,19 +9,44 @@ import "TileArm.js" as TileArm
 // Ilha: plugin de barra (kind "bar") que substitui a barra do Omarchy por uma
 // pílula só, solta do topo, que muda de forma.
 //
-// Em repouso é uma cápsula com a hora, a alguns pixels da borda. Uma faixa
-// invisível de 3 px nos 600 px do centro da borda de cima (ou o ponteiro na
-// própria cápsula) abre a linha de estado: workspaces, hora e no máximo
-// dois avisos, sem vão. Um painel abre sozinho no lugar da pílula. Os seis
-// destinos não aparecem juntos.
+// Em repouso é uma cápsula com a hora, a alguns pixels da borda. Com algo
+// ligado, uma marca fica ao lado da hora: o ícone do aviso mais importante
+// (gravando, lembrete, atualização, Não perturbe, luz noturna, manter
+// acordado), o tempo da gravação em segundos e, com música, as três
+// barrinhas. Tocar na marca, ainda no repouso, abre o painel dono; tocar
+// no resto da cápsula abre o Tempo.
+//
+// Nível 1: uma faixa invisível de 3 px nos 600 px do centro da borda de
+// cima, o vão de 12 px ou a própria cápsula abrem a linha de estado:
+// workspaces, hora e no máximo dois avisos, sem vão. Nível 2: só com o
+// ponteiro em cima da própria pílula, parado (900 ms sem andar mais de
+// 3 px, medidos na cena: a pílula cresce do centro). A faixa e o vão nunca
+// abrem o nível 2. O Estilo pode desligar o nível 2 (prefs.level2Dwell).
+//
+// Seletor: toque longo ou clique direito na cápsula (ou na linha) mostra os
+// seis destinos por um instante e some. Um painel abre sozinho no lugar da
+// pílula. Na primeira linha da sessão, uma dica curta lembra os dígitos.
+//
+// Aviso ao vivo (prefs.livePeek): um indicador que liga vira uma frase
+// curta na pílula ("Gravando 0:42", "Lembrete em 15 min") que cresce e
+// volta; uma notificação urgente vira uma linha no formato do NoticeView.
+// Tocar abre o painel dono ou a notificação. Desligado, é a linha de
+// estado por 2,6 s, como antes.
 //
 // Hover: a pílula mede essa linha. Painel: a largura do próprio painel + 2 × 14.
 // O OSD tem a sua. O sino, quando clicado, mostra a notificação mais
-// recente na pílula, numa linha. Ela não aparece sozinha. Coluna =
-// estado ativo (+ PanelFooter só no modo teclado). Clicar na hora ou num indicador abre um
-// painel e liga o "modo menu":
-// repousar 150 ms noutro ícone troca de painel, descer o ponteiro cancela,
-// clicar no ícone ativo volta à faixa e sair com o ponteiro não fecha.
+// recente na pílula, numa linha. Coluna = estado ativo (+ PanelFooter só no
+// modo teclado). Clicar na hora ou num indicador abre um painel e liga o
+// "modo menu": repousar 150 ms noutro ícone troca de painel, descer o
+// ponteiro cancela, clicar no ícone ativo volta à faixa e sair com o
+// ponteiro não fecha.
+//
+// Roda: só troca de painel com um painel já aberto, na borda de cima dele
+// (panelWheelZone). Na linha e no repouso a roda não faz nada.
+//
+// Monitores: uma janela por tela, sempre com ExclusionMode.Ignore e a
+// máscara. Com prefs.focusedOnly, só a tela focada desenha a cápsula (e a
+// que estiver mostrando painel, OSD, notificação, aviso ou seletor).
 //
 // Teclado (spec §4): o estado trata a tecla primeiro (handleKey); depois vêm
 // 0–6 / Alt+0–6 (categorias), Ctrl+Tab / Ctrl+Shift+Tab e a cadeia do Esc
@@ -33,8 +58,11 @@ import "TileArm.js" as TileArm
 // na roda e no Ctrl+Tab quando há uma faixa; por IPC abre sempre.
 //
 // RTL (ar, fa, he, ur): a superfície espelha tudo (LayoutMirroring herdado).
-// O que é x calculado aqui (o ponto do repouso) troca de lado à mão; o
-// relógio e o progresso da música ficam da esquerda para a direita.
+// O que é x calculado aqui troca de lado à mão: a marca do repouso (markRow)
+// fica à esquerda do relógio em LTR e à direita em RTL, com a própria
+// ordem invertida (layoutDirection), e o relógio cede metade da largura
+// dela para o lado oposto. O relógio, o tempo da gravação e o progresso da
+// música ficam da esquerda para a direita.
 //
 // Contrato com o host (shell.qml do Omarchy): as propriedades injetadas,
 // o estado publicado (barHidden, barSize, screenBarSizes, fontFamily,
@@ -319,6 +347,13 @@ Item {
         glass: island.glassMode
     }
 
+    // Os três interruptores do Estilo (bar.ilha no shell.json, gravados pela
+    // API do host). Lidos ao vivo de barConfig; sem host, ficam na memória.
+    property Prefs prefs: Prefs {
+        shell: island.shell
+        barConfig: island.barConfig
+    }
+
     // ---- Teclado ----
     // Modo teclado: anel de foco, letras cheias e dígitos na faixa.
     property bool keyboardMode: false
@@ -346,6 +381,42 @@ Item {
     property var osdPayload: ({})
     property bool osdShown: false
     readonly property bool eventShown: eventTimer.running
+
+    // Seletor: os seis destinos na linha, por um instante (toque longo ou
+    // clique direito na cápsula). Some sozinho (pickerClose, por janela).
+    property bool pickerShown: false
+    // Dica da primeira linha da sessão ("0 tempo · 1 apps · roda troca").
+    property bool lineHintSeen: false
+
+    // Aviso ao vivo: uma frase curta no formato do NoticeView. Só aparece
+    // enquanto o indicador seguir ligado (a notificação vale pelo tempo).
+    property string peekKey: ""
+    property var peekRow: null
+    // Ponteiro parado no aviso (holdPeek): a contagem pausa, para o toque
+    // cair nele e não na linha. Saiu, sobra uma cauda curta (peekTail).
+    property bool peekHovered: false
+    property bool peekTail: false
+    readonly property bool peekShown: peekKey !== "" && (peekTimer.running || peekHovered)
+        && (peekKey === "notifications" || indicatorSource.isOn(peekKey))
+    // O texto da gravação anda sozinho: peekText lê recordingClock.
+    readonly property var peekPayload: {
+        const key = island.peekKey
+        if (key === "")
+            return ({})
+        if (key === "notifications") {
+            const row = island.peekRow || ({})
+            const app = String(row.app || "")
+            return ({ key: key, app: app, summary: String(row.summary || app), urgent: true })
+        }
+        return ({
+            key: key,
+            icon: indicatorSource.iconOf(key),
+            tone: indicatorSource.toneOf(key),
+            app: "",
+            summary: indicatorSource.peekText(key),
+            urgent: false
+        })
+    }
 
     // Atalhos de painel do Omarchy (Super+Ctrl+…) que a ilha atende.
     readonly property var widgetViews: ({
@@ -375,6 +446,8 @@ Item {
         target = resolveView(target)
         if (views.indexOf(target) < 0)
             return false
+        closePicker()
+        endPeek()
         panelScreen = screenName && screenName !== "" ? screenName : focusedScreenName()
         view = target
         return true
@@ -394,6 +467,94 @@ Item {
 
     function close() {
         view = ""
+        closePicker()
+    }
+
+    // ---- Seletor ----
+    // Só sem painel aberto: com painel, a borda de cima e os dígitos já trocam.
+    function openPicker(screenName) {
+        if (view !== "")
+            return
+        endPeek()
+        panelScreen = screenName && String(screenName) !== "" ? String(screenName) : focusedScreenName()
+        pickerShown = true
+    }
+
+    function closePicker() {
+        pickerShown = false
+    }
+
+    // Clique direito: o mesmo monitor fecha; outro monitor leva o seletor.
+    function togglePicker(screenName) {
+        const s = screenName && String(screenName) !== "" ? String(screenName) : focusedScreenName()
+        if (pickerShown && panelScreen === s)
+            closePicker()
+        else
+            openPicker(s)
+    }
+
+    // ---- Aviso ao vivo ----
+    // Sem painel, segue o monitor focado; não arranca o seletor nem a
+    // notificação fixa do monitor onde estão. Com painel aberto, o indicador
+    // não arma aviso: o painel já mostra o estado, e o aviso apareceria
+    // depois de fechar repetindo o que a pessoa acabou de fazer.
+    function showPeek(key, row) {
+        if (barHidden)
+            return
+        key = String(key || "")
+        if (view !== "" && key !== "notifications")
+            return
+        if (view === "" && !pickerShown && !noticeShown)
+            panelScreen = focusedScreenName()
+        peekKey = key
+        peekRow = row || null
+        peekTail = false
+        peekClear.stop()
+        peekTimer.restart()
+    }
+
+    // A chave fica até o fade de saída terminar (peekClear), para o texto
+    // não sumir antes da pílula voltar.
+    function endPeek() {
+        peekHovered = false
+        peekTimer.stop()
+        if (peekKey !== "")
+            peekClear.restart()
+    }
+
+    // Ponteiro chegou no aviso (peekHold da janela): pausa. Saiu: volta a
+    // contar só a cauda. A cauda liga antes de soltar a pausa, para o aviso
+    // não piscar fora no meio.
+    function holdPeek(on) {
+        if (on === peekHovered)
+            return
+        if (on) {
+            peekHovered = true
+            peekTimer.stop()
+            return
+        }
+        if (peekKey !== "") {
+            peekTail = true
+            peekTimer.restart()
+        }
+        peekHovered = false
+    }
+
+    // Toque no aviso: a notificação abre fixa na pílula (como no sino); um
+    // indicador abre o painel dono.
+    function tapPeek(screenName) {
+        const key = peekKey
+        const row = peekRow
+        const s = screenName && String(screenName) !== "" ? String(screenName) : focusedScreenName()
+        endPeek()
+        if (key === "notifications") {
+            panelScreen = s
+            presentNotice(row)
+            return
+        }
+        const owner = indicatorSource.ownerOf(key)
+        keyboardMode = false
+        show(owner, s)
     }
 
     onViewChanged: {
@@ -550,6 +711,7 @@ Item {
         }
         if (view !== "")
             close()
+        endPeek()
         noticeShown = true
         breathe()
     }
@@ -629,7 +791,9 @@ Item {
             keyboardMode: keyboardMode,
             panelScreen: panelScreen,
             osd: osdShown,
-            notice: noticeShown
+            notice: noticeShown,
+            picker: pickerShown,
+            peek: peekShown ? peekKey : ""
         })
     }
 
@@ -646,6 +810,27 @@ Item {
         interval: 2600
     }
 
+    // A notificação fica um pouco mais: tem texto de fora para ler. Depois
+    // do ponteiro passar por cima, só a cauda de 1 s.
+    Timer {
+        id: peekTimer
+        interval: island.peekTail ? 1000 : island.peekKey === "notifications" ? 4000 : 2600
+        onTriggered: if (!island.peekHovered) peekClear.restart()
+    }
+
+    // Depois do fade de saída, esquece a chave: o texto da gravação não
+    // fica andando escondido.
+    Timer {
+        id: peekClear
+        interval: 400
+        onTriggered: {
+            if (peekTimer.running || island.peekHovered)
+                return
+            island.peekKey = ""
+            island.peekRow = null
+        }
+    }
+
     // ---- Indicadores: uma fonte só, espelhada em cada monitor ----
     // (repassada por este nome: em Strip { indicatorSource: … } o nome
     // "indicatorSource" seria a propriedade da própria faixa)
@@ -659,14 +844,31 @@ Item {
         danger: island.danger
         muted: Commons.Color.muted
         checkUpdates: island.checkUpdates
+        // Indicador novo: a frase curta (aviso ao vivo) ou, com ele
+        // desligado, a linha de estado por um instante. Notificação comum só
+        // respira; a urgente chega por urgentArrived.
         onBecameActive: what => {
-            if (what !== "notifications")
-                island.revealEvent()
+            if (what !== "notifications") {
+                if (island.prefs.livePeek)
+                    island.showPeek(what, null)
+                else
+                    island.revealEvent()
+            }
+            island.breathe()
+        }
+        onUrgentArrived: row => {
+            if (!island.prefs.livePeek)
+                return
+            island.showPeek("notifications", row)
             island.breathe()
         }
         onCurrentNoticeChanged: {
-            if (!indicatorSource.currentNotice && island.noticeShown)
+            if (indicatorSource.currentNotice)
+                return
+            if (island.noticeShown)
                 island.closeNotice()
+            if (island.peekKey === "notifications")
+                island.endPeek()
         }
         onNoticeRequested: island.toggleNotice("")
     }
@@ -819,32 +1021,144 @@ Item {
             implicitHeight: Math.min(modelData.height, 820)
 
             // ---- O que esta janela mostra ----
-            readonly property bool hoverAllowed: !island.barHidden
+            // Só no monitor focado (Estilo): as outras telas não desenham a
+            // cápsula, a não ser a que estiver mostrando algo agora.
+            readonly property bool isFocusedScreen: !!Hyprland.focusedMonitor
+                && String(Hyprland.focusedMonitor.name) === screenName
+            readonly property bool drawsPill: !island.prefs.focusedOnly || isFocusedScreen
+                || (isTarget && (island.view !== "" || island.osdShown || island.noticeShown
+                    || island.peekShown || island.pickerShown || island.eventShown))
+            readonly property bool hoverAllowed: !island.barHidden && drawsPill
             readonly property bool hovered: hoverAllowed && (surfaceHover.hovered || closeDelay.running)
+
+            // Ponteiro na marca do repouso: a linha não abre, para o toque
+            // cair na marca (abre o painel dono). Sai da marca, a linha abre.
+            property bool markLatch: false
+            readonly property bool markHold: markLatch && !stripLatched
+            // A marca só segura enquanto está de fato na tela e tocável. Sumiu
+            // (linha, painel, aviso), a trava cai na hora: um HoverHandler
+            // escondido pode não avisar a saída e a linha ficaria presa.
+            readonly property bool markLive: markVisible && !stripOn && restClock.visible
+            onMarkLiveChanged: if (!markLive) markLatch = false
+            // Um aviso que entrou com o ponteiro fora segura a pílula quando o
+            // ponteiro chega, para o toque cair nele. Ponteiro já em cima: a
+            // linha continua na frente.
+            property bool peekLatch: false
+            readonly property bool peekHold: peekLatch && isTarget && island.peekShown
+            // Com o ponteiro em cima do aviso a contagem pausa (holdPeek):
+            // sem isso o aviso acabava sob o ponteiro e a linha tomava o lugar.
+            readonly property bool peekPointed: peekHold && surfaceHover.hovered
+            onPeekPointedChanged: island.holdPeek(peekPointed)
+            Component.onDestruction: if (peekPointed) island.holdPeek(false)
+
             // Com painel aberto (modo menu) o ponteiro sair não fecha: o modo
             // segue a view; só o modo hover depende do ponteiro.
             readonly property string mode: isTarget && island.view !== "" ? island.view
                 : isTarget && island.osdShown ? "osd"
                 : isTarget && island.noticeShown ? "notice"
-                : hovered ? "hover"
+                : isTarget && island.pickerShown ? "picker"
+                : hovered && !markHold && !peekHold ? "hover"
+                : isTarget && island.peekShown ? "peek"
                 : isTarget && island.eventShown ? "hover"
                 : "rest"
             readonly property bool revealed: mode !== "rest"
-            // Ponto do repouso: só os estados ligados (notificação fica no sino).
-            readonly property bool dotVisible: !island.barHidden && indicatorSource.restMark
-            // Só a música ligada: a marca vira um equalizador parado (três barras).
-            readonly property bool eqMark: !indicatorSource.restDot && indicatorSource.mediaPlaying
-            // A pílula em repouso ganha 12 px com o ponto, para o par
-            // ponto + relógio continuar no centro.
-            readonly property real restPillWidth: island.restWidth + (dotVisible ? 12 : 0)
+            // Marca do repouso: os estados ligados e a música (notificação fica no sino).
+            readonly property bool markVisible: hoverAllowed && indicatorSource.restMark
+            // Partes da marca. Condições explícitas: o "visible" lido de um item
+            // é o efetivo e cai junto com o relógio do repouso escondido.
+            readonly property bool markIconOn: indicatorSource.restKey !== ""
+            readonly property bool recTimeOn: indicatorSource.restKey === "recording" && indicatorSource.recordingClock !== ""
+            readonly property bool markBarsOn: indicatorSource.restBars
+            // Com o tempo da gravação, a marca se afasta um pouco mais do relógio.
+            readonly property int markGap: recTimeOn ? 8 : 6
+            // A pílula em repouso cresce o tamanho da marca, para o par
+            // marca + relógio continuar no centro.
+            readonly property real restPillWidth: island.restWidth + (markVisible ? markRow.width + markGap : 0)
 
-            // Hover nível 2: depois de 900 ms de hover contínuo a linha vira
-            // a cápsula larga de três colunas. Saiu do hover, volta ao nível 1.
+            // Hover nível 2: 900 ms com o ponteiro parado em cima da própria
+            // pílula (a faixa de 3 px e o vão só abrem o nível 1). Andar mais
+            // de 3 px recomeça a conta. Saiu do hover, volta ao nível 1.
             property bool expanded: false
+            property point dwellAnchor: Qt.point(-1, -1)
             Timer {
+                id: level2Timer
                 interval: 900
-                running: win.mode === "hover" && win.hovered && !win.expanded
+                running: island.prefs.level2Dwell && win.mode === "hover" && win.stripOn
+                    && pillHover.hovered && !win.expanded
                 onTriggered: win.expanded = true
+            }
+
+            // Seletor: some sozinho. Depois que o ponteiro passou nele, sair
+            // fecha rápido; sem ponteiro (toque), fica um pouco mais.
+            property bool pickerTouched: false
+            readonly property bool pickerHovered: mode === "picker" && hovered
+            onPickerHoveredChanged: if (pickerHovered) pickerTouched = true
+            Timer {
+                id: pickerClose
+                interval: win.pickerTouched ? 700 : 2600
+                running: win.mode === "picker" && !win.hovered
+                onTriggered: island.closePicker()
+            }
+
+            // Dica da primeira linha: uma vez por sessão, quando o ponteiro
+            // abre a linha (não um evento).
+            readonly property bool hintArm: stripOn && mode === "hover" && surfaceHover.hovered && !island.lineHintSeen
+            onHintArmChanged: {
+                if (!hintArm)
+                    return
+                island.lineHintSeen = true
+                hintTimer.restart()
+            }
+            Timer {
+                id: hintTimer
+                interval: 3000
+            }
+            readonly property bool hintOn: hintTimer.running && stripOn && mode === "hover"
+
+            // Dica da marca: o nome curto do aviso, com o ponteiro parado nela.
+            property bool markTipReady: false
+            onMarkHoldChanged: if (!markHold) markTipReady = false
+            Timer {
+                interval: win.metrics.msTooltip
+                running: win.markHold && win.markTipText !== "" && !win.markTipReady
+                onTriggered: win.markTipReady = true
+            }
+            readonly property string markTipText: {
+                switch (indicatorSource.restKey) {
+                case "recording": return strings.t("indicators.face.recording", "Recording")
+                case "reminders": return strings.t("indicators.face.reminders", "Reminder")
+                case "updates": return strings.t("indicators.face.updates", "Update")
+                case "dnd": return strings.t("indicators.face.dnd", "Quiet")
+                case "nightlight": return strings.t("indicators.face.nightlight", "Night")
+                case "stayAwake": return strings.t("indicators.face.stayAwake", "Awake")
+                default: return ""
+                }
+            }
+            readonly property bool markTipOn: markHold && markTipReady && markTipText !== ""
+
+            // Toque no repouso: nas barrinhas abre a Mídia, na marca o painel
+            // dono, no resto da cápsula o Tempo. Coordenadas da pílula; a
+            // marca ganha 4 px de folga e a altura toda.
+            function restTarget(px) {
+                if (markVisible) {
+                    const m = markRow.mapToItem(pill, 0, 0)
+                    if (px >= m.x - 4 && px <= m.x + markRow.width + 4) {
+                        if (markBarsOn) {
+                            if (!markIconOn)
+                                return "media"
+                            // As barras ficam do lado do relógio: à direita da
+                            // marca em LTR, à esquerda em RTL.
+                            const b = markBars.mapToItem(pill, 0, 0)
+                            const split = island.rtl ? b.x + markBars.width + markRow.spacing / 2
+                                : b.x - markRow.spacing / 2
+                            if (island.rtl ? px <= split : px >= split)
+                                return "media"
+                        }
+                        const owner = indicatorSource.restOwnerView
+                        return owner !== "" ? owner : "calendar"
+                    }
+                }
+                return "calendar"
             }
 
             // Estado (painel ou OSD) na tela; nulo em hover e repouso.
@@ -861,19 +1175,22 @@ Item {
                 case "media": return mediaSlot
                 case "osd": return osdSlot
                 case "notice": return noticeSlot
+                case "peek": return peekSlot
                 default: return null
                 }
             }
-            readonly property bool faceMode: mode === "osd" || mode === "notice"
+            readonly property bool faceMode: mode === "osd" || mode === "notice" || mode === "peek"
             readonly property bool isPanel: island.views.indexOf(mode) >= 0
-            // A linha só existe no hover. O painel é o cartão inteiro, sem
-            // linha em cima; a roda na borda de cima (panelWheelZone) ainda
-            // anda os painéis sem passar por cima das listas de dentro.
-            readonly property bool hasStrip: mode === "hover"
+            // A linha só existe no hover e no seletor. O painel é o cartão
+            // inteiro, sem linha em cima; a roda na borda de cima
+            // (panelWheelZone) ainda anda os painéis sem passar por cima das
+            // listas de dentro.
+            readonly property bool lineMode: mode === "hover" || mode === "picker"
+            readonly property bool hasStrip: lineMode
             readonly property int contentTop: metrics.pad
             readonly property real targetWidth: mode === "rest" ? 12
                 : faceMode ? (modeItem ? modeItem.implicitWidth + 32 : 12)
-                : mode === "hover" ? Math.max(64, strip.implicitWidth)
+                : lineMode ? Math.max(64, strip.implicitWidth)
                 : modeItem && modeItem.implicitWidth > 0 ? modeItem.implicitWidth + 2 * metrics.pad
                 : metrics.width
             // Rodapé só no modo teclado (painel aberto ou guiado pelo teclado) e
@@ -884,7 +1201,7 @@ Item {
             // Hover: a cápsula do elemento da vez. Painel: o cartão, sem a faixa.
             readonly property real targetHeight: mode === "rest" ? 12
                 : faceMode ? (modeItem ? modeItem.implicitHeight + 16 : 12)
-                : mode === "hover" ? strip.implicitHeight
+                : lineMode ? strip.implicitHeight
                 : Math.min(contentTop + (modeItem ? modeItem.implicitHeight : 0) + (footerOn ? metrics.gap + metrics.footer + metrics.padBottom : metrics.pad), win.height - 16)
 
             // ---- Coreografia ----
@@ -917,12 +1234,20 @@ Item {
                 stepTimer.restart()
             }
 
+            // A cápsula do relógio se estica direto até o estado. Adiado: o
+            // ponteiro que entra direto na marca liga e desliga o hover no
+            // mesmo evento, e a pílula não chega a se mexer.
+            function growNow() {
+                if (!revealed)
+                    return
+                phase = 2
+                Qt.callLater(checkLatch)
+            }
+
             onRevealedChanged: {
                 stepTimer.stop()
                 if (revealed) {
-                    // A cápsula do relógio se estica direto até o estado.
-                    phase = 2
-                    Qt.callLater(checkLatch)
+                    Qt.callLater(growNow)
                 } else {
                     // Conteúdo some primeiro, depois encolhe de volta ao relógio.
                     contentLatched = false
@@ -935,10 +1260,14 @@ Item {
             }
 
             onModeChanged: {
-                if (mode !== "hover") {
+                // Entre o hover e o seletor a linha fica (só troca o conteúdo);
+                // o nível 2 não sobrevive ao seletor.
+                if (mode !== "hover")
                     expanded = false
+                if (!lineMode)
                     stripLatched = false
-                }
+                if (mode !== "picker")
+                    pickerTouched = false
                 contentLatched = false
                 Qt.callLater(checkLatch)
             }
@@ -1000,8 +1329,13 @@ Item {
             Connections {
                 target: island
                 function onBreathe() {
-                    if (win.animate && (win.revealed || win.dotVisible))
+                    if (win.animate && (win.revealed || win.markVisible))
                         breathAnim.restart()
+                }
+                // O aviso que começa com o ponteiro fora desta tela segura a
+                // pílula quando ele chegar (peekHold).
+                function onPeekShownChanged() {
+                    win.peekLatch = island.peekShown && !surfaceHover.hovered
                 }
                 // Modo teclado novo: a próxima posição do ponteiro vira a âncora.
                 function onKeyboardModeChanged() { win.kbAnchored = false }
@@ -1100,6 +1434,8 @@ Item {
             }
 
             // ---- Entrada: faixa de ativação + a pílula ----
+            // A faixa de 3 px (e o vão de 12 px até a cápsula) só abrem o
+            // nível 1. O nível 2 espera o ponteiro parado na própria pílula.
             readonly property int stripWidth: 600
             readonly property int stripHeight: 3
             // A área de entrada segue o tamanho final do estado, não a pílula
@@ -1109,7 +1445,7 @@ Item {
             // No hover a máscara fica na largura do maior elemento, senão a
             // pílula encolhe e o ponteiro cai no wallpaper no meio da troca.
             readonly property int inputWidth: revealed
-                ? Math.ceil(mode === "hover" ? Math.max(targetWidth, strip.hoverSpan) : targetWidth)
+                ? Math.ceil(lineMode ? Math.max(targetWidth, strip.hoverSpan) : targetWidth)
                 : hoverAllowed ? Math.ceil(restPillWidth) : 0
             readonly property int inputHeight: revealed ? Math.ceil(island.floatGap + targetHeight) : hoverAllowed ? island.floatGap + island.restHeight : 0
 
@@ -1147,7 +1483,9 @@ Item {
 
                 HoverHandler {
                     id: surfaceHover
-                    onHoveredChanged: if (!hovered) closeDelay.restart()
+                    // Sair pela marca (markHold) não liga a folga: a linha não
+                    // pisca no caminho de volta ao repouso.
+                    onHoveredChanged: if (!hovered && !win.markHold) closeDelay.restart()
                     // Mover o ponteiro mais de 8 px sai do modo teclado.
                     onPointChanged: {
                         if (!island.keyboardMode || !win.isTarget || !hovered)
@@ -1221,6 +1559,25 @@ Item {
                     onWidthChanged: win.checkLatch()
                     onHeightChanged: win.checkLatch()
 
+                    // Nível 2: o ponteiro parado em cima da pílula. A posição
+                    // é a da cena: a pílula cresce do centro e a posição local
+                    // andaria com um ponteiro parado.
+                    HoverHandler {
+                        id: pillHover
+                        onHoveredChanged: win.dwellAnchor = Qt.point(-1, -1)
+                        onPointChanged: {
+                            if (!hovered)
+                                return
+                            const p = point.scenePosition
+                            const a = win.dwellAnchor
+                            if (a.x >= 0 && Math.hypot(p.x - a.x, p.y - a.y) <= 3)
+                                return
+                            win.dwellAnchor = Qt.point(p.x, p.y)
+                            if (level2Timer.running)
+                                level2Timer.restart()
+                        }
+                    }
+
                     // Morph: 200 ms crescendo, 160 ms encolhendo, sempre desacelerando.
                     Behavior on width {
                         enabled: win.animate
@@ -1274,7 +1631,7 @@ Item {
                         }
                     }
 
-                    // ---- Repouso: relógio compacto + marquinha de indicador ----
+                    // ---- Repouso: relógio compacto + marca do indicador ----
                     // Fica no centro da pílula (também na vertical) e só some
                     // quando o relógio da linha já entrou no mesmo lugar: a
                     // pílula nunca fica vazia no meio do morph.
@@ -1284,9 +1641,9 @@ Item {
                         y: Math.round((parent.height - height) / 2)
                         width: parent.width
                         height: island.restHeight
-                        opacity: (!win.revealed && pill.atRest) || (win.mode === "hover" && !win.stripOn) ? 1 : 0
+                        opacity: (!win.revealed && pill.atRest) || (win.lineMode && !win.stripOn) ? 1 : 0
                         visible: opacity > 0
-                        // Posições calculadas à mão (o lado do ponto segue island.rtl):
+                        // Posições calculadas à mão (o lado da marca segue island.rtl):
                         // o espelho automático fica desligado para não virar duas vezes.
                         LayoutMirroring.enabled: false
                         LayoutMirroring.childrenInherit: true
@@ -1297,10 +1654,15 @@ Item {
                         Text {
                             id: restClockText
                             anchors.centerIn: parent
-                            // Com o ponto, o par ponto + relógio é que fica centrado.
-                            // Em RTL o ponto vai para a direita e o relógio cede para a esquerda.
-                            anchors.horizontalCenterOffset: win.dotVisible && !win.revealed ? (island.rtl ? -6 : 6) : 0
+                            // Com a marca, o par marca + relógio é que fica centrado:
+                            // o relógio cede metade da marca (e do vão) para o outro
+                            // lado. Em RTL a marca vai para a direita e o relógio cede
+                            // para a esquerda.
+                            anchors.horizontalCenterOffset: win.markVisible && !win.revealed
+                                ? (island.rtl ? -1 : 1) * (markRow.width + win.markGap) / 2 : 0
                             text: Qt.locale(Commons.I18n.formatLocale).toString(clock.date, "HH:mm")
+                            Accessible.role: Accessible.Button
+                            Accessible.name: strings.t("island.time", "Time")
                             textFormat: Text.PlainText
                             font.family: island.fontFamily
                             font.pixelSize: 16
@@ -1313,33 +1675,59 @@ Item {
                             }
                         }
 
-                        // Indicador ativo (gravando, Não perturbe…): ponto na cor do aviso.
-                        // Só música tocando: três barrinhas paradas no destaque.
-                        // x calculado: do lado de fora do relógio, à esquerda (à direita em RTL).
-                        Item {
-                            id: restMark
+                        // Marca do repouso: o ícone do aviso mais importante na cor
+                        // dele, o tempo da gravação (segundos, só gravando) e, com
+                        // música tocando, as três barrinhas ao lado.
+                        // x calculado: do lado de fora do relógio, à esquerda (à
+                        // direita em RTL). Em RTL a ordem também vira, e as barras
+                        // continuam encostadas no relógio.
+                        Row {
+                            id: markRow
                             anchors.verticalCenter: parent.verticalCenter
-                            width: win.eqMark ? 8 : 6
-                            height: win.eqMark ? 10 : 6
-                            x: island.rtl ? restClockText.x + restClockText.width + 6
-                                : restClockText.x - 6 - width
-                            opacity: win.dotVisible ? 1 : 0
+                            spacing: 4
+                            layoutDirection: island.rtl ? Qt.RightToLeft : Qt.LeftToRight
+                            x: island.rtl ? restClockText.x + restClockText.width + win.markGap
+                                : restClockText.x - win.markGap - width
+                            opacity: win.markVisible ? 1 : 0
+                            Accessible.role: Accessible.Button
+                            Accessible.name: win.markTipText !== "" ? win.markTipText : indicatorSource.mediaTitle
                             Behavior on opacity {
                                 NumberAnimation { duration: Commons.Style.duration(160); easing.type: Easing.OutCubic }
                             }
 
-                            Rectangle {
-                                anchors.centerIn: parent
-                                visible: !win.eqMark
-                                width: 6
-                                height: 6
-                                radius: 3
-                                color: indicatorSource.dotColor
+                            Icon {
+                                id: markIcon
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: win.markIconOn
+                                width: 16
+                                height: 16
+                                name: indicatorSource.restIcon
+                                size: 14
+                                filled: true
+                                color: indicatorSource.restTone
+                            }
+
+                            Text {
+                                id: recTime
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: win.recTimeOn
+                                text: indicatorSource.recordingClock
+                                textFormat: Text.PlainText
+                                // Dígitos ASCII, sempre da esquerda para a direita.
+                                LayoutMirroring.enabled: false
+                                horizontalAlignment: Text.AlignLeft
+                                font.family: island.fontFamily
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                font.features: ({ "tnum": 1 })
+                                color: island.danger
                             }
 
                             Row {
-                                anchors.centerIn: parent
-                                visible: win.eqMark
+                                id: markBars
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: win.markBarsOn
+                                height: 10
                                 spacing: 1
                                 LayoutMirroring.enabled: false
 
@@ -1357,6 +1745,37 @@ Item {
                                 }
                             }
                         }
+
+                        // Alvo da marca, ainda no repouso: 4 px de folga e a altura
+                        // toda da cápsula. Com o ponteiro aqui a linha não abre
+                        // (markHold) e o toque da pílula (restPress) abre o dono.
+                        Item {
+                            id: markHit
+                            x: markRow.x - 4
+                            y: 0
+                            width: markRow.width + 8
+                            height: parent.height
+                            enabled: win.markLive
+
+                            HoverHandler {
+                                id: markHover
+                                enabled: markHit.enabled
+                                cursorShape: Qt.PointingHandCursor
+                                onHoveredChanged: {
+                                    if (hovered) {
+                                        if (win.markLive)
+                                            win.markLatch = true
+                                        return
+                                    }
+                                    // Depois do evento: a superfície decide a folga
+                                    // (closeDelay) ainda com a marca segurando.
+                                    Qt.callLater(() => {
+                                        if (!markHover.hovered)
+                                            win.markLatch = false
+                                    })
+                                }
+                            }
+                        }
                     }
 
                     // ---- Faixa: workspaces · hora · até dois avisos ----
@@ -1368,7 +1787,10 @@ Item {
                         // animam, no mesmo ponto do relógio do repouso.
                         anchors.horizontalCenter: parent.horizontalCenter
                         anchors.verticalCenter: parent.verticalCenter
-                        expanded: win.expanded
+                        // O nível 2 só no hover e só com o interruptor do Estilo.
+                        expanded: win.expanded && win.mode === "hover" && island.prefs.level2Dwell
+                        // Seletor: a fileira dos seis destinos no lugar da linha.
+                        picker: win.mode === "picker"
                         screenName: win.screenName
                         spaceModeTick: island.spaceModeTick
                         activeView: win.isTarget ? island.view : ""
@@ -1415,10 +1837,10 @@ Item {
                             island.keyboardMode = false
                             island.show("media", win.screenName)
                         }
+                        // Só com um painel aberto (a borda de cima dele chama
+                        // wheelPanels). Sem painel, a roda não abre nada.
                         onPanelWheel: step => {
-                            if (island.view === "")
-                                island.show("calendar", win.screenName)
-                            else
+                            if (island.view !== "")
                                 island.cycle(step, win.screenName)
                         }
                     }
@@ -1435,10 +1857,59 @@ Item {
                     StateSlot { id: mediaSlot; hostWindow: win; hostIsland: island; name: "media"; source: "MediaPanel.qml" }
                     StateSlot { id: osdSlot; hostWindow: win; hostIsland: island; name: "osd"; source: "OsdView.qml" }
                     StateSlot { id: noticeSlot; hostWindow: win; hostIsland: island; name: "notice"; source: "NoticeView.qml" }
+                    // Aviso ao vivo: a mesma linha da notificação, com o ícone e
+                    // o tom do indicador.
+                    StateSlot { id: peekSlot; hostWindow: win; hostIsland: island; name: "peek"; source: "NoticeView.qml" }
 
                     TapHandler {
                         enabled: win.mode === "notice"
                         onTapped: island.closeNotice()
+                    }
+
+                    // Toque no aviso: a notificação fixa, ou o painel dono.
+                    TapHandler {
+                        enabled: win.mode === "peek"
+                        onTapped: island.tapPeek(win.screenName)
+                    }
+                    HoverHandler {
+                        enabled: win.mode === "peek"
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    // Toque na cápsula de repouso (a linha cuida dos próprios
+                    // toques): marca → painel dono, barrinhas → Mídia, resto →
+                    // Tempo. Toque longo abre o seletor.
+                    // O limite padrão (DragThreshold) pega o toque junto com os
+                    // filhos e dispara depois deles, mesmo desligado no meio:
+                    // quando chega aqui o toque da linha já trocou o modo. Por
+                    // isso o dono do toque se decide no aperto (restGesture), e
+                    // na soltura um estado novo nesta janela também cancela.
+                    TapHandler {
+                        id: restPress
+                        property bool restGesture: false
+                        acceptedButtons: Qt.LeftButton
+                        enabled: !win.isPanel && !win.faceMode
+                        onPressedChanged: {
+                            if (pressed)
+                                restGesture = !win.isPanel && !win.faceMode && !(win.revealed && win.stripOn)
+                        }
+                        onTapped: eventPoint => {
+                            const own = restGesture
+                            restGesture = false
+                            if (!own || win.isPanel || win.faceMode || win.mode === "picker")
+                                return
+                            const target = win.restTarget(eventPoint.position.x)
+                            island.keyboardMode = false
+                            island.categoryClick(target, win.screenName)
+                        }
+                        onLongPressed: island.openPicker(win.screenName)
+                    }
+
+                    // Clique direito na cápsula ou na linha: mostra ou esconde o seletor.
+                    TapHandler {
+                        acceptedButtons: Qt.RightButton
+                        enabled: !win.isPanel && !win.faceMode
+                        onTapped: island.togglePicker(win.screenName)
                     }
 
                     // Borda de cima do painel (o pad de 14 px, largura toda): a
@@ -1484,24 +1955,31 @@ Item {
                     }
                 }
 
-                // ---- Dica da linha: o layout do workspace ativo, por baixo da pílula ----
+                // ---- Dica por baixo da pílula ----
+                // A da linha (layout do workspace, nome · dígito no seletor), a
+                // de primeira vez da linha e o nome curto da marca do repouso.
                 Item {
                     id: tip
-                    readonly property bool shown: strip.tooltipShown && win.stripOn && strip.tooltipX >= 0
+                    readonly property bool lineTip: strip.tooltipShown && win.stripOn && strip.tooltipX >= 0
+                    readonly property bool shown: lineTip || win.hintOn || win.markTipOn
+                    readonly property string liveText: win.hintOn
+                        ? strings.t("island.lineHint", "0 time · 1 apps · scroll switches")
+                        : win.markTipOn ? win.markTipText : strip.tooltipText
+                    // Centro x em coordenadas da pílula.
+                    readonly property real liveX: win.hintOn ? strip.x + strip.width / 2
+                        : win.markTipOn ? restClock.x + markRow.x + markRow.width / 2
+                        : strip.x + strip.tooltipX
                     property string text: ""
                     property real centerX: 0
 
                     // Guarda o último texto para o fade de saída não piscar vazio.
-                    onShownChanged: if (shown) { text = strip.tooltipText; centerX = strip.tooltipX }
-                    Connections {
-                        target: strip
-                        function onTooltipTextChanged() { if (tip.shown) tip.text = strip.tooltipText }
-                        function onTooltipXChanged() { if (tip.shown) tip.centerX = strip.tooltipX }
-                    }
+                    onShownChanged: if (shown) { text = liveText; centerX = liveX }
+                    onLiveTextChanged: if (shown) text = liveText
+                    onLiveXChanged: if (shown) centerX = liveX
 
                     width: tipText.implicitWidth + 20
                     height: 26
-                    x: Math.max(4, Math.min(surface.width - width - 4, pill.x + strip.x + centerX - width / 2))
+                    x: Math.max(4, Math.min(surface.width - width - 4, pill.x + centerX - width / 2))
                     y: pill.y + pill.height + 6
                     opacity: shown ? 1 : 0
                     visible: opacity > 0
@@ -1581,8 +2059,9 @@ Item {
         readonly property Metrics panelMetrics: slotMetrics
 
         anchors.horizontalCenter: parent.horizontalCenter
-        // O painel é o cartão inteiro. O OSD fica centrado na pílula.
-        y: name === "osd" || name === "notice" ? Math.round((parent.height - height) / 2)
+        // O painel é o cartão inteiro. O OSD, a notificação e o aviso ficam
+        // centrados na pílula.
+        y: name === "osd" || name === "notice" || name === "peek" ? Math.round((parent.height - height) / 2)
             : slot.hostWindow.contentTop
         implicitWidth: loader.item ? loader.item.implicitWidth : 0
         implicitHeight: loader.item ? loader.item.implicitHeight : 0
@@ -1648,16 +2127,22 @@ Item {
             bindIfPresent(target, "screenSpan", () => slot.hostWindow.screen.width)
             // A fonte de música é a mesma dos indicadores (uma só para os monitores).
             bindIfPresent(target, "media", () => slot.hostIsland.sharedIndicators)
+            // Os interruptores do Estilo (Prefs).
+            bindIfPresent(target, "prefs", () => slot.hostIsland.prefs)
             if (slot.name === "osd")
                 bindIfPresent(target, "payload", () => slot.hostIsland.osdPayload)
             if (slot.name === "notice")
                 bindIfPresent(target, "payload", () => slot.hostIsland.noticePayload)
+            if (slot.name === "peek")
+                bindIfPresent(target, "payload", () => slot.hostIsland.peekPayload)
             if (target.closeRequested)
                 target.closeRequested.connect(() => {
                     if (slot.name === "osd")
                         slot.hostIsland.closeOsd()
                     else if (slot.name === "notice")
                         slot.hostIsland.closeNotice()
+                    else if (slot.name === "peek")
+                        slot.hostIsland.endPeek()
                     else if (slot.hostIsland.view === slot.name)
                         slot.hostIsland.close()
                 })

@@ -121,6 +121,7 @@
   "island.layout.dwindle": "タイル",
   "island.layout.floating": "フローティング",
   "island.layout.scrolling": "スクロール",
+  "island.lineHint": "0 時刻 · 1 アプリ · スクロールで切替",
   "island.power": "電源",
   "island.style": "スタイル",
   "island.time": "時刻",
@@ -141,6 +142,16 @@
   "media.previous": "前へ",
   "media.repeat": "リピート",
   "media.shuffle": "シャッフル",
+  "peek.dnd": "通知ミュート中",
+  "peek.hours": "%1 時間",
+  "peek.hoursMinutes": "%1 時間 %2 分",
+  "peek.minutes": {
+    "other": "%1 分"
+  },
+  "peek.nightlight": "ナイトライト オン",
+  "peek.reminderIn": "リマインダーまで %1",
+  "peek.stayAwake": "スリープ防止オン",
+  "peek.updates": "更新あり",
   "plugins.confirmBar": "もう一度 ↵ でバーを切替",
   "plugins.count": {
     "other": "%1 個のプラグイン"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "丸い",
   "style.corners.sharp": "四角",
   "style.corners.theme": "テーマに従う",
+  "style.focusedOnly": "フォーカス中の画面のみ",
   "style.font": "フォント",
   "style.gallery": "テーマ",
+  "style.island": "アイランド",
+  "style.level2Dwell": "静止でレベル 2",
+  "style.livePeek": "ライブ通知",
   "style.section.background": "背景",
   "style.section.theme": "テーマ",
   "style.section.windows": "ウィンドウとフォント",

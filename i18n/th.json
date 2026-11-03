@@ -121,6 +121,7 @@
   "island.layout.dwindle": "เรียงต่อ",
   "island.layout.floating": "ลอย",
   "island.layout.scrolling": "เลื่อน",
+  "island.lineHint": "0 เวลา · 1 แอป · เลื่อนเพื่อสลับ",
   "island.power": "พลังงาน",
   "island.style": "สไตล์",
   "island.time": "เวลา",
@@ -141,6 +142,16 @@
   "media.previous": "ก่อนหน้า",
   "media.repeat": "เล่นซ้ำ",
   "media.shuffle": "สุ่ม",
+  "peek.dnd": "เปิดห้ามรบกวนอยู่",
+  "peek.hours": "%1 ชม.",
+  "peek.hoursMinutes": "%1 ชม. %2 นาที",
+  "peek.minutes": {
+    "other": "%1 นาที"
+  },
+  "peek.nightlight": "เปิดแสงกลางคืนอยู่",
+  "peek.reminderIn": "เตือนความจำในอีก %1",
+  "peek.stayAwake": "เปิดไม่ให้พักอยู่",
+  "peek.updates": "มีอัปเดต",
   "plugins.confirmBar": "↵ อีกครั้งเพื่อสลับแถบ",
   "plugins.count": {
     "other": "%1 ปลั๊กอิน"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "โค้ง",
   "style.corners.sharp": "แหลม",
   "style.corners.theme": "ตามธีม",
+  "style.focusedOnly": "เฉพาะจอที่โฟกัส",
   "style.font": "ฟอนต์",
   "style.gallery": "ธีม",
+  "style.island": "เกาะ",
+  "style.level2Dwell": "ระดับ 2 เมื่อหยุดนิ่ง",
+  "style.livePeek": "แจ้งเตือนสด",
   "style.section.background": "พื้นหลัง",
   "style.section.theme": "ธีม",
   "style.section.windows": "หน้าต่างและฟอนต์",

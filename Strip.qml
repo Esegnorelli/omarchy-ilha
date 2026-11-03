@@ -10,11 +10,27 @@ import qs.Commons as Commons
 // Faixa do topo da ilha. No hover (o caminho vivo) é uma linha só, sem vão:
 // pontos dos workspaces à esquerda, a hora no centro exato, rede, bateria e
 // no máximo dois avisos à direita. O workspace ativo é uma pílula alongada
-// no destaque; o nome do layout sai na dica e no nome acessível.
+// no destaque; o nome do layout sai na dica e no nome acessível. Tocar na
+// rede ou na bateria abre o Controle, nos dois níveis; as marcas de aviso
+// ficam fora desse grupo e guardam o próprio toque.
 //
-// Nível 2 (expanded, depois de ~1 s de hover): cápsula larga de três
-// colunas. Esquerda: app focado sobre os pontos. Centro: hora grande e data.
+// Nível 2 (expanded): cápsula larga de três colunas. Quem decide é o host
+// (o ponteiro parado em cima da própria pílula, e só com a chave "Nível 2
+// ao parar" do Estilo ligada); aqui expanded é só entrada.
+// Esquerda: app focado sobre os pontos. Centro: hora grande e data.
 // Direita: estado das notificações sobre rede e bateria.
+//
+// Seletor (picker): a fileira dos seis painéis (Apps … Energia) em vagas de
+// 36 px, ícone de 18 e o dígito sempre embaixo, 10 px de folga dos lados
+// (236 × 46). O host liga por um instante (toque longo ou clique direito na
+// cápsula do repouso) e desliga sozinho. Tocar num ícone emite
+// categoryClicked; parar nele mostra "Nome · dígito" na dica. Entra em fade
+// cruzado com os dois níveis, que ficam desligados enquanto ele aparece.
+//
+// Roda: a linha não tem roda própria. O host chama wheelPanels(delta) da
+// borda de cima de um painel já aberto; cada 120 de soma trocam um painel.
+// O resto do gesto some depois de 200 ms sem evento ou quando o sentido
+// vira, para um drift lento do trackpad nunca chegar a trocar.
 //
 // Música (MPRIS, via indicatorSource): tocando, o nível 1 ganha o elemento
 // "tocando agora" (capa ou nota + título curto) à esquerda dos pontos. No
@@ -27,15 +43,18 @@ import qs.Commons as Commons
 // ficam da esquerda para a direita de propósito.
 //
 // As três zonas de largura fixa só existem no caminho de menus, que está
-// fechado. Elas não desenham os seis destinos juntos.
+// fechado. Os seis destinos só aparecem juntos no seletor.
 //
 // API pública:
 //   screenName: string        monitor desta faixa (workspaces e app focado)
 //   activeView: string        painel aberto ("" = nenhum): pílula + cursor (caret)
 //   menuMode: bool            painel aberto: repousar 150 ms num ícone troca de painel
 //   keyboardMode, altHeld     mostram os dígitos (0–6) dos ícones
-//   expanded: bool            hover nível 2 (até 640 × 64, abraça o conteúdo; três colunas)
+//   expanded: bool            hover nível 2 (até 640 × 64, abraça o conteúdo; três colunas),
+//                             decidido pelo host
+//   picker: bool              seletor dos seis painéis (236 × 46), por cima dos dois níveis
 //   readonly centerClock      o relógio central do nível 1 (o Island alinha o do repouso)
+//   wheelPanels(delta)        roda vinda do host (borda de cima de um painel aberto)
 //   indicatorSource           a instância de Indicators que lê o sistema
 //   strings                   Commons.Translations da ilha
 //   now: date                 hora do relógio
@@ -43,12 +62,14 @@ import qs.Commons as Commons
 //   readonly tooltipShown, tooltipText, tooltipX   dica para o host desenhar
 //       (a faixa fica dentro do notch recortado; a dica sai por baixo dele)
 // Sinais:
-//   categoryClicked(target)   clique num ícone ou no relógio
+//   categoryClicked(target)   clique num ícone do seletor, no relógio ("calendar")
+//                             ou na rede e bateria ("control")
 //   categoryDwelled(target)   repouso de 150 ms noutro ícone (só em menuMode)
 //   workspaceClicked()        trocou de workspace (o host fecha)
 //   indicatorNavigate(target) indicador ou "+N" pediu um painel
 //   noticeRequested()         toque no sino / no estado das notificações
-//   panelWheel(step)          roda: +1 próximo painel, -1 o anterior
+//   panelWheel(step)          +1 próximo painel, -1 o anterior; só sai de
+//                             wheelPanels (o host chama), com o resto zerado após 200 ms
 //   mediaRequested()          toque no elemento de música (abre o painel)
 Item {
     id: strip
@@ -62,7 +83,10 @@ Item {
     property var shell: null
     property var strings: null
     property var now: new Date()
+    // Nível 2: o host decide (ponteiro parado na pílula, chave do Estilo).
     property bool expanded: false
+    // Seletor dos seis painéis (o host liga e desliga).
+    property bool picker: false
 
     property color fg: Commons.Color.bar.text
     property color bg: Commons.Color.bar.background
@@ -77,7 +101,7 @@ Item {
     signal workspaceClicked()
     signal indicatorNavigate(string target)
     signal noticeRequested()
-    // Roda na linha: +1 próximo painel, -1 o anterior.
+    // Roda (só via wheelPanels, chamada pelo host): +1 próximo painel, -1 o anterior.
     signal panelWheel(int step)
     signal mediaRequested()
 
@@ -89,8 +113,13 @@ Item {
     readonly property string mediaArtUrl: indicatorSource ? indicatorSource.mediaArtUrl : ""
     readonly property string mediaLine: mediaArtist !== "" ? mediaTitle + " — " + mediaArtist : mediaTitle
 
-    // A faixa de hover não é um menu. Os seis destinos não aparecem nela.
+    // A faixa de hover não é um menu. Os seis destinos só aparecem juntos no
+    // seletor (picker); as zonas antigas continuam fechadas.
     readonly property bool menus: false
+
+    // Seletor: seis vagas de 36 px e 10 px de folga de cada lado (236).
+    readonly property int pickerPad: 10
+    readonly property int pickerWidth: categories.length * metrics.iconSlot + 2 * pickerPad
 
     // Nível 1: o relógio no centro exato e os dois grupos a 14 px dele; a
     // largura cobre o lado maior dos dois, mais 18 px de folga de cada lado.
@@ -98,10 +127,12 @@ Item {
     // largura (o maior dos dois), para a hora ficar no centro exato; 32 px de
     // respiro entre cada coluna e a hora, 20 px de borda. Teto de 640: nunca
     // mais largo que a referência (típico ≈ 480–590).
-    implicitWidth: menus ? metrics.content
+    // Seletor: 236 × 46, a altura do nível 1.
+    implicitWidth: picker ? pickerWidth
+        : menus ? metrics.content
         : expanded ? Math.min(640, Math.ceil(wideCenter.implicitWidth + 2 * (Math.max(wideLeft.implicitWidth, wideRight.implicitWidth) + 32) + 2 * 20))
         : Math.ceil(stateClock.implicitWidth + 2 * (Math.max(leftGroup.implicitWidth, rightGroup.implicitWidth) + 14) + 36)
-    implicitHeight: menus ? metrics.strip : expanded ? 64 : 46
+    implicitHeight: picker ? 46 : menus ? metrics.strip : expanded ? 64 : 46
     // A máscara de hover usa a largura final, para a pílula encolher sem o
     // ponteiro cair no papel de parede.
     readonly property real hoverSpan: implicitWidth
@@ -141,7 +172,16 @@ Item {
     }
 
     // Centro x (coordenadas da faixa) de um alvo; -1 se não for da faixa.
+    // No seletor a fileira é espelhada em RTL (o LayoutMirroring vira o Row,
+    // não as coordenadas): o primeiro ícone fica na direita.
     function centerOf(target) {
+        if (picker) {
+            const k = indexOf(target)
+            if (k < 0)
+                return -1
+            const c = pickerPad + k * metrics.iconSlot + metrics.iconSlot / 2
+            return Commons.I18n.rightToLeft ? width - c : c
+        }
         if (target === "calendar")
             return metrics.zoneL + metrics.zoneC / 2
         const i = indexOf(target)
@@ -150,6 +190,11 @@ Item {
 
     // Alvo sob um ponto da faixa ("" fora do relógio e dos ícones).
     function targetAt(x, y) {
+        if (picker) {
+            const vx = Commons.I18n.rightToLeft ? width - x : x
+            const k = Math.floor((vx - pickerPad) / metrics.iconSlot)
+            return k >= 0 && k < categories.length ? categories[k].target : ""
+        }
         if (!menus)
             return ""
         if (x >= metrics.zoneL && x < zoneRX)
@@ -175,10 +220,22 @@ Item {
         return i < 0 ? "" : categories[i].digit
     }
 
-    // Uma volta da roda troca um painel. O resto do gesto fica para a próxima.
+    // Uma volta da roda (120) troca um painel. Quem chama é o host (a borda
+    // de cima de um painel aberto); a linha não tem roda. O resto do gesto só
+    // vale enquanto os eventos seguem: 200 ms parado, ou o sentido virando,
+    // zera a soma. Assim um drift lento do trackpad nunca troca de painel.
     property real panelWheelAccum: 0
+    property real panelWheelAt: 0
+    readonly property int panelWheelDecay: 200
 
     function wheelPanels(delta) {
+        if (!delta)
+            return
+        const now = Date.now()
+        if (now - panelWheelAt > panelWheelDecay
+                || (panelWheelAccum !== 0 && (delta > 0) !== (panelWheelAccum > 0)))
+            panelWheelAccum = 0
+        panelWheelAt = now
         panelWheelAccum += delta
         if (panelWheelAccum >= 120) {
             panelWheelAccum = 0
@@ -206,7 +263,7 @@ Item {
     property real layoutTipX: -1
 
     function layoutTip(item, on) {
-        if (menus)
+        if (menus || picker)
             return
         if (on) {
             const p = item.mapToItem(strip, item.width / 2, 0)
@@ -223,7 +280,7 @@ Item {
 
     readonly property bool tooltipShown: tipReady && hoverTarget !== "" && !menuMode && tooltipText !== ""
     readonly property real tooltipX: hoverTarget === "layout" ? layoutTipX
-        : !menus ? width / 2 : centerOf(hoverTarget)
+        : (menus || picker) ? centerOf(hoverTarget) : width / 2
     readonly property string tooltipText: {
         if (hoverTarget === "")
             return ""
@@ -270,7 +327,7 @@ Item {
                 return
             const p = point.position
             const t = strip.targetAt(p.x, p.y)
-            if (strip.menus && t !== strip.hoverTarget) {
+            if ((strip.menus || strip.picker) && t !== strip.hoverTarget) {
                 strip.hoverTarget = t
                 strip.tipReady = false
                 if (t !== "")
@@ -308,6 +365,12 @@ Item {
     }
 
     onMenuModeChanged: if (!menuMode) dwellTimer.stop()
+    // Seletor entrando ou saindo: a dica de antes não vale mais.
+    onPickerChanged: {
+        tipTimer.stop()
+        tipReady = false
+        hoverTarget = ""
+    }
     onActiveViewChanged: {
         dwellTimer.stop()
         // Painel trocado por tecla/IPC: exige movimento novo antes do repouso.
@@ -859,12 +922,12 @@ Item {
     Item {
         id: stateRow
         visible: !strip.menus && opacity > 0
-        enabled: !strip.menus && !strip.expanded
+        enabled: !strip.menus && !strip.expanded && !strip.picker
         anchors.fill: parent
-        opacity: strip.expanded ? 0 : 1
+        opacity: strip.expanded || strip.picker ? 0 : 1
 
         Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(strip.expanded ? strip.metrics.msFadeOut : strip.metrics.msFadeIn); easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Commons.Style.duration(strip.expanded || strip.picker ? strip.metrics.msFadeOut : strip.metrics.msFadeIn); easing.type: Easing.OutCubic }
         }
 
         Text {
@@ -911,8 +974,8 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             spacing: 8
 
-            NetGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
-            BatteryGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+            // Rede e bateria: um toque abre o Controle.
+            NetBattery { anchors.verticalCenter: parent.verticalCenter; host: strip }
 
             StatusMarks { anchors.verticalCenter: parent.verticalCenter; host: strip }
         }
@@ -924,12 +987,12 @@ Item {
     Item {
         id: wideRow
         visible: !strip.menus && opacity > 0
-        enabled: !strip.menus && strip.expanded
+        enabled: !strip.menus && strip.expanded && !strip.picker
         anchors.fill: parent
-        opacity: strip.expanded ? 1 : 0
+        opacity: strip.expanded && !strip.picker ? 1 : 0
 
         Behavior on opacity {
-            NumberAnimation { duration: Commons.Style.duration(strip.expanded ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
+            NumberAnimation { duration: Commons.Style.duration(strip.expanded && !strip.picker ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
         }
 
         // Esquerda: app focado sobre os pontos dos workspaces.
@@ -1118,11 +1181,52 @@ Item {
                 anchors.right: parent.right
                 spacing: 8
 
-                NetGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
-                BatteryGlyph { anchors.verticalCenter: parent.verticalCenter; host: strip }
+                // Rede e bateria: um toque abre o Controle, como no nível 1.
+                NetBattery { anchors.verticalCenter: parent.verticalCenter; host: strip }
                 // As mesmas marcas do nível 1: o toque para desligar não some
                 // quando a pílula cresce.
                 StatusMarks { anchors.verticalCenter: parent.verticalCenter; host: strip }
+            }
+        }
+    }
+
+    // ================= Seletor (picker) =================
+    // A fileira dos seis painéis, por um instante (o host liga e desliga).
+    // Em fade cruzado com os dois níveis; em RTL o Row espelha sozinho e
+    // targetAt/centerOf espelham a conta das dicas.
+    Item {
+        id: pickerRow
+        anchors.fill: parent
+        opacity: strip.picker ? 1 : 0
+        visible: opacity > 0
+        enabled: strip.picker
+
+        Behavior on opacity {
+            NumberAnimation { duration: Commons.Style.duration(strip.picker ? strip.metrics.msFadeIn : strip.metrics.msFadeOut); easing.type: Easing.OutCubic }
+        }
+
+        Row {
+            anchors.centerIn: parent
+
+            Repeater {
+                model: strip.categories
+
+                IconButton {
+                    id: pickItem
+                    required property var modelData
+                    size: strip.metrics.iconSlot
+                    iconSize: 18
+                    icon: pickItem.modelData.icon
+                    label: strip.nameOf(pickItem.modelData.target)
+                    // O dígito fica sempre: é ele que ensina a tecla.
+                    caption: pickItem.modelData.digit
+                    fg: strip.fg
+                    accent: strip.accent
+                    muted: strip.muted
+                    fontFamily: strip.fontFamily
+                    metrics: strip.metrics
+                    onTapped: strip.categoryClicked(pickItem.modelData.target)
+                }
             }
         }
     }
@@ -1432,11 +1536,26 @@ Item {
         }
     }
 
-    // Roda na linha troca o painel. As listas de dentro ficam de fora daqui.
-    WheelHandler {
-        enabled: !strip.menus
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: event => strip.wheelPanels(event.angleDelta.y)
+    // Rede e bateria num grupo só: tocar abre o Controle, nos dois níveis.
+    // As marcas de aviso ficam fora (cada uma com o próprio toque). Dentro,
+    // as barras e a bateria seguem da esquerda para a direita (cada peça já
+    // trava isso). A margem de 3 px alarga o alvo sem cobrir os vizinhos.
+    component NetBattery: Row {
+        id: netBatt
+        property var host: null
+        spacing: 8
+
+        Accessible.role: Accessible.Button
+        Accessible.name: netBatt.host ? netBatt.host.tr("island.control") : ""
+
+        NetGlyph { anchors.verticalCenter: parent.verticalCenter; host: netBatt.host }
+        BatteryGlyph { anchors.verticalCenter: parent.verticalCenter; host: netBatt.host }
+
+        HoverHandler { margin: 3; cursorShape: Qt.PointingHandCursor }
+        TapHandler {
+            margin: 3
+            onTapped: if (netBatt.host) netBatt.host.categoryClicked("control")
+        }
     }
 
     // ================= Cursor do painel ativo =================

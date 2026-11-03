@@ -121,6 +121,7 @@
   "island.layout.dwindle": "Ubin",
   "island.layout.floating": "Mengambang",
   "island.layout.scrolling": "Gulir",
+  "island.lineHint": "0 waktu · 1 aplikasi · gulir untuk ganti",
   "island.power": "Daya",
   "island.style": "Gaya",
   "island.time": "Waktu",
@@ -141,6 +142,16 @@
   "media.previous": "Sebelumnya",
   "media.repeat": "Ulangi",
   "media.shuffle": "Acak",
+  "peek.dnd": "Jangan ganggu aktif",
+  "peek.hours": "%1 jam",
+  "peek.hoursMinutes": "%1 jam %2 mnt",
+  "peek.minutes": {
+    "other": "%1 mnt"
+  },
+  "peek.nightlight": "Cahaya malam aktif",
+  "peek.reminderIn": "Pengingat dalam %1",
+  "peek.stayAwake": "Tetap terjaga aktif",
+  "peek.updates": "Ada pembaruan",
   "plugins.confirmBar": "↵ lagi untuk ganti bar",
   "plugins.count": {
     "other": "%1 plugin"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "Bulat",
   "style.corners.sharp": "Tajam",
   "style.corners.theme": "Dari tema",
+  "style.focusedOnly": "Hanya layar terfokus",
   "style.font": "Font",
   "style.gallery": "Tema",
+  "style.island": "Pulau",
+  "style.level2Dwell": "Level 2 saat diam",
+  "style.livePeek": "Info langsung",
   "style.section.background": "Latar",
   "style.section.theme": "Tema",
   "style.section.windows": "Jendela dan font",

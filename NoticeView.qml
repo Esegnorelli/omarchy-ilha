@@ -3,6 +3,11 @@ import qs.Commons as Commons
 
 // Notificação como estado compacto da pílula: ícone, aplicativo e resumo
 // numa linha. O texto chega de fora e fica em PlainText.
+//
+// O mesmo formato serve ao aviso ao vivo ("Gravando 0:42"): o payload pode
+// trazer "icon" (nome do ícone) e "tone" ("danger", "accent" ou "fg").
+// Sem eles, fica como sempre: urgente é priority_high em danger, o resto é
+// o sino no destaque.
 Item {
     id: root
 
@@ -18,6 +23,15 @@ Item {
     readonly property string summary: String(payload && payload.summary ? payload.summary : "").slice(0, 140)
     readonly property bool urgent: !!(payload && (payload.urgent === true || Number(payload.urgency) === 2))
     readonly property bool showApp: app !== "" && app !== summary
+    readonly property string iconName: payload && typeof payload.icon === "string" && payload.icon !== ""
+        ? payload.icon.slice(0, 48) : (urgent ? "priority_high" : "notifications")
+    readonly property string tone: {
+        const asked = payload && typeof payload.tone === "string" ? payload.tone : ""
+        if (asked === "danger" || asked === "accent" || asked === "fg")
+            return asked
+        return urgent ? "danger" : "accent"
+    }
+    readonly property color toneColor: tone === "danger" ? danger : tone === "fg" ? fg : accent
 
     readonly property int iconBox: 22
     readonly property int gap: 8
@@ -42,6 +56,8 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: 14
         font.weight: Font.DemiBold
+        // Dígitos de largura fixa: "Gravando 0:42" não tremula a cada segundo.
+        font.features: ({ "tnum": 1 })
         text: root.summary
     }
 
@@ -56,10 +72,10 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             width: root.iconBox
             height: root.iconBox
-            name: root.urgent ? "priority_high" : "notifications"
+            name: root.iconName
             size: 18
             filled: true
-            color: root.urgent ? root.danger : root.accent
+            color: root.toneColor
 
             Behavior on color {
                 ColorAnimation { duration: Commons.Style.duration(180); easing.type: Easing.OutCubic }
@@ -90,6 +106,7 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: 14
             font.weight: Font.DemiBold
+            font.features: ({ "tnum": 1 })
             textFormat: Text.PlainText
         }
     }

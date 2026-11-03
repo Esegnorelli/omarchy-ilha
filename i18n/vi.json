@@ -121,6 +121,7 @@
   "island.layout.dwindle": "Xếp ô",
   "island.layout.floating": "Nổi",
   "island.layout.scrolling": "Cuộn",
+  "island.lineHint": "0 thời gian · 1 ứng dụng · cuộn để chuyển",
   "island.power": "Nguồn",
   "island.style": "Giao diện",
   "island.time": "Thời gian",
@@ -141,6 +142,16 @@
   "media.previous": "Trước",
   "media.repeat": "Lặp lại",
   "media.shuffle": "Trộn bài",
+  "peek.dnd": "Đã bật Không làm phiền",
+  "peek.hours": "%1 giờ",
+  "peek.hoursMinutes": "%1 giờ %2 phút",
+  "peek.minutes": {
+    "other": "%1 phút"
+  },
+  "peek.nightlight": "Đã bật Ánh sáng đêm",
+  "peek.reminderIn": "Nhắc nhở sau %1",
+  "peek.stayAwake": "Đã bật Giữ luôn thức",
+  "peek.updates": "Có bản cập nhật",
   "plugins.confirmBar": "↵ lần nữa để đổi thanh",
   "plugins.count": {
     "other": "%1 plugin"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "Bo tròn",
   "style.corners.sharp": "Vuông",
   "style.corners.theme": "Theo chủ đề",
+  "style.focusedOnly": "Chỉ màn hình hoạt động",
   "style.font": "Phông chữ",
   "style.gallery": "Chủ đề",
+  "style.island": "Đảo",
+  "style.level2Dwell": "Cấp 2 khi dừng chuột",
+  "style.livePeek": "Thông báo nhanh",
   "style.section.background": "Hình nền",
   "style.section.theme": "Chủ đề",
   "style.section.windows": "Cửa sổ và phông",

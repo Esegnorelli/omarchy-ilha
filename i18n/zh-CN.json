@@ -121,6 +121,7 @@
   "island.layout.dwindle": "平铺",
   "island.layout.floating": "浮动",
   "island.layout.scrolling": "滚动",
+  "island.lineHint": "0 时间 · 1 应用 · 滚动切换",
   "island.power": "电源",
   "island.style": "样式",
   "island.time": "时间",
@@ -141,6 +142,16 @@
   "media.previous": "上一个",
   "media.repeat": "循环",
   "media.shuffle": "随机",
+  "peek.dnd": "勿扰已开启",
+  "peek.hours": "%1 小时",
+  "peek.hoursMinutes": "%1 小时 %2 分钟",
+  "peek.minutes": {
+    "other": "%1 分钟"
+  },
+  "peek.nightlight": "夜间模式已开启",
+  "peek.reminderIn": "%1后提醒",
+  "peek.stayAwake": "保持唤醒已开启",
+  "peek.updates": "有可用更新",
   "plugins.confirmBar": "再按 ↵ 切换栏",
   "plugins.count": {
     "other": "%1 个插件"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "圆角",
   "style.corners.sharp": "直角",
   "style.corners.theme": "跟随主题",
+  "style.focusedOnly": "仅焦点显示器",
   "style.font": "字体",
   "style.gallery": "主题",
+  "style.island": "浮岛",
+  "style.level2Dwell": "悬停展开第 2 级",
+  "style.livePeek": "实时提示",
   "style.section.background": "背景",
   "style.section.theme": "主题",
   "style.section.windows": "窗口和字体",

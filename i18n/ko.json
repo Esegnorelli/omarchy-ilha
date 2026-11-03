@@ -121,6 +121,7 @@
   "island.layout.dwindle": "타일",
   "island.layout.floating": "플로팅",
   "island.layout.scrolling": "스크롤",
+  "island.lineHint": "0 시간 · 1 앱 · 스크롤로 전환",
   "island.power": "전원",
   "island.style": "스타일",
   "island.time": "시간",
@@ -141,6 +142,16 @@
   "media.previous": "이전",
   "media.repeat": "반복",
   "media.shuffle": "셔플",
+  "peek.dnd": "방해 금지 켜짐",
+  "peek.hours": "%1시간",
+  "peek.hoursMinutes": "%1시간 %2분",
+  "peek.minutes": {
+    "other": "%1분"
+  },
+  "peek.nightlight": "야간 모드 켜짐",
+  "peek.reminderIn": "%1 후 리마인더",
+  "peek.stayAwake": "절전 방지 켜짐",
+  "peek.updates": "업데이트 있음",
   "plugins.confirmBar": "↵ 다시 누르면 막대 전환",
   "plugins.count": {
     "other": "플러그인 %1개"
@@ -185,8 +196,12 @@
   "style.corners.rounded": "둥글게",
   "style.corners.sharp": "각지게",
   "style.corners.theme": "테마 따름",
+  "style.focusedOnly": "포커스된 화면만",
   "style.font": "글꼴",
   "style.gallery": "테마",
+  "style.island": "아일랜드",
+  "style.level2Dwell": "멈추면 레벨 2",
+  "style.livePeek": "실시간 알림",
   "style.section.background": "배경",
   "style.section.theme": "테마",
   "style.section.windows": "창과 글꼴",

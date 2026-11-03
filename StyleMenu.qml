@@ -16,6 +16,9 @@ import qs.Commons as Commons
 //                   ←→ escolhem, ↵ e o clique na escolhida aplicam.
 //                   Q Próximo fundo · W Escolher fundo… · E Cores do fundo
 //   JANELAS E FONTE Cantos (W E R) · Transparência (S D F) · Fonte ‹ chips › ([ ])
+//                   Ilha (Z X C): nível 2 ao parar o ponteiro · pílula só no
+//                   monitor focado · aviso ao vivo. Gravadas em bar.ilha do
+//                   shell.json pelo Prefs (o Island liga `prefs` pelo StateSlot).
 //
 // Contrato de estado: active, fg/bg/accent/danger, metrics, keyboardMode,
 // footerStatus, footerHints, handleKey(event) → bool, handleEscape() → bool,
@@ -47,6 +50,9 @@ Item {
     property var shell: null
     property Metrics metrics: Metrics {}
     property bool keyboardMode: false
+    // Preferências da ilha (Prefs.qml). O Island liga pelo StateSlot; sem ele,
+    // as três chaves da página Janelas ficam indisponíveis.
+    property var prefs: null
 
     readonly property bool rtl: Commons.I18n.rightToLeft
 
@@ -1758,6 +1764,42 @@ Item {
             onPicked: value => {
                 root.pendingFont = "";
                 root.setFont(value);
+            }
+        }
+
+        // ----- Ilha: Z X C, chaves compactas de 32 px em 3 colunas -----
+        // A fonte (chips) não tem tecla: esta é a 3ª linha com tecla do PanelGrid.
+        GridRow {
+            visible: root.page === "windows"
+            columns: 3
+            tileHeight: root.metrics.compact
+            caption: strings.t("style.island", "Island")
+            Tile {
+                compact: true
+                kind: "toggle"
+                icon: "touch_app"
+                label: strings.t("style.level2Dwell", "Level 2 on rest")
+                on: !!root.prefs && root.prefs.level2Dwell
+                available: !!root.prefs
+                onActivated: if (root.prefs) root.prefs.toggle("level2Dwell")
+            }
+            Tile {
+                compact: true
+                kind: "toggle"
+                icon: "desktop_windows"
+                label: strings.t("style.focusedOnly", "Focused monitor only")
+                on: !!root.prefs && root.prefs.focusedOnly
+                available: !!root.prefs
+                onActivated: if (root.prefs) root.prefs.toggle("focusedOnly")
+            }
+            Tile {
+                compact: true
+                kind: "toggle"
+                icon: "notifications"
+                label: strings.t("style.livePeek", "Live notice")
+                on: !!root.prefs && root.prefs.livePeek
+                available: !!root.prefs
+                onActivated: if (root.prefs) root.prefs.toggle("livePeek")
             }
         }
     }
