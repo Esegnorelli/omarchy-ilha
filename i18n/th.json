@@ -44,7 +44,7 @@
   "bar.batteryCharging": "แบตเตอรี่ %1% กำลังชาร์จ",
   "bar.nowPlaying": "กำลังเล่น: %1",
   "bar.restartNotice": "รีสตาร์ตเชลล์เพื่ออัปเดต Ilha ให้เสร็จ",
-  "hint.line": "คลิก: เพิ่มเติม · คลิกขวาหรือกดค้าง: หน้าจอ · Alt+1–6: สลับ",
+  "hint.line": "คลิก: หน้าจอ · Alt+1–6: สลับ",
   "picker.title": "หน้าจอ",
   "picker.control": "ควบคุม",
   "picker.media": "สื่อ",

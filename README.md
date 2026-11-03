@@ -37,7 +37,7 @@ Omarchy does not clear its QML cache. Ilha compares the version in `manifest.jso
 From 1.x:
 
 - The 2.0 code lives in `ui/`, a folder 1.x never had, and the bar now starts from `ui/Ilha.qml`. The 1.x QML files at the root are gone. Because every file is new, the shell loads 2.0 right away, with no restart.
-- `focusedOnly` and `livePeek` in `bar.ilha` keep their values. `level2Dwell` is gone: level 2 opens on a click. Ilha ignores the old key and removes it the next time it saves a setting.
+- `focusedOnly` and `livePeek` in `bar.ilha` keep their values. `level2Dwell` is gone. Ilha ignores the old key and removes it the next time it saves a setting.
 - The Tempo, Captura, Estilo, Ferramentas, and Plugins panels are gone, and with Estilo the corner, transparency, and font controls.
 
 ## Remove
@@ -70,8 +70,8 @@ With the bar hidden (`omarchy toggle bar`), the pill (and the 48 px, with `reser
 |---|---|
 | Rest | The clock, in a capsule 32 px tall, 10 px from the top edge. When something is on, a mark sits beside the clock. |
 | Level 1 | The pointer is on the pill. A line 42 px tall, 22 px from the top: this monitor's workspaces as numbered capsules, the clock, and the status group. |
-| Level 2 | A click on level 1. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
-| Screen picker | Right click or long press. Six icons in a 236 × 42 capsule. |
+| Level 2 | Super+Ctrl+Alt+D (Omarchy's calendar key) or a tap on the rest mark. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
+| Screen picker | A click on level 1 or on the clock, a right click, or a long press. Six icons in a 236 × 42 capsule. |
 | Live notice | Something just turned on. One short line, 40 px tall. |
 | OSD | `ilha osd`, the resolution prompt, or the restart notice. 40 px tall. |
 | Screen | One of the six screens, in the same shape. |
@@ -100,11 +100,11 @@ The pointer on the pill, in the gap above it, or on the top strip opens level 1 
 
 - Workspaces: this monitor's block (1–10, 11–20, …), the first five plus any higher one that exists. The digit sits inside each capsule; workspace 10 reads `10`. The active one is larger, in the accent, with a glow. Occupied ones are tinted with the accent. Empty ones are faint. Urgent ones use the urgent color.
 - Status group, in order: music bars (while a track is loaded; they move while it plays and dim when it is paused), the privacy dot (recording, remote session, or passwordless sudo; it pulses while recording), network (Wi-Fi bars, a cable icon, or offline), and battery (laptops only; a bolt while plugged in; the urgent color at 15 % or less on battery).
-- Click a capsule to focus that workspace. Click the music bars for Media. Click anywhere else for level 2.
+- Click a capsule to focus that workspace. Click the music bars for Media. Click anywhere else for the screen picker: the clock, then the line, then the screens.
 
 ### Level 2
 
-A click on level 1 opens it. It stays while the pointer is on it and closes 2.5 s after the pointer leaves. Super+Ctrl+Alt+D toggles it on the focused monitor.
+Super+Ctrl+Alt+D (Omarchy's calendar key) opens it, and so does a tap on the rest mark for recording, a reminder, or an update, with that status line pinned. A click on level 1 opens the screen picker instead. It stays while the pointer is on it and closes 2.5 s after the pointer leaves. Super+Ctrl+Alt+D toggles it on the focused monitor.
 
 - Left: the focused window's app icon and name, or "Desktop" when the workspace has no window. When the focused window is the music player, its title and artist. Under it, the workspaces, larger.
 - Centre: the clock, larger, and the date in the language's own format.
@@ -129,7 +129,7 @@ The status line shows the first match:
 
 ### Screen picker
 
-Right click, or a long press (0.5 s), on the pill at rest, at level 1, or at level 2 shows six icons: Apps, Control Center, Media, Themes, Wallpapers, Power. That is the same order as Alt+1–6. The icons have no labels.
+A click on level 1 or on the clock at rest, a right click, or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows six icons: Apps, Themes, Wallpapers, Media, Control Center, Power. That is the same order as Alt+1–6. The icons have no labels.
 
 - A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing".
 - A tap between icons, or another right click, closes the picker.
@@ -139,7 +139,7 @@ Right click, or a long press (0.5 s), on the pill at rest, at level 1, or at lev
 
 ### Line hint
 
-The first time level 1 opens in a session, a small tag shows under it for 3 s: "Click: more · Right-click or hold: screens · Alt+1–6: switch". It goes away when the line closes. It does not show while the bar is hidden or while the restart notice is up. It is not saved, so the next session shows it again.
+The first time level 1 opens in a session, a small tag shows under it for 3 s: "Click: screens · Alt+1–6: switch". It goes away when the line closes. It does not show while the bar is hidden or while the restart notice is up. It is not saved, so the next session shows it again.
 
 ### Top edge
 
@@ -170,7 +170,7 @@ Regular notifications never show in the pill. Omarchy's own cards stay, because 
 
 ## Screens
 
-Six screens, in one order: Apps, Control Center, Media, Themes, Wallpapers, Power. The picker, Alt+1–6, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
+Six screens, in one order: Apps, Themes, Wallpapers, Media, Control Center, Power. The picker, Alt+1–6, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
 
 ### Navigation
 
@@ -260,10 +260,10 @@ As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 
 ## Mouse and keyboard
 
 - The wheel switches screens only while a screen is open, on the band across the screen's width in the top 24 px of the monitor: the gap above the screen and its top padding. Each notch (120 units) moves one screen, in the order above. Down goes forward, up goes back. A partial scroll resets after 200 ms without wheel events, or when the direction flips, so slow trackpad drift never switches. Right-to-left languages do not flip it. At rest, on levels 1 and 2, on the picker, on a notice, or on an OSD, the wheel does nothing. Lists, carousels, and sliders keep their own wheel.
-- Right click or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows the picker. On the picker it closes it. On a live notice it dismisses it.
+- A click on the clock or on level 1, a right click, or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows the picker. On the picker it closes it. On a live notice it dismisses it.
 - A click outside an open screen closes it.
 - Keys work only while a screen is open. The hover levels, the picker, and the notices never take the keyboard.
-- Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Control Center, Media, Themes, Wallpapers, Power.
+- Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Themes, Wallpapers, Media, Control Center, Power.
 - Alt+← and the mouse's back button go back (see Navigation).
 - Esc first goes to the screen (it clears a search, closes a popover or page, cancels a confirmation), then closes the island.
 - Any key turns keyboard mode on. Moving the pointer more than 8 px turns it off.

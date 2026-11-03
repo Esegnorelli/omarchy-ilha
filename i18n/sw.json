@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Betri %1%, inachaji",
   "bar.nowPlaying": "Inacheza sasa: %1",
   "bar.restartNotice": "Anzisha upya shell ili kukamilisha usasishaji wa Ilha",
-  "hint.line": "Bofya: zaidi · Bofya kulia au shikilia: skrini · Alt+1–6: badilisha",
+  "hint.line": "Bofya: skrini · Alt+1–6: badilisha",
   "picker.title": "Skrini",
   "picker.control": "Vidhibiti",
   "picker.media": "Midia",

@@ -50,7 +50,7 @@
   "bar.batteryCharging": "Батарея %1%, заряджається",
   "bar.nowPlaying": "Зараз грає: %1",
   "bar.restartNotice": "Перезапустіть оболонку, щоб завершити оновлення Ilha",
-  "hint.line": "Клік: більше · Правий клік або утримання: екрани · Alt+1–6: зміна",
+  "hint.line": "Клік: екрани · Alt+1–6: зміна",
   "picker.title": "Екрани",
   "picker.control": "Керування",
   "picker.media": "Медіа",

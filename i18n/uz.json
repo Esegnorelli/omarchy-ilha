@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Batareya %1%, quvvatlanmoqda",
   "bar.nowPlaying": "Hozir ijroda: %1",
   "bar.restartNotice": "Ilha yangilanishini yakunlash uchun qobiqni qayta ishga tushiring",
-  "hint.line": "Bosish: koʻproq · Oʻng tugma yoki ushlash: ekranlar · Alt+1–6: almashish",
+  "hint.line": "Bosish: ekranlar · Alt+1–6: almashish",
   "picker.title": "Ekranlar",
   "picker.control": "Boshqaruv",
   "picker.media": "Media",

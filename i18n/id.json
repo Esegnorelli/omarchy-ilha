@@ -44,7 +44,7 @@
   "bar.batteryCharging": "Baterai %1%, mengisi daya",
   "bar.nowPlaying": "Sedang diputar: %1",
   "bar.restartNotice": "Mulai ulang shell untuk menyelesaikan pembaruan Ilha",
-  "hint.line": "Klik: lainnya · Klik kanan atau tahan: layar · Alt+1–6: ganti",
+  "hint.line": "Klik: layar · Alt+1–6: ganti",
   "picker.title": "Layar",
   "picker.control": "Kontrol",
   "picker.media": "Media",

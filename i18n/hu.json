@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Akkumulátor %1%, töltés",
   "bar.nowPlaying": "Most szól: %1",
   "bar.restartNotice": "Indítsd újra a shellt az Ilha frissítésének befejezéséhez",
-  "hint.line": "Katt: több · Jobb klikk vagy nyomva tartás: nézetek · Alt+1–6: váltás",
+  "hint.line": "Katt: nézetek · Alt+1–6: váltás",
   "picker.title": "Nézetek",
   "picker.control": "Vezérlők",
   "picker.media": "Média",

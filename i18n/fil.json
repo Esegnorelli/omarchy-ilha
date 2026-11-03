@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Baterya %1%, nagcha-charge",
   "bar.nowPlaying": "Tumutugtog: %1",
   "bar.restartNotice": "I-restart ang shell para matapos ang pag-update ng Ilha",
-  "hint.line": "Click: higit pa · Right-click o hawakan: mga screen · Alt+1–6: lipat",
+  "hint.line": "Click: mga screen · Alt+1–6: lipat",
   "picker.title": "Mga screen",
   "picker.control": "Kontrol",
   "picker.media": "Media",

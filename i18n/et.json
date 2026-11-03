@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Aku %1%, laeb",
   "bar.nowPlaying": "Praegu mängib: %1",
   "bar.restartNotice": "Ilha värskenduse lõpetamiseks taaskäivita kest",
-  "hint.line": "Klõps: rohkem · Paremklõps või hoidmine: vaated · Alt+1–6: vaheta",
+  "hint.line": "Klõps: vaated · Alt+1–6: vaheta",
   "picker.title": "Vaated",
   "picker.control": "Juhtimine",
   "picker.media": "Meedia",

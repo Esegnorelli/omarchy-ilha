@@ -46,7 +46,7 @@
   "bar.batteryCharging": "बैटरी %1%, चार्ज हो रही है",
   "bar.nowPlaying": "अभी चल रहा है: %1",
   "bar.restartNotice": "Ilha का अपडेट पूरा करने के लिए शेल फिर से शुरू करें",
-  "hint.line": "क्लिक: और · राइट-क्लिक या दबाए रखें: स्क्रीन · Alt+1–6: बदलें",
+  "hint.line": "क्लिक: स्क्रीन · Alt+1–6: बदलें",
   "picker.title": "स्क्रीन",
   "picker.control": "नियंत्रण",
   "picker.media": "मीडिया",

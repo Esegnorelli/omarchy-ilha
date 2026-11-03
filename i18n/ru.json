@@ -50,7 +50,7 @@
   "bar.batteryCharging": "Батарея %1%, заряжается",
   "bar.nowPlaying": "Сейчас играет: %1",
   "bar.restartNotice": "Перезапустите оболочку, чтобы завершить обновление Ilha",
-  "hint.line": "Клик: больше · Правый клик или удержание: экраны · Alt+1–6: смена",
+  "hint.line": "Клик: экраны · Alt+1–6: смена",
   "picker.title": "Экраны",
   "picker.control": "Управление",
   "picker.media": "Медиа",

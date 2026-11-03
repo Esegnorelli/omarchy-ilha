@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Батерия %1%, зарежда се",
   "bar.nowPlaying": "Сега звучи: %1",
   "bar.restartNotice": "Рестартирайте обвивката, за да завърши обновяването на Ilha",
-  "hint.line": "Клик: още · Десен клик или задържане: екрани · Alt+1–6: смяна",
+  "hint.line": "Клик: екрани · Alt+1–6: смяна",
   "picker.title": "Екрани",
   "picker.control": "Контроли",
   "picker.media": "Медия",

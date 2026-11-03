@@ -191,7 +191,7 @@ QtObject {
         // Borda de cima e roda
         STRIP_W: 600, STRIP_H: 3, WHEEL_BAND: 14,
         // Ordem única das telas (seletor, Alt+1..6, Ctrl+Tab, roda)
-        SCREEN_ORDER: ["launcher", "control", "media", "themes", "wallpapers", "power"]
+        SCREEN_ORDER: ["launcher", "themes", "wallpapers", "media", "control", "power"]
     })
 
     // ---- Geometria ----

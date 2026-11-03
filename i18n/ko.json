@@ -44,7 +44,7 @@
   "bar.batteryCharging": "배터리 %1%, 충전 중",
   "bar.nowPlaying": "재생 중: %1",
   "bar.restartNotice": "Ilha 업데이트를 마치려면 셸을 다시 시작하세요",
-  "hint.line": "클릭: 더 보기 · 우클릭 또는 길게 누르기: 화면 · Alt+1–6: 전환",
+  "hint.line": "클릭: 화면 · Alt+1–6: 전환",
   "picker.title": "화면",
   "picker.control": "제어",
   "picker.media": "미디어",

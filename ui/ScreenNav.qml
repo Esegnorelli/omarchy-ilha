@@ -33,15 +33,17 @@ Item {
     signal back()
     signal pick(string id)
 
-    // Os seis destinos (os mesmos do seletor; rótulos já traduzidos).
-    readonly property var slots: [
-        { id: "launcher", icon: "apps", label: "cc.apps" },
-        { id: "control", icon: "tune", label: "picker.control" },
-        { id: "media", icon: "music_note", label: "picker.media" },
-        { id: "themes", icon: "palette", label: "cc.themes" },
-        { id: "wallpapers", icon: "wallpaper", label: "cc.wallpapers" },
-        { id: "power", icon: "power_settings_new", label: "cc.power" }
-    ]
+    // Ícone e rótulo de cada tela; a ordem é a de theme.px.SCREEN_ORDER.
+    readonly property var screenMeta: ({
+        launcher: { icon: "apps", label: "cc.apps" },
+        themes: { icon: "palette", label: "cc.themes" },
+        wallpapers: { icon: "wallpaper", label: "cc.wallpapers" },
+        media: { icon: "music_note", label: "picker.media" },
+        control: { icon: "tune", label: "picker.control" },
+        power: { icon: "power_settings_new", label: "cc.power" }
+    })
+    readonly property var slots: (root.theme ? root.theme.px.SCREEN_ORDER : ["launcher", "themes", "wallpapers", "media", "control", "power"])
+        .map(id => Object.assign({ id: id }, root.screenMeta[id]))
 
     readonly property real pitch: priv.px("NAV_PITCH", 36)
     readonly property real pad: priv.px("NAV_PAD", 6)

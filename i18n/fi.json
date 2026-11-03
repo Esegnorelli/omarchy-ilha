@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Akku %1%, latautuu",
   "bar.nowPlaying": "Nyt soi: %1",
   "bar.restartNotice": "Viimeistele Ilhan päivitys käynnistämällä kuori uudelleen",
-  "hint.line": "Napsautus: lisää · Oikea napsautus tai pito: näkymät · Alt+1–6: vaihda",
+  "hint.line": "Napsautus: näkymät · Alt+1–6: vaihda",
   "picker.title": "Näkymät",
   "picker.control": "Säätimet",
   "picker.media": "Media",

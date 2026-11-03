@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Bateria %1%, carregant",
   "bar.nowPlaying": "S'està reproduint: %1",
   "bar.restartNotice": "Reinicia el shell per acabar d'actualitzar Ilha",
-  "hint.line": "Clic: més · Clic dret o mantenir: pantalles · Alt+1–6: canviar",
+  "hint.line": "Clic: pantalles · Alt+1–6: canviar",
   "picker.title": "Pantalles",
   "picker.control": "Controls",
   "picker.media": "Multimèdia",

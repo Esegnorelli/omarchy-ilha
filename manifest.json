@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "esegnorelli.ilha",
   "name": "Ilha",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": "Evandro Segnorelli",
   "license": "MIT",
   "description": "A floating island bar: a clock at rest that grows into workspaces, status, a Control Center, launcher, power menu, theme and wallpaper pickers, music and OSDs, in every Omarchy language.",

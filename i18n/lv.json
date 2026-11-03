@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Akumulators %1%, lādējas",
   "bar.nowPlaying": "Tagad skan: %1",
   "bar.restartNotice": "Restartējiet čaulu, lai pabeigtu Ilha atjaunināšanu",
-  "hint.line": "Klikšķis: vairāk · Labais klikšķis vai turēt: ekrāni · Alt+1–6: mainīt",
+  "hint.line": "Klikšķis: ekrāni · Alt+1–6: mainīt",
   "picker.title": "Ekrāni",
   "picker.control": "Vadība",
   "picker.media": "Multivide",

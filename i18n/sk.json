@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Batéria %1%, nabíja sa",
   "bar.nowPlaying": "Práve hrá: %1",
   "bar.restartNotice": "Reštartujte shell na dokončenie aktualizácie Ilha",
-  "hint.line": "Klik: viac · Pravý klik alebo podržať: obrazovky · Alt+1–6: prepnúť",
+  "hint.line": "Klik: obrazovky · Alt+1–6: prepnúť",
   "picker.title": "Obrazovky",
   "picker.control": "Ovládanie",
   "picker.media": "Médiá",

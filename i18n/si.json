@@ -46,7 +46,7 @@
   "bar.batteryCharging": "බැටරිය %1%, ආරෝපණය වෙමින්",
   "bar.nowPlaying": "දැන් වාදනය: %1",
   "bar.restartNotice": "Ilha යාවත්කාලීනය අවසන් කිරීමට ෂෙල් නැවත අරඹන්න",
-  "hint.line": "ක්ලික්: තවත් · දකුණු ක්ලික් හෝ අල්ලාගන්න: තිර · Alt+1–6: මාරු",
+  "hint.line": "ක්ලික්: තිර · Alt+1–6: මාරු",
   "picker.title": "තිර",
   "picker.control": "පාලන",
   "picker.media": "මාධ්‍ය",

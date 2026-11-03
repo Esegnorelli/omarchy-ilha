@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Batteri %1%, lader",
   "bar.nowPlaying": "Spilles nå: %1",
   "bar.restartNotice": "Start skallet på nytt for å fullføre oppdateringen av Ilha",
-  "hint.line": "Klikk: mer · Høyreklikk eller hold: skjermer · Alt+1–6: bytt",
+  "hint.line": "Klikk: skjermer · Alt+1–6: bytt",
   "picker.title": "Skjermer",
   "picker.control": "Kontroller",
   "picker.media": "Medier",

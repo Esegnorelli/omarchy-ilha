@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Baterija %1%, puni se",
   "bar.nowPlaying": "Sada svira: %1",
   "bar.restartNotice": "Ponovno pokrenite ljusku da dovršite ažuriranje Ilhe",
-  "hint.line": "Klik: više · Desni klik ili držanje: zasloni · Alt+1–6: promjena",
+  "hint.line": "Klik: zasloni · Alt+1–6: promjena",
   "picker.title": "Zasloni",
   "picker.control": "Kontrole",
   "picker.media": "Mediji",

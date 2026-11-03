@@ -982,7 +982,7 @@ PanelWindow {
             if (hit !== "")
                 bar.activate(hit);
             else
-                win.island.setExpanded(win.output, true);
+                win.island.openPicker(win.output);   // toque no relógio: o menu das telas
             return;
         }
         default:

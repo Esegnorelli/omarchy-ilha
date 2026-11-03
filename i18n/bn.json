@@ -46,7 +46,7 @@
   "bar.batteryCharging": "ব্যাটারি %1%, চার্জ হচ্ছে",
   "bar.nowPlaying": "এখন চলছে: %1",
   "bar.restartNotice": "Ilha-র আপডেট শেষ করতে শেল আবার চালু করুন",
-  "hint.line": "ক্লিক: আরও · রাইট-ক্লিক বা ধরে রাখুন: স্ক্রিন · Alt+1–6: বদলান",
+  "hint.line": "ক্লিক: স্ক্রিন · Alt+1–6: বদলান",
   "picker.title": "স্ক্রিন",
   "picker.control": "কন্ট্রোল",
   "picker.media": "মিডিয়া",

@@ -44,7 +44,7 @@
   "bar.batteryCharging": "バッテリー %1%、充電中",
   "bar.nowPlaying": "再生中: %1",
   "bar.restartNotice": "Ilha の更新を完了するにはシェルを再起動してください",
-  "hint.line": "クリック：詳細 · 右クリック/長押し：画面 · Alt+1–6：切替",
+  "hint.line": "クリック：画面 · Alt+1–6：切替",
   "picker.title": "画面",
   "picker.control": "コントロール",
   "picker.media": "メディア",

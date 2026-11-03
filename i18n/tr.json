@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Pil %1%, şarj oluyor",
   "bar.nowPlaying": "Şimdi çalıyor: %1",
   "bar.restartNotice": "Ilha güncellemesini tamamlamak için kabuğu yeniden başlatın",
-  "hint.line": "Tık: daha fazla · Sağ tık veya basılı tut: ekranlar · Alt+1–6: değiştir",
+  "hint.line": "Tık: ekranlar · Alt+1–6: değiştir",
   "picker.title": "Ekranlar",
   "picker.control": "Denetimler",
   "picker.media": "Medya",

@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Batteria %1%, in carica",
   "bar.nowPlaying": "In riproduzione: %1",
   "bar.restartNotice": "Riavvia la shell per completare l'aggiornamento di Ilha",
-  "hint.line": "Clic: altro · Clic destro o tieni premuto: schermate · Alt+1–6: cambia",
+  "hint.line": "Clic: schermate · Alt+1–6: cambia",
   "picker.title": "Schermate",
   "picker.control": "Controlli",
   "picker.media": "Multimedia",

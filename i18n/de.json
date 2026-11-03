@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Akku %1%, lädt",
   "bar.nowPlaying": "Läuft gerade: %1",
   "bar.restartNotice": "Shell neu starten, um das Ilha-Update abzuschließen",
-  "hint.line": "Klick: mehr · Rechtsklick oder halten: Ansichten · Alt+1–6: wechseln",
+  "hint.line": "Klick: Ansichten · Alt+1–6: wechseln",
   "picker.title": "Ansichten",
   "picker.control": "Steuerung",
   "picker.media": "Medien",

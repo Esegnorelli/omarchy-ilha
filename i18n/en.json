@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Battery %1%, charging",
   "bar.nowPlaying": "Now playing: %1",
   "bar.restartNotice": "Restart the shell to finish updating Ilha",
-  "hint.line": "Click: more · Right-click or hold: screens · Alt+1–6: switch",
+  "hint.line": "Click: screens · Alt+1–6: switch",
   "picker.title": "Screens",
   "picker.control": "Controls",
   "picker.media": "Media",

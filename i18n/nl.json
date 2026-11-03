@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Batterij %1%, wordt opgeladen",
   "bar.nowPlaying": "Speelt nu: %1",
   "bar.restartNotice": "Herstart de shell om de update van Ilha af te ronden",
-  "hint.line": "Klik: meer · Rechtsklik of vasthouden: schermen · Alt+1–6: wissel",
+  "hint.line": "Klik: schermen · Alt+1–6: wissel",
   "picker.title": "Schermen",
   "picker.control": "Bediening",
   "picker.media": "Media",

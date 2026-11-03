@@ -48,7 +48,7 @@
   "bar.batteryCharging": "סוללה %1%, בטעינה",
   "bar.nowPlaying": "מתנגן כעת: %1",
   "bar.restartNotice": "יש להפעיל מחדש את המעטפת כדי להשלים את עדכון Ilha",
-  "hint.line": "לחיצה: עוד · לחיצה ימנית או החזקה: מסכים · Alt+1–6: מעבר",
+  "hint.line": "לחיצה: מסכים · Alt+1–6: מעבר",
   "picker.title": "מסכים",
   "picker.control": "בקרות",
   "picker.media": "מדיה",

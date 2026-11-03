@@ -44,7 +44,7 @@
   "bar.batteryCharging": "Pin %1%, đang sạc",
   "bar.nowPlaying": "Đang phát: %1",
   "bar.restartNotice": "Khởi động lại shell để hoàn tất cập nhật Ilha",
-  "hint.line": "Nhấp: thêm · Nhấp phải hoặc giữ: màn hình · Alt+1–6: chuyển",
+  "hint.line": "Nhấp: màn hình · Alt+1–6: chuyển",
   "picker.title": "Màn hình",
   "picker.control": "Điều khiển",
   "picker.media": "Đa phương tiện",

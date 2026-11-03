@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Baterija %1%, kraunama",
   "bar.nowPlaying": "Dabar groja: %1",
   "bar.restartNotice": "Paleiskite apvalkalą iš naujo, kad baigtumėte Ilha atnaujinimą",
-  "hint.line": "Spustelėjus: daugiau · Dešiniuoju ar palaikius: ekranai · Alt+1–6: keisti",
+  "hint.line": "Spustelėjus: ekranai · Alt+1–6: keisti",
   "picker.title": "Ekranai",
   "picker.control": "Valdymas",
   "picker.media": "Medija",

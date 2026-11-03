@@ -54,7 +54,7 @@
   "bar.batteryCharging": "البطارية %1%، قيد الشحن",
   "bar.nowPlaying": "قيد التشغيل: %1",
   "bar.restartNotice": "أعد تشغيل الواجهة لإكمال تحديث Ilha",
-  "hint.line": "نقرة: المزيد · نقرة يمنى أو ضغط مطوّل: الشاشات · Alt+1–6: تبديل",
+  "hint.line": "نقرة: الشاشات · Alt+1–6: تبديل",
   "picker.title": "الشاشات",
   "picker.control": "التحكم",
   "picker.media": "الوسائط",

@@ -37,7 +37,7 @@ O Omarchy não limpa o cache de QML. A Ilha compara a versão do `manifest.json`
 Vindo da 1.x:
 
 - O código da 2.0 fica em `ui/`, uma pasta que a 1.x nunca teve, e a barra agora começa por `ui/Ilha.qml`. Os arquivos QML da 1.x na raiz saíram. Como todos os arquivos são novos, o shell carrega a 2.0 na hora, sem reiniciar.
-- `focusedOnly` e `livePeek` em `bar.ilha` mantêm os valores. O `level2Dwell` saiu: o nível 2 abre no clique. A Ilha ignora a chave antiga e a apaga na próxima vez que gravar um ajuste.
+- `focusedOnly` e `livePeek` em `bar.ilha` mantêm os valores. O `level2Dwell` saiu. A Ilha ignora a chave antiga e a apaga na próxima vez que gravar um ajuste.
 - Os painéis Tempo, Captura, Estilo, Ferramentas e Plugins saíram e, com o Estilo, os controles de cantos, transparência e fonte.
 
 ## Remover
@@ -70,8 +70,8 @@ Com a barra escondida (`omarchy toggle bar`), a pílula (e os 48 px, com `reserv
 |---|---|
 | Repouso | O relógio, numa cápsula de 32 px de altura, a 10 px da borda de cima. Com algo ligado, uma marca fica ao lado do relógio. |
 | Nível 1 | O ponteiro está na pílula. Uma linha de 42 px de altura, a 22 px do alto: os workspaces deste monitor em cápsulas numeradas, o relógio e o grupo de estado. |
-| Nível 2 | Um clique no nível 1. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
-| Seletor de telas | Botão direito ou toque longo. Seis ícones numa cápsula de 236 × 42. |
+| Nível 2 | Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) ou um toque na marca do repouso. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
+| Seletor de telas | Um clique no nível 1 ou no relógio, o botão direito ou um toque longo. Seis ícones numa cápsula de 236 × 42. |
 | Aviso ao vivo | Algo acabou de ligar. Uma linha curta, de 40 px de altura. |
 | OSD | `ilha osd`, a pergunta da resolução ou o aviso de reinício. 40 px de altura. |
 | Tela | Uma das seis telas, na mesma forma. |
@@ -100,11 +100,11 @@ O ponteiro na pílula, no vão acima dela ou na faixa da borda de cima abre o n�
 
 - Workspaces: o bloco deste monitor (1–10, 11–20, …), os cinco primeiros e mais os de número maior que já existirem. O algarismo fica dentro de cada cápsula; o workspace 10 aparece como `10`. O ativo é maior, na cor de destaque, com um brilho. Os ocupados levam um tom da cor de destaque. Os vazios são apagados. Os urgentes usam a cor de urgência.
 - Grupo de estado, nesta ordem: as barrinhas da música (com uma faixa carregada; mexem enquanto toca e ficam apagadas na pausa), o ponto de privacidade (gravação, sessão remota ou sudo sem senha; pulsa enquanto grava), a rede (barras do Wi-Fi, um ícone de cabo ou sem conexão) e a bateria (só em notebooks; um raio na tomada; a cor de urgência com 15 % ou menos na bateria).
-- O clique numa cápsula foca esse workspace. O clique nas barrinhas da música abre a Mídia. O clique em qualquer outro lugar abre o nível 2.
+- O clique numa cápsula foca esse workspace. O clique nas barrinhas da música abre a Mídia. O clique em qualquer outro lugar abre o seletor de telas: o relógio, depois a linha, depois as telas.
 
 ### Nível 2
 
-Um clique no nível 1 abre. Ele fica enquanto o ponteiro estiver em cima e fecha 2,5 s depois de o ponteiro sair. Super+Ctrl+Alt+D alterna o nível 2 no monitor focado.
+O Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) abre, e também um toque na marca do repouso de gravação, lembrete ou atualização, com essa linha de estado fixada. Um clique no nível 1 abre o seletor de telas. Ele fica enquanto o ponteiro estiver em cima e fecha 2,5 s depois de o ponteiro sair. Super+Ctrl+Alt+D alterna o nível 2 no monitor focado.
 
 - Esquerda: o ícone e o nome do app da janela em foco, ou "Área de trabalho" quando o workspace não tem janela. Quando a janela em foco é o player de música, o título e o artista. Embaixo, os workspaces, maiores.
 - Centro: o relógio, maior, e a data no formato do idioma.
@@ -129,7 +129,7 @@ A linha de estado mostra o primeiro que casar:
 
 ### Seletor de telas
 
-O botão direito, ou um toque longo (0,5 s), na pílula em repouso, no nível 1 ou no nível 2 mostra seis ícones: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia. É a mesma ordem do Alt+1–6. Os ícones não têm rótulo.
+Um clique no nível 1 ou no relógio em repouso, o botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra seis ícones: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. É a mesma ordem do Alt+1–6. Os ícones não têm rótulo.
 
 - O toque num ícone abre aquela tela. A Mídia está sempre lá; sem player, abre "Nada tocando".
 - O toque entre os ícones, ou outro clique direito, fecha o seletor.
@@ -139,7 +139,7 @@ O botão direito, ou um toque longo (0,5 s), na pílula em repouso, no nível 1 
 
 ### Dica da linha
 
-Na primeira vez que o nível 1 abre numa sessão, uma etiqueta pequena aparece embaixo dele por 3 s: "Clique: mais · Botão direito ou segurar: telas · Alt+1–6: trocar". Ela some quando a linha fecha. Não aparece com a barra escondida nem com o aviso de reinício na tela. Não é gravada, então a próxima sessão mostra de novo.
+Na primeira vez que o nível 1 abre numa sessão, uma etiqueta pequena aparece embaixo dele por 3 s: "Clique: telas · Alt+1–6: trocar". Ela some quando a linha fecha. Não aparece com a barra escondida nem com o aviso de reinício na tela. Não é gravada, então a próxima sessão mostra de novo.
 
 ### Borda de cima
 
@@ -170,7 +170,7 @@ As notificações comuns nunca aparecem na pílula. Os cartões do próprio Omar
 
 ## Telas
 
-Seis telas, numa ordem só: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia. O seletor, o Alt+1–6, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
+Seis telas, numa ordem só: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. O seletor, o Alt+1–6, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
 
 ### Navegação
 
@@ -260,10 +260,10 @@ Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatur
 ## Mouse e teclado
 
 - A roda só troca de tela com uma tela aberta, na faixa que cobre a largura da tela nos 24 px de cima do monitor: o vão acima da tela e o respiro de cima dela. Cada volta (120 unidades) anda uma tela, na ordem acima. Para baixo avança, para cima volta. Uma volta incompleta zera depois de 200 ms sem eventos da roda, ou quando o sentido vira, então um deslize lento do trackpad nunca troca de tela. Os idiomas da direita para a esquerda não invertem a roda. No repouso, nos níveis 1 e 2, no seletor, num aviso ou num OSD, a roda não faz nada. Listas, carrosséis e controles deslizantes guardam a própria roda.
-- O botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra o seletor. No seletor, fecha. Num aviso ao vivo, dispensa.
+- Um clique no relógio ou no nível 1, o botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra o seletor. No seletor, fecha. Num aviso ao vivo, dispensa.
 - Um clique fora de uma tela aberta fecha a tela.
 - As teclas só valem com uma tela aberta. Os níveis de hover, o seletor e os avisos nunca pegam o teclado.
-- Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia.
+- Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia.
 - Alt+← e o botão "voltar" do mouse voltam (veja Navegação).
 - O Esc vai primeiro para a tela (limpa uma busca, fecha um popover ou uma página, cancela uma confirmação) e depois fecha a ilha.
 - Qualquer tecla liga o modo teclado. Andar o ponteiro mais de 8 px desliga.

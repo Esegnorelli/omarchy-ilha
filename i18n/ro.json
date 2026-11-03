@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Baterie %1%, se încarcă",
   "bar.nowPlaying": "Se redă: %1",
   "bar.restartNotice": "Repornește shellul pentru a finaliza actualizarea Ilha",
-  "hint.line": "Clic: mai mult · Clic dreapta sau ține apăsat: ecrane · Alt+1–6: schimbă",
+  "hint.line": "Clic: ecrane · Alt+1–6: schimbă",
   "picker.title": "Ecrane",
   "picker.control": "Control",
   "picker.media": "Media",

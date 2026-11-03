@@ -44,7 +44,7 @@
   "bar.batteryCharging": "電池 %1%，充電中",
   "bar.nowPlaying": "正在播放：%1",
   "bar.restartNotice": "重新啟動 shell 以完成 Ilha 更新",
-  "hint.line": "點按：更多 · 右鍵或長按：畫面 · Alt+1–6：切換",
+  "hint.line": "點按：畫面 · Alt+1–6：切換",
   "picker.title": "畫面",
   "picker.control": "控制",
   "picker.media": "媒體",

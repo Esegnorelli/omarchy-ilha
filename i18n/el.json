@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Μπαταρία %1%, φόρτιση",
   "bar.nowPlaying": "Παίζει τώρα: %1",
   "bar.restartNotice": "Επανεκκινήστε το shell για να ολοκληρωθεί η ενημέρωση της Ilha",
-  "hint.line": "Κλικ: περισσότερα · Δεξί κλικ ή κράτημα: οθόνες · Alt+1–6: αλλαγή",
+  "hint.line": "Κλικ: οθόνες · Alt+1–6: αλλαγή",
   "picker.title": "Οθόνες",
   "picker.control": "Έλεγχος",
   "picker.media": "Πολυμέσα",

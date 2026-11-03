@@ -439,8 +439,10 @@ Item {
             return true;
         }
         if (h === "" || h === "privacy") {
+            // Relógio -> linha -> clique: o menu das telas (o L2 largo fica para o
+            // atalho do calendário e para as linhas de estado da marca).
             if (root.face === "hover1")
-                root.expand();
+                root.island.openPicker(root.output);
             else if (root.face === "hover2" && h === "")
                 root.collapse();
             return true;

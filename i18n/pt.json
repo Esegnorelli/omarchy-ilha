@@ -48,7 +48,7 @@
   "bar.batteryCharging": "Bateria %1%, a carregar",
   "bar.nowPlaying": "A reproduzir: %1",
   "bar.restartNotice": "Reinicie o shell para concluir a atualização da Ilha",
-  "hint.line": "Clique: mais · Botão direito ou manter: ecrãs · Alt+1–6: trocar",
+  "hint.line": "Clique: ecrãs · Alt+1–6: trocar",
   "picker.title": "Ecrãs",
   "picker.control": "Controlos",
   "picker.media": "Multimédia",

@@ -46,7 +46,7 @@
   "bar.batteryCharging": "Batteri %1%, oplader",
   "bar.nowPlaying": "Afspiller nu: %1",
   "bar.restartNotice": "Genstart shellen for at fuldføre opdateringen af Ilha",
-  "hint.line": "Klik: mere · Højreklik eller hold: skærme · Alt+1–6: skift",
+  "hint.line": "Klik: skærme · Alt+1–6: skift",
   "picker.title": "Skærme",
   "picker.control": "Kontrol",
   "picker.media": "Medier",
