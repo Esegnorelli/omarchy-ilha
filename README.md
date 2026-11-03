@@ -172,6 +172,10 @@ Regular notifications never show in the pill. Omarchy's own cards stay, because 
 
 Six screens, in one order: Apps, Control Center, Media, Themes, Wallpapers, Power. The picker, Alt+1–6, Ctrl+Tab, and the wheel all use it. Ctrl+Tab and the wheel skip Media when no player exists. A screen opens in the pill, on the focused monitor for keys and IPC, or on the monitor you clicked. Screens opened by a key, by IPC, or by a takeover start in keyboard mode. Focus rings show only in keyboard mode.
 
+### Navigation
+
+Under every open screen sits a small capsule that rides the screen's bottom edge: Back, then the six screens in the order above, with the open one marked in the accent color. A click on a screen icon switches to it. Back goes, in this order: out of a Control Center page or popover, to the screen you were on before, or, with nowhere left to go, closes the island. Alt+← and the mouse's back button do the same. Closing the island clears the history. In right-to-left languages the capsule mirrors, and Back sits on the right.
+
 ### Control Center
 
 514 × 513. Two rows of controls, then three cards.
@@ -260,6 +264,7 @@ As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 
 - A click outside an open screen closes it.
 - Keys work only while a screen is open. The hover levels, the picker, and the notices never take the keyboard.
 - Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Control Center, Media, Themes, Wallpapers, Power.
+- Alt+← and the mouse's back button go back (see Navigation).
 - Esc first goes to the screen (it clears a search, closes a popover or page, cancels a confirmation), then closes the island.
 - Any key turns keyboard mode on. Moving the pointer more than 8 px turns it off.
 
@@ -312,7 +317,7 @@ The host does not give its OSD to third-party plugins. System keys (volume, brig
 
 The pill shows:
 
-- `ilha osd '<json>'`, with the same fields as `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText`, and `duration` in ms (default 1200; `0` keeps it until a tap or `ilha closeOsd`). A value with no message draws an icon, a bar, and the value. A message draws one line. A `media` or `player` icon draws the cover with the title and artist.
+- `ilha osd '<json>'`, with the same fields as `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText`, and `duration` in ms (default 1200; `0` or `sticky` hands it to Omarchy's OSD, since the pill keeps only its own fixed notices). A value with no message draws an icon, a bar, and the value. A message draws one line. A `media` or `player` icon draws the cover with the title and artist.
 - "Keep this resolution? Reverting in 10 s", while the Display page is not on screen. A tap keeps the resolution.
 - The restart notice (see Update).
 
@@ -354,6 +359,7 @@ omarchy-shell ilha setting focusedOnly toggle
 omarchy-shell ilha open <screen>           # opens a screen, in keyboard mode
 omarchy-shell ilha toggle <screen>         # opens it, or closes it when that exact screen is open
 omarchy-shell ilha close                   # closes the open screen and the picker
+omarchy-shell ilha back                    # goes back: a Control Center page, the previous screen, or closes
 omarchy-shell ilha run <screen> <key>      # opens in keyboard mode and sends one key, e.g. run themes right
 omarchy-shell ilha picker                  # toggles the screen picker on the focused monitor
 omarchy-shell ilha hover <0|1|2>           # holds level 1 or 2 on the focused monitor; 0 releases it
@@ -401,7 +407,7 @@ Ilha draws no other bar widget and no tray. A key for a panel Ilha has no screen
 | `manifest.json` | Plugin id, version 2.0.0, and the `bar` entry `ui/Ilha.qml` |
 | `ui/Ilha.qml` | Entry point: host contract, navigation, services, settings, IPC |
 | `ui/IslandWindow.qml` | One window per monitor: the shape, the faces, the input mask, the keys |
-| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Levels 1 and 2, the rest mark, the picker, the line hint, the clock, the workspaces |
+| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `ScreenNav.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Levels 1 and 2, the rest mark, the picker, the navigation under a screen, the line hint, the clock, the workspaces |
 | `ui/PeekBridge.qml`, `PeekFace.qml` | Live notice |
 | `ui/OsdBridge.qml`, `OsdFace.qml` | OSD in the pill, resolution prompt, restart notice |
 | `ui/PickerBridge.qml` | Theme and wallpaper takeovers |

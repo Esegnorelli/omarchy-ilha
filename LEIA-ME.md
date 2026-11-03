@@ -172,6 +172,10 @@ As notificações comuns nunca aparecem na pílula. Os cartões do próprio Omar
 
 Seis telas, numa ordem só: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia. O seletor, o Alt+1–6, o Ctrl+Tab e a roda usam essa ordem. O Ctrl+Tab e a roda pulam a Mídia quando não há player. Uma tela abre na pílula, no monitor focado para teclas e IPC, ou no monitor que você clicou. Telas abertas por tecla, por IPC ou por um takeover começam no modo teclado. Os anéis de foco só aparecem no modo teclado.
 
+### Navegação
+
+Embaixo de toda tela aberta fica uma cápsula pequena, presa à borda de baixo da tela: Voltar e as seis telas na ordem acima, com a aberta marcada na cor de destaque. Um clique num ícone troca para aquela tela. O Voltar vai, nesta ordem: para fora de uma página ou popover da Central de controle, para a tela em que você estava antes ou, sem para onde voltar, fecha a ilha. Alt+← e o botão "voltar" do mouse fazem o mesmo. Fechar a ilha limpa o histórico. Nos idiomas da direita para a esquerda a cápsula espelha, e o Voltar fica à direita.
+
 ### Central de controle
 
 514 × 513. Duas linhas de controles e depois três cartões.
@@ -260,6 +264,7 @@ Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatur
 - Um clique fora de uma tela aberta fecha a tela.
 - As teclas só valem com uma tela aberta. Os níveis de hover, o seletor e os avisos nunca pegam o teclado.
 - Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Central de controle, Mídia, Temas, Papéis de parede, Energia.
+- Alt+← e o botão "voltar" do mouse voltam (veja Navegação).
 - O Esc vai primeiro para a tela (limpa uma busca, fecha um popover ou uma página, cancela uma confirmação) e depois fecha a ilha.
 - Qualquer tecla liga o modo teclado. Andar o ponteiro mais de 8 px desliga.
 
@@ -312,7 +317,7 @@ O host não entrega o OSD dele para plugins de terceiros. As teclas do sistema (
 
 A pílula mostra:
 
-- `ilha osd '<json>'`, com os mesmos campos do `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText` e `duration` em ms (padrão 1200; `0` deixa na tela até um toque ou `ilha closeOsd`). Um valor sem mensagem desenha um ícone, uma barra e o valor. Uma mensagem desenha uma linha. Um ícone `media` ou `player` desenha a capa com o título e o artista.
+- `ilha osd '<json>'`, com os mesmos campos do `omarchy-shell osd show`: `icon`, `message`, `value`, `max`, `progressText` e `duration` em ms (padrão 1200; `0` ou `sticky` passam para o OSD do Omarchy, porque a pílula só guarda os próprios avisos fixos). Um valor sem mensagem desenha um ícone, uma barra e o valor. Uma mensagem desenha uma linha. Um ícone `media` ou `player` desenha a capa com o título e o artista.
 - "Manter esta resolução? Revertendo em 10 s", enquanto a página Tela não está à vista. O toque mantém a resolução.
 - O aviso de reinício (veja Atualizar).
 
@@ -354,6 +359,7 @@ omarchy-shell ilha setting focusedOnly toggle
 omarchy-shell ilha open <tela>             # abre uma tela, no modo teclado
 omarchy-shell ilha toggle <tela>           # abre, ou fecha quando essa mesma tela está aberta
 omarchy-shell ilha close                   # fecha a tela aberta e o seletor
+omarchy-shell ilha back                    # volta: uma página da Central, a tela anterior ou fecha
 omarchy-shell ilha run <tela> <tecla>      # abre no modo teclado e manda uma tecla, ex.: run themes right
 omarchy-shell ilha picker                  # alterna o seletor de telas no monitor focado
 omarchy-shell ilha hover <0|1|2>           # segura o nível 1 ou 2 no monitor focado; 0 solta
@@ -401,7 +407,7 @@ A Ilha não desenha nenhum outro widget de barra nem a bandeja. Uma tecla de um 
 | `manifest.json` | Id, versão 2.0.0 e a entrada `bar` `ui/Ilha.qml` |
 | `ui/Ilha.qml` | Entrada: contrato com o host, navegação, serviços, ajustes, IPC |
 | `ui/IslandWindow.qml` | Uma janela por monitor: a forma, as faces, a máscara de entrada, as teclas |
-| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Níveis 1 e 2, a marca do repouso, o seletor, a dica da linha, o relógio, os workspaces |
+| `ui/HoverBar.qml`, `RestMark.qml`, `ScreenPicker.qml`, `ScreenNav.qml`, `LineHint.qml`, `HeroClock.qml`, `Workspaces.qml` | Níveis 1 e 2, a marca do repouso, o seletor, a navegação embaixo da tela, a dica da linha, o relógio, os workspaces |
 | `ui/PeekBridge.qml`, `PeekFace.qml` | Aviso ao vivo |
 | `ui/OsdBridge.qml`, `OsdFace.qml` | OSD na pílula, pergunta da resolução, aviso de reinício |
 | `ui/PickerBridge.qml` | Takeovers dos seletores de tema e de papel de parede |

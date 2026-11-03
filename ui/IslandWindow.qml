@@ -111,6 +111,9 @@ PanelWindow {
         return win.theme.zoneFor(win.face, win.targetGeom, c);
     }
     readonly property var strip: win.theme ? win.theme.stripRect(win.ctx) : ({ x: 0, y: 0, w: 0, h: 0 })
+    // Navegação abaixo da tela aberta (alvo, como a zona).
+    readonly property bool navOn: win.face === "screen" && win.inputOn && !!win.island && win.island.screen !== ""
+    readonly property var navRect: win.theme && win.navOn ? win.theme.navRect(win.targetGeom, win.ctx) : ({ x: 0, y: 0, w: 0, h: 0 })
     readonly property bool inputOn: !!win.island && (win.island.barHidden ? win.face === "screen" : (win.inputAllowed || win.face === "screen"))
     readonly property bool stripOn: !!win.island && win.face !== "screen" && win.inputAllowed && win.drawsPill && !win.island.barHidden
 
@@ -158,6 +161,12 @@ PanelWindow {
             y: 0
             width: win.stripOn ? win.strip.w : 0
             height: win.stripOn ? win.strip.h : 0
+        }
+        Region {
+            x: win.navRect.x
+            y: win.navRect.y
+            width: win.navOn ? win.navRect.w : 0
+            height: win.navOn ? win.navRect.h : 0
         }
     }
 
@@ -505,6 +514,7 @@ PanelWindow {
         const r = v => Math.round(v * 10) / 10;
         return {
             face: win.face,
+            nav: { on: win.navOn, rect: win.navRect, opacity: r(nav.opacity), y: r(nav.y), canBack: nav.canBack },
             drawsPill: win.drawsPill,
             isFocused: win.isFocused,
             restFadingOut: win.restFadingOut,
@@ -708,6 +718,12 @@ PanelWindow {
                 }
                 onLongPressed: win.secondary()
             }
+            // Botão "voltar" do mouse sobre a tela aberta.
+            TapHandler {
+                acceptedButtons: Qt.BackButton
+                enabled: win.face === "screen"
+                onTapped: win.navBack()
+            }
         }
 
         // Faixa invisível de 3 px na borda de cima: só abre o L1 (§8.1).
@@ -889,6 +905,25 @@ PanelWindow {
             topY: (win.theme ? win.theme.px.L1_TOP + win.theme.px.L1_H + win.theme.px.HINT_GAP : 72)
             screenW: win.screenW
         }
+
+        // Navegação: Voltar e as seis telas, presa à borda de baixo do painel.
+        ScreenNav {
+            id: nav
+            theme: win.theme
+            strings: win.island ? win.island.strings : null
+            glassy: !!win.island && win.island.glassy
+            rtl: !!win.island && win.island.rtl
+            shown: win.navOn
+            cx: win.cx
+            topY: pill.top + pill.h + (win.theme ? win.theme.px.NAV_GAP : 8)
+            current: win.island ? win.island.screen : ""
+            canBack: !!win.island && win.island.canGoBack
+            onBack: win.navBack()
+            onPick: id => {
+                if (win.island && id !== win.island.screen)
+                    win.island.open(id, win.output);
+            }
+        }
     }
 
     // ---- Dica da linha (§7): primeira face hover1 da sessão ----
@@ -993,6 +1028,11 @@ PanelWindow {
             win.island.cycle(k === Qt.Key_Backtab || (mods & Qt.ShiftModifier) ? -1 : 1);
             return true;
         }
+        if (k === Qt.Key_Left && mods === Qt.AltModifier) {
+            if (!event.isAutoRepeat)
+                win.navBack();
+            return true;
+        }
         if (k >= Qt.Key_1 && k <= Qt.Key_6 && mods === Qt.AltModifier) {
             if (!event.isAutoRepeat)
                 win.altScreen(k - Qt.Key_1);
@@ -1005,6 +1045,16 @@ PanelWindow {
             return true;
         }
         return false;
+    }
+
+    // Voltar: a subpágina da Central fecha antes; depois, a tela anterior;
+    // sem histórico, fecha.
+    function navBack() {
+        if (!win.island || win.face !== "screen")
+            return false;
+        if (stack.handleBack())
+            return true;
+        return win.island.back();
     }
 
     function altScreen(i) {
@@ -1049,6 +1099,12 @@ PanelWindow {
             enabled: win.face === "screen"
             autoRepeat: true
             onActivated: if (win.island) win.island.cycle(-1)
+        }
+        Shortcut {
+            sequence: "Alt+Left"
+            enabled: win.face === "screen"
+            autoRepeat: false
+            onActivated: win.navBack()
         }
         Shortcut {
             sequence: "Alt+1"

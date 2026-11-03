@@ -87,6 +87,10 @@ Item {
     property var screenPayload: ({})
     property bool keyboardMode: false
     property string lastScreen: "control"
+    // Telas por onde se passou desde a abertura ({id, payload}), a mais
+    // recente no fim. Voltar desempilha; fechar limpa.
+    property var screenHistory: []
+    readonly property bool canGoBack: island.screenHistory.length > 0
     // Monitor com o L2 aberto ("" = nenhum) e a linha fixada (amendments §5.1).
     property string expandedOutput: ""
     property string expandedPin: ""
@@ -246,6 +250,12 @@ Item {
         if (!r)
             return false;
         const p = Object.assign({}, r.payload, payload || ({}));
+        // Troca entre telas diferentes: guarda a de agora para o Voltar.
+        if (!priv.goingBack && island.screen !== "" && island.screen !== r.id) {
+            const h = island.screenHistory.slice(-9);
+            h.push({ id: island.screen, payload: island.screenPayload });
+            island.screenHistory = h;
+        }
         island.closePicker();
         island.peek.end();
         island.expandedOutput = "";
@@ -276,7 +286,34 @@ Item {
         return island.open(id, output);
     }
 
+    // Voltar (navegação, Alt+←, botão "voltar" do mouse): a tela anterior
+    // com o payload dela; sem histórico, fecha.
+    function back() {
+        if (island.screen === "")
+            return false;
+        const h = island.screenHistory.slice();
+        const prev = h.pop();
+        if (!prev) {
+            island.close();
+            return true;
+        }
+        island.screenHistory = h;
+        priv.goingBack = true;
+        island.open(prev.id, island.screenOutput, prev.payload);
+        priv.goingBack = false;
+        return true;
+    }
+
+    // O Voltar da janela da tela (a subpágina da Central fecha antes).
+    function navBack() {
+        const win = priv.windows[island.screenOutput];
+        if (win && typeof win.navBack === "function")
+            return win.navBack();
+        return island.back();
+    }
+
     function close() {
+        island.screenHistory = [];
         island.screen = "";
         island.screenSub = "";
         island.screenPayload = ({});
@@ -564,6 +601,7 @@ Item {
             screenBarSizes: island.screenBarSizes,
             screen: island.screen,
             sub: island.screenSub,
+            history: island.screenHistory.map(e => e.id),
             output: island.screenOutput,
             faces: island.faces,
             expanded: island.expandedOutput,
@@ -605,6 +643,8 @@ Item {
 
     QtObject {
         id: priv
+        // back() em curso: o open() dele não empilha a tela de agora.
+        property bool goingBack: false
         property var faces: ({})
         property var windows: ({})
         property var pendingRun: null
@@ -738,6 +778,10 @@ Item {
         function close(): string {
             island.close();
             return "ok";
+        }
+        // Voltar: subpágina da Central, tela anterior ou fechar.
+        function back(): string {
+            return island.navBack() ? "ok" : "closed";
         }
         function run(target: string, key: string): string {
             return island.runKey(String(target), String(key));

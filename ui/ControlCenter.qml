@@ -248,6 +248,14 @@ Item {
         notifications.clearFocus();
     }
 
+    // Voltar da navegação: fecha a subpágina ou o popover aberto.
+    function handleBack() {
+        if (priv.sub === "")
+            return false;
+        root.closeSub();
+        return true;
+    }
+
     function handleKey(event) {
         // Enter/Espaço segurado não repete a ação: o repeat do Hyprland (40/s)
         // ligaria e desligaria o Wi-Fi, o Bluetooth ou um ajuste em rajada.

@@ -141,6 +141,9 @@ var FADE = {
     HINT_IN: { delay: 180, dur: 120, dyFrom: -4 },
     HINT_OUT: 150,
     HINT_OUT_FAST: 60,
+    // Navegação abaixo da tela: entra depois do painel começar a abrir.
+    NAV_IN: { delay: 90, dur: 120, dyFrom: -4 },
+    NAV_OUT: 60,
     // Destaque de linha / cartão (raised -> rowHover -> raised)
     FLASH: { in: 150, hold: 300, out: 450 },
     // focusedOnly: a janela que perde / ganha o foco

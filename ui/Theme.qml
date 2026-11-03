@@ -186,6 +186,8 @@ QtObject {
         PEEK_H: 40, PEEK_TOP: 10, PEEK_CAP: 20, PEEK_MIN_W: 160, PEEK_MAX_W: 480, PEEK_GLYPH: 18,
         // Dica da linha
         HINT_H: 26, HINT_GAP: 8, HINT_MAX_W: 560, HINT_MIN_W: 120,
+        // Navegação abaixo da tela aberta (cabe no PANEL_BOTTOM_GAP: 8 + 40 < 72)
+        NAV_H: 40, NAV_GAP: 8, NAV_PAD: 6, NAV_PITCH: 36, NAV_DIV: 9,
         // Borda de cima e roda
         STRIP_W: 600, STRIP_H: 3, WHEEL_BAND: 14,
         // Ordem única das telas (seletor, Alt+1..6, Ctrl+Tab, roda)
@@ -304,6 +306,14 @@ QtObject {
         default:
             return box(P.ZONE_REST_PAD, P.ZONE_REST_H);
         }
+    }
+
+    // Retângulo-alvo da navegação abaixo de uma tela (geom = geometryFor("screen")).
+    function navRect(geom, ctx) {
+        const P = theme.px;
+        const sw = Number((ctx || {}).screenW) || 1920;
+        const w = 2 * P.NAV_PAD + P.NAV_PITCH + P.NAV_DIV + P.SCREEN_ORDER.length * P.NAV_PITCH;
+        return { x: Math.floor(sw / 2 - w / 2), y: Math.floor(geom.top + geom.h + P.NAV_GAP), w: Math.ceil(w), h: P.NAV_H };
     }
 
     // Faixa invisível de 3 px na borda de cima (só abre o L1).

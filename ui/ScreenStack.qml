@@ -144,6 +144,13 @@ Item {
         return !!c && typeof c.handleEscape === "function" && c.handleEscape() === true;
     }
 
+    // Voltar dentro da tela (subpágina da Central). false = a tela não tem
+    // para onde voltar e a navegação vai para a tela anterior.
+    function handleBack() {
+        const c = root.current;
+        return !!c && typeof c.handleBack === "function" && c.handleBack() === true;
+    }
+
     // Teclas que sobem de dentro da tela (um campo com foco) sem ninguém
     // aceitar: só as globais (Ctrl+Tab, Alt+n, Esc). A tela já viu a tecla.
     Keys.onPressed: event => {
