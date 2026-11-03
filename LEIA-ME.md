@@ -18,7 +18,7 @@ O `omarchy plugin add` clona o repositório e valida o `manifest.json`. O `--ena
 
 Fora da própria pasta, a Ilha só grava isto:
 
-- As duas chaves de ajuste, no `~/.config/omarchy/shell.json` do próprio Omarchy, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`). Só quando você vira uma chave ou roda `ilha setting` (veja Ajustes).
+- As chaves de ajuste, no `~/.config/omarchy/shell.json` do próprio Omarchy, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`). Só quando você vira uma chave ou roda `ilha setting` (veja Ajustes).
 - O próprio estado, em `~/.local/state/esegnorelli.ilha/` (`$XDG_STATE_HOME`, quando definido): `state.json` (quando você tocou em Limpar nas notificações pela última vez, e a temperatura da luz noturna) e `game-mode.json` enquanto o Modo jogo está ligado.
 - A resposta ao alternador de fundo do Omarchy, nos dois arquivos de resposta que esse script cria e espera (veja Teclas de tema e de papel de parede).
 
@@ -62,9 +62,9 @@ Se a Ilha não carregar, o Omarchy volta sozinho para `omarchy.bar`.
 
 ## O que aparece
 
-Uma ilha por monitor, centrada no alto. Ela reserva 48 px no alto de cada monitor (`barSize` 48), então as janelas começam abaixo dela. A pílula cresce por cima das janelas; elas não se mexem. A ilha fica na camada top. Uma tela aberta por cima de uma janela em tela cheia passa para a camada overlay, para aparecer por cima dela.
+Uma ilha por monitor, centrada no alto. Ela flutua por cima das janelas: nada fica reservado no alto, então as janelas usam a tela inteira e a pílula fica por cima delas. Ligue `reserveTop` (veja Ajustes) para reservar 48 px, como uma barra comum, e as janelas começarem abaixo dela. Nos dois casos a pílula cresce por cima das janelas; elas não se mexem. As notificações e os popups do Omarchy continuam deixando 48 px livres no alto. A ilha fica na camada top. Uma tela aberta por cima de uma janela em tela cheia passa para a camada overlay, para aparecer por cima dela.
 
-Com a barra escondida (`omarchy toggle bar`), a pílula e os 48 px dela somem. As telas abertas por tecla ou por IPC continuam aparecendo.
+Com a barra escondida (`omarchy toggle bar`), a pílula (e os 48 px, com `reserveTop`) some. As telas abertas por tecla ou por IPC continuam aparecendo.
 
 | Estado | O que está na pílula |
 |---|---|
@@ -337,15 +337,17 @@ O OSD aparece no monitor focado. O toque num OSD de volume abre Central de contr
 
 Duas chaves, em Central de controle › Ajustes da Ilha (o primeiro botão da fileira de atalhos do cartão de notificações), ou com `omarchy-shell ilha open settings`:
 
-- **Só no monitor focado** (`focusedOnly`, desligada por padrão): "Os outros monitores ficam sem a pílula". Só o monitor focado do Hyprland desenha a pílula em repouso. Os outros monitores não desenham nada e não recebem entrada até o foco ir para eles. Todo monitor mantém os seus 48 px, então as janelas não se mexem quando o foco muda.
+- **Só no monitor focado** (`focusedOnly`, desligada por padrão): "Os outros monitores ficam sem a pílula". Só o monitor focado do Hyprland desenha a pílula em repouso. Os outros monitores não desenham nada e não recebem entrada até o foco ir para eles. Com `reserveTop`, todo monitor mantém os seus 48 px, então as janelas não se mexem quando o foco muda.
 - **Aviso ao vivo** (`livePeek`, ligada por padrão): "Uma frase curta quando algo liga". Desligada, nenhum aviso ao vivo aparece.
+
+Uma chave a mais não tem botão: **`reserveTop`** (desligada por padrão). Ligada, a Ilha reserva 48 px no alto de cada monitor e as janelas começam abaixo dela. Desligada, a ilha flutua por cima das janelas. Ligue com `omarchy-shell ilha setting reserveTop true`; vale na hora.
 
 A página também mostra a versão.
 
-A Ilha guarda as duas em `~/.config/omarchy/shell.json`, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`), que grava o arquivo de forma atômica. Ela só muda a chave que você virou, e só quando você vira uma chave ou roda `ilha setting`. Nada é gravado na instalação nem na partida. A pílula lê as chaves ao vivo, então uma edição à mão do `shell.json` também vale. Sem a API do host, a escolha só dura até o shell reiniciar, e a página diz "Vale até o shell reiniciar".
+A Ilha guarda as chaves em `~/.config/omarchy/shell.json`, sob `bar.ilha`, pela API de plugins do host (`mutateShellConfig`), que grava o arquivo de forma atômica. Ela só muda a chave que você virou, e só quando você vira uma chave ou roda `ilha setting`. Nada é gravado na instalação nem na partida. A pílula lê as chaves ao vivo, então uma edição à mão do `shell.json` também vale. Sem a API do host, a escolha só dura até o shell reiniciar, e a página diz "Vale até o shell reiniciar".
 
 ```json
-"bar": { "ilha": { "focusedOnly": false, "livePeek": true } }
+"bar": { "ilha": { "focusedOnly": false, "livePeek": true, "reserveTop": false } }
 ```
 
 ```bash
@@ -366,7 +368,7 @@ omarchy-shell ilha hover <0|1|2>           # segura o nível 1 ou 2 no monitor f
 omarchy-shell ilha peek <chave>            # mostra um aviso ao vivo agora
 omarchy-shell ilha osd '<json>'            # mostra um OSD na pílula
 omarchy-shell ilha closeOsd                # esconde o OSD da pílula
-omarchy-shell ilha setting <chave> <valor> # focusedOnly | livePeek; true | false | toggle
+omarchy-shell ilha setting <chave> <valor> # focusedOnly | livePeek | reserveTop; true | false | toggle
 omarchy-shell ilha state                   # imprime o estado em JSON
 ```
 

@@ -1,10 +1,11 @@
 import QtQuick
 
-// Preferências da Ilha: as duas chaves da página "Ilha" (Central de controle).
+// Preferências da Ilha: as duas chaves da página "Ilha" (Central de controle)
+// e reserveTop, só por `ilha setting` ou edição do shell.json.
 // FINAL do Phase 0 (dono: lead). Porte do Prefs.qml da 1.x.
 //
 // Onde ficam: em ~/.config/omarchy/shell.json, dentro da barra:
-//   "bar": { …, "ilha": { "focusedOnly": false, "livePeek": true } }
+//   "bar": { …, "ilha": { "focusedOnly": false, "livePeek": true, "reserveTop": false } }
 //
 // Por quê: a gravação passa pela API do host (shell.mutateShellConfig), que
 // copia a barra, entrega ao mutador e grava o arquivo inteiro de forma
@@ -20,6 +21,9 @@ import QtQuick
 //
 //   focusedOnly  (false)  só o monitor focado do Hyprland desenha a cápsula
 //   livePeek     (true)   o aviso ao vivo cresce e volta sozinho
+//   reserveTop   (false)  reserva os 48 px do topo para a barra (as janelas
+//                         começam abaixo). Desligada, a ilha flutua por cima
+//                         das janelas e elas usam a tela inteira.
 //
 // A chave level2Dwell da 1.x não existe mais: o nível 2 abre só no clique.
 // Ela é ignorada na leitura e apagada na próxima gravação.
@@ -31,7 +35,7 @@ QtObject {
     property var barConfig: null
 
     // As únicas chaves aceitas, com o padrão de cada uma.
-    readonly property var defaults: ({ focusedOnly: false, livePeek: true })
+    readonly property var defaults: ({ focusedOnly: false, livePeek: true, reserveTop: false })
 
     // Há host para gravar? Sem ele, a página avisa que vale até reiniciar.
     readonly property bool canPersist: !!root.shell && typeof root.shell.mutateShellConfig === "function"
@@ -60,6 +64,7 @@ QtObject {
 
     readonly property bool focusedOnly: root.pick("focusedOnly", false)
     readonly property bool livePeek: root.pick("livePeek", true)
+    readonly property bool reserveTop: root.pick("reserveTop", false)
 
     // Grava só a chave que mudou. true quando a escolha valeu (no arquivo ou
     // na memória); false para uma chave desconhecida.

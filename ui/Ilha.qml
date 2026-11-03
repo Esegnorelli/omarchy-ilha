@@ -609,7 +609,7 @@ Item {
             osd: { showing: island.osd.showing, output: island.osd.output, lastShownAt: island.osd.lastShownAt },
             keyboardMode: island.keyboardMode,
             takeovers: { osd: island.osd.takeover, backgrounds: island.pickers.takeoverBackgrounds, themes: island.pickers.takeoverThemes },
-            prefs: { focusedOnly: island.prefs.focusedOnly, livePeek: island.prefs.livePeek, canPersist: island.prefs.canPersist },
+            prefs: { focusedOnly: island.prefs.focusedOnly, livePeek: island.prefs.livePeek, reserveTop: island.prefs.reserveTop, canPersist: island.prefs.canPersist },
             peek: { showing: island.peek.showing, key: island.peek.key, output: island.peek.output, pending: island.peek.pending },
             picker: island.pickerOutput,
             lineHintSeen: island.lineHintSeen,

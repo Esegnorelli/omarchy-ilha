@@ -141,7 +141,9 @@ PanelWindow {
     surfaceFormat.opaque: false
     visible: !win.island || win.island.devShown
     exclusionMode: ExclusionMode.Normal
-    exclusiveZone: !win.island || win.island.dev || win.island.barHidden ? 0 : win.island.barSize
+    // Por padrão a ilha flutua por cima das janelas (elas usam a tela inteira);
+    // bar.ilha.reserveTop reserva a faixa de cima como uma barra comum.
+    exclusiveZone: !win.island || win.island.dev || win.island.barHidden || !win.island.prefs.reserveTop ? 0 : win.island.barSize
     WlrLayershell.namespace: "omarchy-bar"
     // Top mantém o scanout direto da tela cheia; Overlay só com uma tela
     // aberta por cima de uma janela em tela cheia (e sempre no harness).

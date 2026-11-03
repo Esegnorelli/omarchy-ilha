@@ -18,7 +18,7 @@ omarchy plugin add https://github.com/Esegnorelli/omarchy-ilha.git --enable
 
 Outside its own folder, Ilha writes only these:
 
-- Its two settings, in Omarchy's own `~/.config/omarchy/shell.json` under `bar.ilha`, through the host's plugin API (`mutateShellConfig`). Only when you flip a switch or run `ilha setting` (see Settings).
+- Its settings, in Omarchy's own `~/.config/omarchy/shell.json` under `bar.ilha`, through the host's plugin API (`mutateShellConfig`). Only when you flip a switch or run `ilha setting` (see Settings).
 - Its own state, in `~/.local/state/esegnorelli.ilha/` (`$XDG_STATE_HOME` when set): `state.json` (when you last pressed Clear in the notifications, and the night light temperature) and `game-mode.json` while Game Mode is on.
 - The answer to Omarchy's background switcher, in the two reply files that script creates and waits on (see Theme and wallpaper keys).
 
@@ -62,9 +62,9 @@ If Ilha fails to load, Omarchy falls back to `omarchy.bar` on its own.
 
 ## What you see
 
-One island per monitor, centred at the top. It reserves 48 px at the top of each monitor (`barSize` 48), so windows start below it. The pill grows over the windows; they do not move. The island sits on the top layer. A screen opened over a fullscreen window moves to the overlay layer, so it shows above it.
+One island per monitor, centred at the top. It floats over the windows: nothing is reserved at the top, so windows use the whole screen and the pill sits on top of them. Set `reserveTop` (see Settings) to reserve 48 px instead, like a regular bar, so windows start below it. Either way the pill grows over the windows; they do not move. Omarchy's notifications and popups still keep 48 px clear of the top. The island sits on the top layer. A screen opened over a fullscreen window moves to the overlay layer, so it shows above it.
 
-With the bar hidden (`omarchy toggle bar`), the pill and its 48 px go away. Screens opened by a key or by IPC still appear.
+With the bar hidden (`omarchy toggle bar`), the pill (and the 48 px, with `reserveTop`) goes away. Screens opened by a key or by IPC still appear.
 
 | State | What is on the pill |
 |---|---|
@@ -337,15 +337,17 @@ The OSD shows on the focused monitor. A tap on a volume OSD opens Control Center
 
 Two switches, in Control Center › Ilha settings (the first button in the Notifications card's shortcut row), or with `omarchy-shell ilha open settings`:
 
-- **Focused monitor only** (`focusedOnly`, off by default): "Other monitors show no pill". Only Hyprland's focused monitor draws the pill at rest. The other monitors draw nothing and take no input until the focus moves there. Every monitor keeps its 48 px, so windows do not move when the focus moves.
+- **Focused monitor only** (`focusedOnly`, off by default): "Other monitors show no pill". Only Hyprland's focused monitor draws the pill at rest. The other monitors draw nothing and take no input until the focus moves there. With `reserveTop`, every monitor keeps its 48 px, so windows do not move when the focus moves.
 - **Live notice** (`livePeek`, on by default): "A short sentence when something turns on". Off, no live notice appears.
+
+One more key has no switch: **`reserveTop`** (off by default). On, Ilha reserves 48 px at the top of each monitor and windows start below it. Off, the island floats over the windows. Turn it on with `omarchy-shell ilha setting reserveTop true`; it applies at once.
 
 The page also shows the version.
 
-Ilha stores them in `~/.config/omarchy/shell.json`, under `bar.ilha`, through the host's plugin API (`mutateShellConfig`), which writes the file atomically. It changes only the key you flipped, and only when you flip a switch or run `ilha setting`. Nothing is written at install or at start. The pill reads them live, so a hand edit of `shell.json` counts too. Without the host API, a choice lasts until the shell restarts, and the page says "Saved until the shell restarts".
+Ilha stores the keys in `~/.config/omarchy/shell.json`, under `bar.ilha`, through the host's plugin API (`mutateShellConfig`), which writes the file atomically. It changes only the key you flipped, and only when you flip a switch or run `ilha setting`. Nothing is written at install or at start. The pill reads them live, so a hand edit of `shell.json` counts too. Without the host API, a choice lasts until the shell restarts, and the page says "Saved until the shell restarts".
 
 ```json
-"bar": { "ilha": { "focusedOnly": false, "livePeek": true } }
+"bar": { "ilha": { "focusedOnly": false, "livePeek": true, "reserveTop": false } }
 ```
 
 ```bash
@@ -366,7 +368,7 @@ omarchy-shell ilha hover <0|1|2>           # holds level 1 or 2 on the focused m
 omarchy-shell ilha peek <key>              # shows a live notice now
 omarchy-shell ilha osd '<json>'            # shows an OSD in the pill
 omarchy-shell ilha closeOsd                # hides the pill's OSD
-omarchy-shell ilha setting <key> <value>   # focusedOnly | livePeek; true | false | toggle
+omarchy-shell ilha setting <key> <value>   # focusedOnly | livePeek | reserveTop; true | false | toggle
 omarchy-shell ilha state                   # prints the state as JSON
 ```
 
