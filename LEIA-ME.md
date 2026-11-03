@@ -68,49 +68,36 @@ Com a barra escondida (`omarchy toggle bar`), a pílula (e os 48 px, com `reserv
 
 | Estado | O que está na pílula |
 |---|---|
-| Repouso | O relógio, numa cápsula de 32 px de altura, a 10 px da borda de cima. Com algo ligado, uma marca fica ao lado do relógio. |
-| Nível 1 | O ponteiro está na pílula. Uma linha de 42 px de altura, a 22 px do alto: os workspaces deste monitor em cápsulas numeradas, o relógio e o grupo de estado. |
-| Nível 2 | Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) ou um toque na marca do repouso. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
-| Seletor de telas | Um clique no nível 1 ou no relógio, o botão direito ou um toque longo. Seis ícones numa cápsula de 236 × 42. |
+| Repouso | Só a hora, numa cápsula de 32 px de altura, a 10 px da borda de cima. Durante uma gravação, uma marca vermelha e o tempo gravado ficam ao lado. |
+| Ícones | O ponteiro está na pílula. As seis telas como ícones, numa cápsula de 236 × 42. |
+| Nível 2 | Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) ou um toque na marca de gravação. Uma pílula de 718 × 75: o app em foco sobre os workspaces, um relógio grande com a data e a linha de estado sobre rede e bateria. |
 | Aviso ao vivo | Algo acabou de ligar. Uma linha curta, de 40 px de altura. |
 | OSD | `ilha osd`, a pergunta da resolução ou o aviso de reinício. 40 px de altura. |
 | Tela | Uma das seis telas, na mesma forma. |
 
 ### Repouso
 
-O relógio mostra `HH:mm` com os algarismos do idioma. Ele fica em 12 horas (`h:mm`, sem AM/PM) quando a entrada `omarchy.clock` do layout da barra no `shell.json` tem um `format` com `AP`.
+Só a hora: `HH:mm` nos algarismos do idioma. Fica em 12 horas (`h:mm`, sem AM/PM) quando a entrada `omarchy.clock` do layout da barra no `shell.json` tem um `format` com `AP`.
 
-Com algo ligado, a cápsula alarga e uma marca fica ao lado do relógio (à esquerda dele; à direita nos idiomas da direita para a esquerda):
+A única exceção é a gravação, por privacidade: uma marca vermelha e o tempo gravado (`0:42`) ficam ao lado do relógio (à esquerda; à direita nos idiomas da direita para a esquerda). Com o ponteiro em cima da marca, a pílula fica em repouso para o toque cair nela; o toque abre o nível 2 fixado na gravação, onde um clique para a gravação. Os outros estados (Não perturbe, luz noturna, manter acordado, lembretes, atualizações) aparecem como aviso ao vivo quando ligam, e no nível 2.
 
-- O ícone do primeiro estado ligado, na cor dele, nesta ordem: sessão remota, sudo sem senha, gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado.
-- Gravando, o tempo da gravação vem depois do ícone (`0:42`). O relógio em si fica em minutos.
-- Com música tocando, três barrinhas na cor de destaque ficam encostadas no relógio. Elas não se mexem. Um player pausado não mostra nenhuma. Só com música ligada, as barrinhas são a marca inteira.
+### Ícones
 
-As notificações não fazem parte da marca.
+O ponteiro na pílula, no vão acima dela ou na faixa de cima transforma o relógio em seis ícones: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. É a mesma ordem do Alt+1–6. Um toque num ícone abre a tela dele. A Mídia está sempre lá; sem player, abre "Nada tocando". Saia por 250 ms e a pílula volta para o relógio.
 
-Com o ponteiro em cima da marca, a pílula fica em repouso e a marca se destaca, para o toque cair nela. Em qualquer outro lugar, o ponteiro abre o nível 1 na hora.
-
-- O toque na marca abre o dono dela. Sessão remota, sudo sem senha, gravação, lembrete e atualização abrem o nível 2 com esse estado fixado na linha de estado. Não perturbe e luz noturna abrem a Central de controle. Manter acordado abre Central de controle › Tela com o cartão Manter acordado em destaque.
-- O toque nas barrinhas da música abre a Mídia.
-- Um estado fixado fica na linha de estado enquanto estiver ligado. Depois do clique que o desliga (parar a gravação, por exemplo), a linha volta à ordem de sempre.
-
-### Nível 1
-
-O ponteiro na pílula, no vão acima dela ou na faixa da borda de cima abre o nível 1 na hora. Ao sair por 60 ms, volta o repouso.
-
-- Workspaces: o bloco deste monitor (1–10, 11–20, …), os cinco primeiros e mais os de número maior que já existirem. O algarismo fica dentro de cada cápsula; o workspace 10 aparece como `10`. O ativo é maior, na cor de destaque, com um brilho. Os ocupados levam um tom da cor de destaque. Os vazios são apagados. Os urgentes usam a cor de urgência.
-- Grupo de estado, nesta ordem: as barrinhas da música (com uma faixa carregada; mexem enquanto toca e ficam apagadas na pausa), o ponto de privacidade (gravação, sessão remota ou sudo sem senha; pulsa enquanto grava), a rede (barras do Wi-Fi, um ícone de cabo ou sem conexão) e a bateria (só em notebooks; um raio na tomada; a cor de urgência com 15 % ou menos na bateria).
-- O clique numa cápsula foca esse workspace. O clique nas barrinhas da música abre a Mídia. O clique em qualquer outro lugar abre o seletor de telas: o relógio, depois a linha, depois as telas.
+Um clique no relógio (uma tela de toque não tem hover), o botão direito ou um toque longo (0,5 s) também mostram os ícones. Abertos assim, eles fecham sozinhos 2,6 s depois se o ponteiro nunca chegar neles, ou 0,7 s depois que o ponteiro sai. Eles não abrem com uma tela aberta nem com a barra escondida.
 
 ### Nível 2
 
-O Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) abre, e também um toque na marca do repouso de gravação, lembrete ou atualização, com essa linha de estado fixada. Um clique no nível 1 abre o seletor de telas. Ele fica enquanto o ponteiro estiver em cima e fecha 2,5 s depois de o ponteiro sair. Super+Ctrl+Alt+D alterna o nível 2 no monitor focado.
+### Nível 2
+
+O Super+Ctrl+Alt+D (a tecla de calendário do Omarchy) alterna o nível 2 no monitor focado. Um toque na marca de gravação, ou no aviso ao vivo de uma gravação, um lembrete ou uma atualização, abre com essa linha de estado fixada. Ele fica enquanto o ponteiro estiver em cima e fecha 2,5 s depois de o ponteiro sair.
 
 - Esquerda: o ícone e o nome do app da janela em foco, ou "Área de trabalho" quando o workspace não tem janela. Quando a janela em foco é o player de música, o título e o artista. Embaixo, os workspaces, maiores.
 - Centro: o relógio, maior, e a data no formato do idioma.
 - Direita: a linha de estado, sobre rede e bateria.
 
-Uma cápsula foca o workspace dela. A linha do app abre os Apps (a Mídia quando mostra o player). O relógio e a data abrem a Central de controle. A linha de estado executa a ação dela. O espaço vazio volta ao nível 1.
+Uma cápsula foca o workspace dela. A linha do app abre os Apps (a Mídia quando mostra o player). O relógio e a data abrem a Central de controle. A linha de estado executa a ação dela. O espaço vazio mostra os ícones.
 
 A linha de estado mostra o primeiro que casar:
 
@@ -127,23 +114,9 @@ A linha de estado mostra o primeiro que casar:
 | Não perturbe | "Não perturbe" | Desliga |
 | Nada | "Tudo em dia" | Central de controle |
 
-### Seletor de telas
-
-Um clique no nível 1 ou no relógio em repouso, o botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra seis ícones: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia. É a mesma ordem do Alt+1–6. Os ícones não têm rótulo.
-
-- O toque num ícone abre aquela tela. A Mídia está sempre lá; sem player, abre "Nada tocando".
-- O toque entre os ícones, ou outro clique direito, fecha o seletor.
-- Ele fecha sozinho 2,6 s depois de abrir se o ponteiro não chegar nele, ou 0,7 s depois de o ponteiro sair dele.
-- Ele não abre com uma tela aberta nem com a barra escondida.
-- O toque longo numa cápsula de workspace não foca o workspace.
-
-### Dica da linha
-
-Na primeira vez que o nível 1 abre numa sessão, uma etiqueta pequena aparece embaixo dele por 3 s: "Clique: telas · Alt+1–6: trocar". Ela some quando a linha fecha. Não aparece com a barra escondida nem com o aviso de reinício na tela. Não é gravada, então a próxima sessão mostra de novo.
-
 ### Borda de cima
 
-Uma faixa invisível de 3 px nos 600 px do centro da borda de cima (menos em telas estreitas) abre o nível 1, nunca o nível 2. Em cima da marca, a pílula fica em repouso, então levar o ponteiro até o alto sobre a marca e clicar abre o dono da marca.
+Uma faixa invisível de 3 px nos 600 px centrais da borda de cima (menos em telas estreitas) mostra os ícones, nunca o nível 2. Em cima da marca de gravação, a pílula fica em repouso, então empurrar o ponteiro para o alto em cima da marca e clicar abre o nível 2.
 
 ### Aviso ao vivo
 
@@ -162,7 +135,7 @@ Quando algo liga, a pílula do monitor focado vira uma linha curta e depois volt
 - Fica 2,6 s (uma notificação urgente, 4 s) e termina antes se o estado desligar. O ponteiro em cima pausa a contagem; quando o ponteiro sai, fica mais 1 s. O botão direito dispensa.
 - Só a mudança conta. Estados que já estavam ligados quando a Ilha começou, ou que mudam nos primeiros 4 segundos dela, não geram aviso. Sessão remota e sudo sem senha nunca geram aviso; eles aparecem na marca e no nível 2.
 - Com o Não perturbe ligado, só aparecem os avisos de Não perturbe, de gravação e de urgência.
-- Nenhum aviso aparece com uma tela ou o seletor aberto, nem com uma janela em tela cheia no monitor focado. Com a pílula focada no nível 1, no nível 2 ou mostrando um OSD, o aviso espera até 5 s ela voltar ao repouso.
+- Nenhum aviso aparece com uma tela ou o seletor aberto, nem com uma janela em tela cheia no monitor focado. Com a pílula focada mostrando os ícones, o nível 2 ou um OSD, o aviso espera até 5 s ela voltar ao repouso.
 - Um aviso de prioridade igual ou maior troca o que está na tela (urgente, gravação, lembrete, atualização, Não perturbe, luz noturna, manter acordado). Um OSD no mesmo monitor encerra o aviso.
 - Com o Aviso ao vivo desligado nos Ajustes da Ilha, nenhum aviso aparece.
 
@@ -224,7 +197,7 @@ Embaixo de toda tela aberta fica uma cápsula pequena, presa à borda de baixo d
 - Sem player: "Nada tocando" e "Toque algo em qualquer player", no mesmo tamanho.
 - Teclas: Espaço ou Enter tocar/pausar, Esquerda e Direita voltam ou avançam 5 s, Shift+Esquerda e Shift+Direita anterior e próxima, S aleatório, R repetir, P próximo player.
 
-Ela também abre pelas barrinhas da música, pelas linhas do app e de estado do nível 2, por um OSD de mídia e pelo Super+Ctrl+4.
+Ela também abre pelas linhas do app e de estado do nível 2, por um OSD de mídia e pelo Super+Ctrl+4.
 
 ### Temas
 
@@ -242,7 +215,7 @@ Tão larga quanto couberem de 2 a 4 cartões na tela (30 + 194 px por cartão), 
 Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatura), 232 de altura.
 
 - "Papel de parede" e o nome do tema no alto. A miniatura escolhida fica no centro com uma borda na cor de destaque. Um pontinho marca o papel em uso. Embaixo da faixa: o nome do arquivo, o contador e "Enter para aplicar".
-- Aberta pela Ilha (seletor, Alt+5, Ctrl+Tab, `ilha open wallpapers`): os fundos do tema atual mais `~/.config/omarchy/backgrounds/<tema>`. O Enter roda `omarchy-theme-bg-set` e fecha quando ele termina (no máximo 1,2 s). Sem nenhum: "Nenhum papel de parede para este tema".
+- Aberta pela Ilha (seletor, Alt+3, Ctrl+Tab, `ilha open wallpapers`): os fundos do tema atual mais `~/.config/omarchy/backgrounds/<tema>`. O Enter roda `omarchy-theme-bg-set` e fecha quando ele termina (no máximo 1,2 s). Sem nenhum: "Nenhum papel de parede para este tema".
 - Aberta pelas teclas de fundo do Omarchy: veja Teclas de tema e de papel de parede.
 - Papéis de parede em vídeo usam a miniatura guardada.
 - Mouse como em Temas. Teclas: as setas, Tab e Shift+Tab, Page Up e Page Down de uma tela inteira, Home, End, Enter aplica, Esc fecha.
@@ -260,7 +233,7 @@ Tão larga quanto couberem de 2 a 5 miniaturas na tela (32 + 196 px por miniatur
 ## Mouse e teclado
 
 - A roda só troca de tela com uma tela aberta, na faixa que cobre a largura da tela nos 24 px de cima do monitor: o vão acima da tela e o respiro de cima dela. Cada volta (120 unidades) anda uma tela, na ordem acima. Para baixo avança, para cima volta. Uma volta incompleta zera depois de 200 ms sem eventos da roda, ou quando o sentido vira, então um deslize lento do trackpad nunca troca de tela. Os idiomas da direita para a esquerda não invertem a roda. No repouso, nos níveis 1 e 2, no seletor, num aviso ou num OSD, a roda não faz nada. Listas, carrosséis e controles deslizantes guardam a própria roda.
-- Um clique no relógio ou no nível 1, o botão direito ou um toque longo (0,5 s) na pílula em repouso, no nível 1 ou no nível 2 mostra o seletor. No seletor, fecha. Num aviso ao vivo, dispensa.
+- O ponteiro na pílula mostra os ícones. Um clique no relógio, o botão direito ou um toque longo (0,5 s) também mostram. No seletor, fecha. Num aviso ao vivo, dispensa.
 - Um clique fora de uma tela aberta fecha a tela.
 - As teclas só valem com uma tela aberta. Os níveis de hover, o seletor e os avisos nunca pegam o teclado.
 - Ctrl+Tab e Ctrl+Shift+Tab andam pelas telas. Alt+1–6 abrem direto: Apps, Temas, Papéis de parede, Mídia, Central de controle, Energia.
@@ -364,7 +337,7 @@ omarchy-shell ilha close                   # fecha a tela aberta e o seletor
 omarchy-shell ilha back                    # volta: uma página da Central, a tela anterior ou fecha
 omarchy-shell ilha run <tela> <tecla>      # abre no modo teclado e manda uma tecla, ex.: run themes right
 omarchy-shell ilha picker                  # alterna o seletor de telas no monitor focado
-omarchy-shell ilha hover <0|1|2>           # segura o nível 1 ou 2 no monitor focado; 0 solta
+omarchy-shell ilha hover <0|1|2>           # segura os ícones (1) ou o nível 2 (2) no monitor focado; 0 solta
 omarchy-shell ilha peek <chave>            # mostra um aviso ao vivo agora
 omarchy-shell ilha osd '<json>'            # mostra um OSD na pílula
 omarchy-shell ilha closeOsd                # esconde o OSD da pílula

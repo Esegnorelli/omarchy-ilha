@@ -413,9 +413,10 @@ Item {
         if (h === "mark:media" || h === "eq")
             return root.island.open("media", root.output);
         if (h === "mark") {
-            const owner = root.status ? root.status.markOwner : "";
+            const key = mark.markKey;
+            const owner = root.status && key !== "" ? root.status.ownerFor(key) : "";
             if (owner === "l2")
-                return root.island.setExpanded(root.output, true, root.status.markKey);
+                return root.island.setExpanded(root.output, true, key);
             if (owner === "control")
                 return root.island.open("control", root.output);
             if (owner === "control:display")

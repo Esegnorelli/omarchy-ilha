@@ -78,7 +78,9 @@ PanelWindow {
         : win.peekHere ? "peek"
         : win.pickerHere ? "picker"
         : win.expanded ? "hover2"
-        : (win.hovered && !win.markHold) ? "hover1"
+        // Repouso: só a hora. Ponteiro em cima: a pílula vira os seis ícones
+        // das telas (o L1 de workspaces saiu do caminho do hover).
+        : (win.hovered && !win.markHold) ? "picker"
         : "rest"
     readonly property int hoverLevel: win.face === "hover2" ? 2 : (win.face === "hover1" ? 1 : 0)
     readonly property bool layerOverlay: win.face === "screen" && !!win.island && win.island.fullscreenOn(win.output)
@@ -607,7 +609,8 @@ PanelWindow {
     // ---- Temporizadores de comportamento ----
     Timer {
         id: grace
-        interval: Motion.TIMING.LEAVE_GRACE_MS
+        // Os ícones perdoam um escorregão do ponteiro; o resto sai rápido.
+        interval: win.face === "picker" ? Motion.TIMING.HOVER_PICKER_GRACE_MS : Motion.TIMING.LEAVE_GRACE_MS
     }
 
     // L2 com o ponteiro fora por 2,5 s: volta ao repouso.

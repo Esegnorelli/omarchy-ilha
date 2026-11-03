@@ -45,9 +45,11 @@ Item {
     property bool highlighted: false
 
     // ---- Conteúdo vivo (alvo) ----
-    readonly property string markKey: root.status ? root.status.markKey : ""
+    // Repouso = só a hora. A única exceção é a gravação (privacidade); o resto
+    // dos estados aparece no aviso ao vivo e no nível 2.
+    readonly property string markKey: root.status && root.status.isOn("recording") ? "recording" : ""
     readonly property bool recTimeShown: root.markKey === "recording" && !!root.status && root.status.recordingSeconds >= 0
-    readonly property bool barsShown: !!root.media && root.media.hasTrack && root.media.playing
+    readonly property bool barsShown: false
     readonly property real iconPartW: root.markKey !== "" ? priv.px("MARK_ICON", 16) : 0
     readonly property real timePartW: root.recTimeShown ? priv.px("MARK_TIME_GAP", 4) + Math.ceil(timeMetrics.advanceWidth) : 0
     readonly property real barsPartW: root.barsShown ? ((root.iconPartW + root.timePartW > 0) ? priv.px("MARK_BARS_GAP", 5) : 0) + priv.px("MARK_BARS_W", 9) : 0

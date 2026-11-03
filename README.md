@@ -68,49 +68,36 @@ With the bar hidden (`omarchy toggle bar`), the pill (and the 48 px, with `reser
 
 | State | What is on the pill |
 |---|---|
-| Rest | The clock, in a capsule 32 px tall, 10 px from the top edge. When something is on, a mark sits beside the clock. |
-| Level 1 | The pointer is on the pill. A line 42 px tall, 22 px from the top: this monitor's workspaces as numbered capsules, the clock, and the status group. |
-| Level 2 | Super+Ctrl+Alt+D (Omarchy's calendar key) or a tap on the rest mark. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
-| Screen picker | A click on level 1 or on the clock, a right click, or a long press. Six icons in a 236 × 42 capsule. |
+| Rest | Only the time, in a capsule 32 px tall, 10 px from the top edge. While recording, a red mark and the elapsed time sit beside it. |
+| Icons | The pointer is on the pill. The six screens as icons, in a 236 × 42 capsule. |
+| Level 2 | Super+Ctrl+Alt+D (Omarchy's calendar key) or a tap on the recording mark. A 718 × 75 pill: the focused app over the workspaces, a large clock with the date, and the status line over network and battery. |
 | Live notice | Something just turned on. One short line, 40 px tall. |
 | OSD | `ilha osd`, the resolution prompt, or the restart notice. 40 px tall. |
 | Screen | One of the six screens, in the same shape. |
 
 ### Rest
 
-The clock reads `HH:mm` in the language's digits. It is 12-hour (`h:mm`, with no AM/PM) when the `omarchy.clock` entry in the bar layout of `shell.json` has a `format` with `AP`.
+Only the time: `HH:mm` in the language's digits. It is 12-hour (`h:mm`, with no AM/PM) when the `omarchy.clock` entry in the bar layout of `shell.json` has a `format` with `AP`.
 
-When something is on, the capsule widens and a mark sits beside the clock (on its left; on its right in right-to-left languages):
+The one exception is recording, for privacy: a red mark and the elapsed time (`0:42`) sit beside the clock (on its left; on its right in right-to-left languages). With the pointer over the mark, the pill stays at rest so a tap lands on it; the tap opens level 2 pinned on the recording, where a click stops it. Other states (Do not disturb, night light, stay awake, reminders, updates) show as a live notice when they turn on, and on level 2.
 
-- The icon of the first state that is on, in its color, in this order: remote session, passwordless sudo, recording, reminder, update, Do not disturb, night light, stay awake.
-- While recording, the elapsed time follows the icon (`0:42`). The clock itself stays in minutes.
-- While music plays, three small accent bars sit next to the clock. They do not move. A paused player shows none. With only music on, the bars are the whole mark.
+### Icons
 
-Notifications are not part of the mark.
+The pointer on the pill, in the gap above it, or on the top strip turns the clock into six icons: Apps, Themes, Wallpapers, Media, Control Center, Power. That is the same order as Alt+1–6. A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing". Leave for 250 ms and the pill returns to the clock.
 
-With the pointer over the mark, the pill stays at rest and the mark highlights, so a tap lands on it. Anywhere else, the pointer opens level 1 at once.
-
-- A tap on the mark opens its owner. Remote session, passwordless sudo, recording, reminder, and update open level 2 with that state pinned on the status line. Do not disturb and night light open the Control Center. Stay awake opens Control Center › Display with the Stay awake card highlighted.
-- A tap on the music bars opens Media.
-- A pinned state stays on the status line while it is on. After the click that turns it off (stopping the recording, for example), the line falls back to the usual order.
-
-### Level 1
-
-The pointer on the pill, in the gap above it, or on the top strip opens level 1 at once. Leave for 60 ms and it returns to rest.
-
-- Workspaces: this monitor's block (1–10, 11–20, …), the first five plus any higher one that exists. The digit sits inside each capsule; workspace 10 reads `10`. The active one is larger, in the accent, with a glow. Occupied ones are tinted with the accent. Empty ones are faint. Urgent ones use the urgent color.
-- Status group, in order: music bars (while a track is loaded; they move while it plays and dim when it is paused), the privacy dot (recording, remote session, or passwordless sudo; it pulses while recording), network (Wi-Fi bars, a cable icon, or offline), and battery (laptops only; a bolt while plugged in; the urgent color at 15 % or less on battery).
-- Click a capsule to focus that workspace. Click the music bars for Media. Click anywhere else for the screen picker: the clock, then the line, then the screens.
+A click on the clock (a touch screen has no hover), a right click, or a long press (0.5 s) also shows the icons. Opened that way, they close by themselves 2.6 s later if the pointer never reaches them, or 0.7 s after it leaves. They do not open while a screen is open or while the bar is hidden.
 
 ### Level 2
 
-Super+Ctrl+Alt+D (Omarchy's calendar key) opens it, and so does a tap on the rest mark for recording, a reminder, or an update, with that status line pinned. A click on level 1 opens the screen picker instead. It stays while the pointer is on it and closes 2.5 s after the pointer leaves. Super+Ctrl+Alt+D toggles it on the focused monitor.
+### Level 2
+
+Super+Ctrl+Alt+D (Omarchy's calendar key) toggles it on the focused monitor. A tap on the recording mark, or on the live notice for a recording, a reminder, or an update, opens it with that status line pinned. It stays while the pointer is on it and closes 2.5 s after the pointer leaves.
 
 - Left: the focused window's app icon and name, or "Desktop" when the workspace has no window. When the focused window is the music player, its title and artist. Under it, the workspaces, larger.
 - Centre: the clock, larger, and the date in the language's own format.
 - Right: the status line, over network and battery.
 
-A capsule focuses its workspace. The app line opens Apps (Media when it shows the player). The clock and date open the Control Center. The status line runs its action. Empty space returns to level 1.
+A capsule focuses its workspace. The app line opens Apps (Media when it shows the player). The clock and date open the Control Center. The status line runs its action. Empty space shows the icons.
 
 The status line shows the first match:
 
@@ -127,23 +114,9 @@ The status line shows the first match:
 | Do not disturb | "Do not disturb" | Turns it off |
 | Nothing | "All caught up" | Control Center |
 
-### Screen picker
-
-A click on level 1 or on the clock at rest, a right click, or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows six icons: Apps, Themes, Wallpapers, Media, Control Center, Power. That is the same order as Alt+1–6. The icons have no labels.
-
-- A tap on an icon opens that screen. Media is always there; with no player it opens "Nothing playing".
-- A tap between icons, or another right click, closes the picker.
-- It closes by itself 2.6 s after it opens if the pointer never reaches it, or 0.7 s after the pointer leaves it.
-- It does not open while a screen is open or while the bar is hidden.
-- A long press on a workspace capsule does not focus it.
-
-### Line hint
-
-The first time level 1 opens in a session, a small tag shows under it for 3 s: "Click: screens · Alt+1–6: switch". It goes away when the line closes. It does not show while the bar is hidden or while the restart notice is up. It is not saved, so the next session shows it again.
-
 ### Top edge
 
-A 3 px invisible strip along the central 600 px of the top edge (less on narrow screens) opens level 1, never level 2. Over the mark, the pill stays at rest instead, so pushing the pointer to the top over the mark and clicking opens the mark's owner.
+A 3 px invisible strip along the central 600 px of the top edge (less on narrow screens) shows the icons, never level 2. Over the recording mark, the pill stays at rest instead, so pushing the pointer to the top over the mark and clicking opens level 2.
 
 ### Live notice
 
@@ -162,7 +135,7 @@ When something turns on, the pill on the focused monitor becomes one short line,
 - It stays 2.6 s (an urgent notification 4 s) and ends early if the state turns off. The pointer on it pauses the count; after the pointer leaves, it stays 1 s more. A right click dismisses it.
 - Only a change counts. States already on when Ilha starts, or that change in its first 4 seconds, raise nothing. Remote session and passwordless sudo never raise one; they show in the mark and on level 2.
 - While Do not disturb is on, only the Do not disturb, recording, and urgent notices appear.
-- No notice appears while a screen or the picker is open, or while a window is fullscreen on the focused monitor. While the focused pill is at level 1, at level 2, or showing an OSD, the notice waits up to 5 s for it to return to rest.
+- No notice appears while a screen or the picker is open, or while a window is fullscreen on the focused monitor. While the focused pill shows the icons, level 2, or an OSD, the notice waits up to 5 s for it to return to rest.
 - A notice of equal or higher priority replaces the one on screen (urgent, recording, reminder, update, Do not disturb, night light, stay awake). An OSD on the same monitor ends it.
 - With Live notice off in Ilha settings, no notice appears.
 
@@ -224,7 +197,7 @@ Under every open screen sits a small capsule that rides the screen's bottom edge
 - With no player: "Nothing playing" and "Play something in any player", at the same size.
 - Keys: Space or Enter play/pause, Left and Right seek 5 s, Shift+Left and Shift+Right previous and next, S shuffle, R repeat, P next player.
 
-It also opens from the music bars, the level 2 app and status lines, a media OSD, and Super+Ctrl+4.
+It also opens from the level 2 app and status lines, a media OSD, and Super+Ctrl+4.
 
 ### Themes
 
@@ -242,7 +215,7 @@ As wide as 2 to 4 cards fit on the screen (30 + 194 px per card), 222 tall.
 As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 tall.
 
 - "Wallpaper" and the theme name at the top. The selected thumbnail sits in the centre with an accent border. A small dot marks the wallpaper in use. Under the strip: the file name, the counter, and "Enter to apply".
-- Opened by Ilha (picker, Alt+5, Ctrl+Tab, `ilha open wallpapers`): the current theme's backgrounds plus `~/.config/omarchy/backgrounds/<theme>`. Enter runs `omarchy-theme-bg-set` and closes when it finishes (at most 1.2 s). None: "No wallpapers for this theme".
+- Opened by Ilha (picker, Alt+3, Ctrl+Tab, `ilha open wallpapers`): the current theme's backgrounds plus `~/.config/omarchy/backgrounds/<theme>`. Enter runs `omarchy-theme-bg-set` and closes when it finishes (at most 1.2 s). None: "No wallpapers for this theme".
 - Opened by Omarchy's background keys: see Theme and wallpaper keys.
 - Video wallpapers use their cached thumbnail.
 - Mouse as in Themes. Keys: the arrows, Tab and Shift+Tab, Page Up and Page Down by one screenful, Home, End, Enter applies, Esc closes.
@@ -260,7 +233,7 @@ As wide as 2 to 5 thumbnails fit on the screen (32 + 196 px per thumbnail), 232 
 ## Mouse and keyboard
 
 - The wheel switches screens only while a screen is open, on the band across the screen's width in the top 24 px of the monitor: the gap above the screen and its top padding. Each notch (120 units) moves one screen, in the order above. Down goes forward, up goes back. A partial scroll resets after 200 ms without wheel events, or when the direction flips, so slow trackpad drift never switches. Right-to-left languages do not flip it. At rest, on levels 1 and 2, on the picker, on a notice, or on an OSD, the wheel does nothing. Lists, carousels, and sliders keep their own wheel.
-- A click on the clock or on level 1, a right click, or a long press (0.5 s) on the pill at rest, at level 1, or at level 2 shows the picker. On the picker it closes it. On a live notice it dismisses it.
+- The pointer on the pill shows the icons. A click on the clock, a right click, or a long press (0.5 s) shows them too. On the picker it closes it. On a live notice it dismisses it.
 - A click outside an open screen closes it.
 - Keys work only while a screen is open. The hover levels, the picker, and the notices never take the keyboard.
 - Ctrl+Tab and Ctrl+Shift+Tab walk the screens. Alt+1–6 open them directly: Apps, Themes, Wallpapers, Media, Control Center, Power.
@@ -364,7 +337,7 @@ omarchy-shell ilha close                   # closes the open screen and the pick
 omarchy-shell ilha back                    # goes back: a Control Center page, the previous screen, or closes
 omarchy-shell ilha run <screen> <key>      # opens in keyboard mode and sends one key, e.g. run themes right
 omarchy-shell ilha picker                  # toggles the screen picker on the focused monitor
-omarchy-shell ilha hover <0|1|2>           # holds level 1 or 2 on the focused monitor; 0 releases it
+omarchy-shell ilha hover <0|1|2>           # holds the icons (1) or level 2 (2) on the focused monitor; 0 releases it
 omarchy-shell ilha peek <key>              # shows a live notice now
 omarchy-shell ilha osd '<json>'            # shows an OSD in the pill
 omarchy-shell ilha closeOsd                # hides the pill's OSD

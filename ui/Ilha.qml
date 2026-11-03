@@ -48,7 +48,7 @@ Item {
     property var barConfig: null
 
     // ---- Versão ----
-    readonly property string codeVersion: "2.1.0"
+    readonly property string codeVersion: "2.2.0"
     readonly property string manifestVersion: island.manifest && island.manifest.version ? String(island.manifest.version) : ""
 
     // Referência à raiz para objetos que têm uma propriedade `island` própria

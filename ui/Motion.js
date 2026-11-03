@@ -153,6 +153,7 @@ var FADE = {
 // ---- Intervalos de comportamento (ms). O reduzir movimento não mexe aqui. ----
 var TIMING = {
     LEAVE_GRACE_MS: 60,          // saída do hover
+    HOVER_PICKER_GRACE_MS: 250,  // saída do hover com os ícones na pílula
     L2_COLLAPSE_MS: 2500,        // L2 com o ponteiro fora
     KEYBOARD_MOVE_PX: 8,         // ponteiro andou isto: sai do modo teclado
     RUN_TIMEOUT_MS: 3000,        // ilha run: espera a tela ficar pronta
