@@ -8,13 +8,13 @@ import "Motion.js" as Motion
 //
 // Coordenadas do cartão (x 22, y 21 no painel, 470 de largura; o fundo é do
 // contêiner da Central, que faz a transformação J e o fade):
-// - Voltar 24 em (26, 34); título x 52, topo da maiúscula 26, 18.5 / 600.
+// - Voltar 24 em (26, 34); título x 52, topo da maiúscula 26, 18.5 / 600. O chevron é secundário (hover do cabeçalho).
 // - Um subcartão por monitor: 442 de largura, raio 16.5, raised, vão 11, o
 //   primeiro em y 67.5, 163.5 de altura:
 //   círculo 30 em (13.5, 13.5) (accent no monitor focado); nome x 52.5 (topo
 //   da maiúscula 15.75, 14.5 / 600); "1920×1200 · 144 Hz · 1.0×" (32.25, 12
-//   inkMuted); "em foco" 12.5 accentInk a 13.5 da direita (só com 2+ telas);
-//   brilho x 9.75, y 52.5, 379.5 x 27, trackRaised, "40%" a 13.5 da direita;
+//   inkMuted) é secundária (hover do cartão ou foco b/s/r/m/k); "em foco" 12.5 accentInk a 13.5 da direita (só com 2+ telas);
+//   brilho x 9.75, y 52.5, 379.5 x 27, trackRaised; a porcentagem é secundária (hover da barra, arraste ou foco b:);
 //   fichas de escala em y 85.5 (30 de altura, vão 4.5, a partir de x 12);
 //   linha Resolução em y 122 (28.5, recuo 10.5, raio 9, hover rowHover).
 //   Clique na linha: até 6 modos inline, 30 px cada (o subcartão cresce em
@@ -22,7 +22,7 @@ import "Motion.js" as Motion
 //   resolução? Revertendo em 10 s" com Reverter / Manter (a contagem vive no
 //   MonitorSvc e reverte sozinha; com a subpágina fora de vista o OsdBridge
 //   leva a contagem para a pílula).
-// - Luz noturna, 89 de altura: círculo dark_mode, "Luz noturna", "4000 K",
+// - Luz noturna, 89 de altura: círculo dark_mode, "Luz noturna", "4000 K" secundário (hover do cartão ou foco n/nk),
 //   interruptor a 12 da direita; barra x 9.75 .. direita − 12, y 51.75, 26,
 //   2500..5800 K (mais preenchida = mais quente), 40% de opacidade desligada.
 //   Cada movimento grava 120 ms depois (StatusSvc.setTemperature).
@@ -493,7 +493,17 @@ Item {
     }
 
     // ---- Cabeçalho ----
+    // Cabeçalho: o hover dele mostra o chevron de voltar (secundário; Esc, Alt+←, a navegação e o toque fora também voltam).
+    Item {
+        id: headerBand
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 0
+        height: root.bodyTop
+        HoverHandler { id: headerHover }
+    }
     CircleButton {
+        id: backBtn
         anchors.left: parent.left
         anchors.leftMargin: 14
         y: 22
@@ -503,6 +513,7 @@ Item {
         size: 24
         glyphSize: 14
         accessibleName: root.tr("common.back")
+        veil: (headerHover.hovered || backBtn.hovered) ? 1 : 0
         onClicked: root.back()
     }
     IlhaText {
@@ -555,6 +566,13 @@ Item {
                         required property int index
                         readonly property var d: root.display(mon.index)
                         readonly property string name: mon.d ? mon.d.name : ""
+                        HoverHandler { id: monHover }
+                        // Foco do teclado dentro deste cartão (b:, s:, r:, m:, k: com o índice dele).
+                        readonly property bool keyed: {
+                            const p = priv.focusKey.split(":");
+                            return root.keyboardMode && p.length >= 2 && Number(p[1]) === mon.index
+                                && (p[0] === "b" || p[0] === "s" || p[0] === "r" || p[0] === "m" || p[0] === "k");
+                        }
                         readonly property int modeCount: mon.d && mon.d.modes ? mon.d.modes.length : 0
                         readonly property int scaleCount: mon.d && mon.d.scales ? mon.d.scales.length : 0
                         readonly property bool expanded: priv.expanded !== "" && priv.expanded === mon.name && mon.modeCount > 1
@@ -626,6 +644,14 @@ Item {
                             elide: Text.ElideRight
                             horizontalAlignment: Text.AlignLeft
                             text: root.summaryText(mon.d)
+                            readonly property bool reveal: monHover.hovered || mon.keyed
+                            opacity: reveal ? 1 : 0
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
                         }
                         IlhaText {
                             id: focusedLabel
@@ -644,6 +670,14 @@ Item {
                         }
 
                         // Brilho
+                        Item {
+                            id: brightRowHit
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            y: brightSlider.y
+                            height: brightSlider.height
+                            HoverHandler { id: brightRowHover }
+                        }
                         IlhaSlider {
                             id: brightSlider
                             anchors.left: parent.left
@@ -683,13 +717,22 @@ Item {
                             anchors.right: parent.right
                             anchors.rightMargin: 13.5
                             anchors.verticalCenter: brightSlider.verticalCenter
-                            opacity: mon.d && mon.d.hasBrightness ? 1 : 0
                             theme: root.theme
                             size: 12.5
                             weight: 500
                             tnum: true
                             color: root.theme ? root.theme.inkMuted : "gray"
                             text: root.tr("common.percent").arg(root.num(Math.round(brightSlider.shownValue * 100)))
+                            HoverHandler { id: brightPctHover }
+                            readonly property bool reveal: brightRowHover.hovered || brightSlider.hovered || brightSlider.dragging || brightPctHover.hovered || (root.keyboardMode && priv.focusKey === "b:" + mon.index)
+                            opacity: (mon.d && mon.d.hasBrightness && reveal) ? 1 : 0
+                            Behavior on opacity {
+                                enabled: !!(mon.d && mon.d.hasBrightness)
+                                NumberAnimation {
+                                    duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                                    easing.type: Easing.OutCubic
+                                }
+                            }
                         }
 
                         // Escalas
@@ -954,6 +997,8 @@ Item {
                     readonly property int kelvin: nightSlider.dragging ? root.kelvinFor(nightSlider.shownValue)
                         : priv.nightK >= 0 ? priv.nightK
                         : (root.status ? root.status.nightTemperature : 4000)
+                    HoverHandler { id: nightHover }
+                    readonly property bool pointed: nightHover.hovered || nightSlider.hovered
                     width: 442
                     height: 89
                     radius: 16.5
@@ -1001,6 +1046,14 @@ Item {
                         tnum: true
                         color: root.theme ? root.theme.inkMuted : "gray"
                         text: root.tr("display.kelvin").arg(root.num(night.kelvin))
+                        readonly property bool reveal: night.pointed || (root.keyboardMode && (priv.focusKey === "n" || priv.focusKey === "nk"))
+                        opacity: reveal ? 1 : 0
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                                easing.type: Easing.OutCubic
+                            }
+                        }
                     }
                     IlhaSwitch {
                         anchors.right: parent.right

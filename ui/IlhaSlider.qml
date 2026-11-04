@@ -36,6 +36,7 @@ Item {
     property string accessibleName: ""
 
     readonly property bool dragging: priv.dragging
+    readonly property bool hovered: area.containsMouse
     // Valor mostrado agora (o do arraste enquanto arrasta).
     readonly property real shownValue: priv.dragging ? priv.dragValue : root.value
 
@@ -108,6 +109,7 @@ Item {
     }
 
     MouseArea {
+        id: area
         anchors.fill: parent
         enabled: root.enabled
         hoverEnabled: true

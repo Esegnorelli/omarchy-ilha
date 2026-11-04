@@ -378,6 +378,9 @@ Item {
             required property var modelData
             required property int index
 
+            // Ponteiro neste botão. priv.selected é a seleção, não o hover.
+            HoverHandler { id: btnHover }
+            readonly property bool labelShown: !btn.armedHere && (btnHover.hovered || (root.keyboardMode && priv.selected === btn.index))
             readonly property bool usable: root.available(btn.index)
             readonly property bool armedHere: priv.armed === btn.index
             // Quanto a seleção cobre este botão (0..1): a cor segue o deslize.
@@ -439,10 +442,13 @@ Item {
                     elide: Text.ElideRight
                     fontSizeMode: Text.Fit
                     minimumPixelSize: 10
-                    opacity: btn.armedHere ? 0 : 1
                     text: root.strings ? root.strings.t(btn.modelData.label) : ""
+                    opacity: btn.labelShown ? 1 : 0
                     Behavior on opacity {
-                        NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.HOVER) : 0; easing.type: Easing.OutCubic }
+                        NumberAnimation {
+                            duration: root.theme ? root.theme.dur(btn.labelShown ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                            easing.type: Easing.OutCubic
+                        }
                     }
                 }
 

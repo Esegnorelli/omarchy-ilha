@@ -155,15 +155,15 @@ QtObject {
     // ---- Medidas fixas (px lógicos numa tela 1920x1080) ----
     readonly property var px: ({
         // Pílula
-        TOP: 10, L1_TOP: 22,
+        TOP: 10,
         REST_H: 32, REST_CAP: 16, REST_MIN_W: 84, REST_CLOCK_PAD: 40,
-        L1_H: 42, L1_CAP: 21,
-        L2_W: 718, L2_H: 75, L2_CAP: 31,
+        L2_W: 718, L2_H: 52, L2_CAP: 26, L2_MOD_H: 40, L2_MOD_DY: 17, L2_MOD_PAD: 24,
         OSD_H: 40, OSD_CAP: 20, OSD_W: 304,
         // Telas
         PANEL_W: 514, PANEL_CAP: 30, LAUNCHER_CAP: 27,
-        CC_H: 513, LAUNCHER_H: 368, POWER_H: 112, MEDIA_H: 218,
-        THEMES_H: 222, THEMES_PAD: 30, THEMES_PITCH: 194, THEMES_KMIN: 2, THEMES_KMAX: 5,
+        CC_H: 588, LAUNCHER_H: 368, POWER_H: 112, MEDIA_H: 218,
+        CALENDAR_H: 420, CAPTURE_H: 236, MENU_H: 460,
+        THEMES_PAD: 30, THEMES_PITCH: 194, THEMES_KMIN: 2, THEMES_KMAX: 5,
         // Tema e papel de parede numa tela só: a fileira de temas (sem rodapé) em cima.
         THEMES_ROW_H: 180,
         WALLS_H: 232, WALLS_PAD: 32, WALLS_PITCH: 196, WALLS_KMIN: 2, WALLS_KMAX: 5,
@@ -174,27 +174,27 @@ QtObject {
         // Janela e zonas de hover (alvo, nunca animadas)
         ZONE: 48,
         ZONE_REST_PAD: 8, ZONE_REST_H: 46,
-        ZONE_PAD: 6, ZONE_L1_H: 66, ZONE_L2_H: 91, ZONE_PICKER_H: 66, ZONE_PEEK_H: 56,
+        ZONE_PAD: 6, ZONE_PICKER_H: 66, ZONE_PEEK_H: 56,
         OSD_ZONE_PAD: 6,
         // Escalas do L2
-        L2_CLOCK_SCALE: 1.375, L2_CAPSULE_SCALE: 1.33, L1_INDICATOR_SCALE: 0.727,
+        L2_CLOCK_SCALE: 1.375,
         // Marca do repouso
         MARK_ICON: 16, MARK_GLYPH: 14, MARK_TIME_GAP: 4, MARK_BARS_GAP: 5, MARK_BARS_W: 9,
         MARK_GAP: 8, MARK_TRIM: 4,
         // Seletor de telas
-        PICKER_W: 200, PICKER_H: 42, PICKER_TOP: 22, PICKER_CAP: 21,
-        PICKER_PAD: 10, PICKER_PITCH: 36, PICKER_GLYPH: 18, PICKER_HOVER: 30,
+        // Reserva: a largura de verdade vem do ScreenPicker (workspaces + relógio + ícones).
+        PICKER_W: 272, PICKER_H: 42, PICKER_TOP: 22, PICKER_CAP: 21,
+        PICKER_PAD: 10, PICKER_CLOCK_PAD: 10, PICKER_PITCH: 36, PICKER_GLYPH: 18, PICKER_HOVER: 30,
         // Aviso ao vivo
         PEEK_H: 40, PEEK_TOP: 10, PEEK_CAP: 20, PEEK_MIN_W: 160, PEEK_MAX_W: 480, PEEK_GLYPH: 18,
-        // Dica da linha
-        HINT_H: 26, HINT_GAP: 8, HINT_MAX_W: 560, HINT_MIN_W: 120,
         // Navegação abaixo da tela aberta (cabe no PANEL_BOTTOM_GAP: 8 + 40 < 72)
         NAV_H: 40, NAV_GAP: 8, NAV_PAD: 6, NAV_PITCH: 36, NAV_DIV: 9,
         // Borda de cima e roda
         STRIP_W: 600, STRIP_H: 3, WHEEL_BAND: 14,
         // Ordem única das telas (seletor, Alt+1..6, Ctrl+Tab, roda)
         // (Temas e Papéis de parede são uma tela só: "themes".)
-        SCREEN_ORDER: ["launcher", "themes", "media", "control", "power"]
+        // A Música mora na Central (cartão "tocando agora"); a tela continua pelo cartão e pelo OSD de mídia.
+        SCREEN_ORDER: ["launcher", "calendar", "themes", "capture", "menu", "control", "power"]
     })
 
     // ---- Geometria ----
@@ -226,6 +226,15 @@ QtObject {
         case "media":
             h = P.MEDIA_H;
             break;
+        case "calendar":
+            h = P.CALENDAR_H;
+            break;
+        case "capture":
+            h = P.CAPTURE_H;
+            break;
+        case "menu":
+            h = P.MENU_H;
+            break;
         case "themes": {
             // Tela unida: a largura dos papéis de parede, a fileira de temas em cima.
             const kw = theme.clamp(Math.floor((maxW - P.WALLS_PAD) / P.WALLS_PITCH), P.WALLS_KMIN, P.WALLS_KMAX);
@@ -255,8 +264,8 @@ QtObject {
     }
 
     // Alvo da forma para uma face: {w, h, top, cap}.
-    // ctx: {clockW, privacy, sideL, sideR, osdW, markW, peekW, screenW, screenH,
-    //       screenId, panelH}. panelH (> 0) é a altura viva da tela aberta.
+    // ctx: {clockW, osdW, markW, peekW, screenW, screenH,
+    //       screenId, panelH, pickerW, modsW, bandW}. panelH (> 0) é a altura viva da tela aberta.
     function geometryFor(face, ctx) {
         const c = ctx || {};
         const P = theme.px;
@@ -264,18 +273,21 @@ QtObject {
         const maxW = sw - P.EDGE;
         const clockW = Number(c.clockW) || 44;
         switch (face) {
-        case "hover1": {
-            const S = Math.max(Number(c.sideL) || 0, Number(c.sideR) || 0);
-            return { w: Math.min(maxW, clockW + 2 * S), h: P.L1_H, top: P.L1_TOP, cap: P.L1_CAP };
+        case "hover2": {
+            // Cabe no conteúdo (ctx.bandW). Sem medida, a reserva de 718.
+            const mw = Number(c.modsW) || 0;
+            const band = Number(c.bandW) || 0;
+            const mods = mw > 0 ? Math.ceil(mw) + 2 * P.L2_MOD_PAD : 0;
+            const w = band > 0 ? Math.max(band, mods) : (mw > 0 ? Math.max(P.L2_W, mods) : P.L2_W);
+            return { w: Math.min(maxW, w), h: P.L2_H + (mw > 0 ? P.L2_MOD_H : 0), top: P.TOP, cap: P.L2_CAP };
         }
-        case "hover2":
-            return { w: Math.min(maxW, P.L2_W), h: P.L2_H, top: P.TOP, cap: P.L2_CAP };
         case "osd":
             return { w: Math.min(maxW, Number(c.osdW) || P.OSD_W), h: P.OSD_H, top: P.TOP, cap: P.OSD_CAP };
         case "peek":
             return { w: theme.clamp(Number(c.peekW) || P.PEEK_MIN_W, P.PEEK_MIN_W, Math.min(P.PEEK_MAX_W, maxW)), h: P.PEEK_H, top: P.PEEK_TOP, cap: P.PEEK_CAP };
         case "picker":
-            return { w: Math.min(maxW, P.PICKER_W), h: P.PICKER_H, top: P.PICKER_TOP, cap: P.PICKER_CAP };
+            // workspaces + relógio + ícones (ctx.pickerW).
+            return { w: Math.min(maxW, Number(c.pickerW) || P.PICKER_W), h: P.PICKER_H, top: P.PICKER_TOP, cap: P.PICKER_CAP };
         case "screen": {
             const s = theme.screenSize(c.screenId, c);
             const ph = Number(c.panelH) || 0;
@@ -301,10 +313,8 @@ QtObject {
         const g = geom || theme.geometryFor(face, c);
         const box = (pad, h) => ({ x: Math.floor(cx - g.w / 2 - pad), y: 0, w: Math.ceil(g.w + 2 * pad), h: h });
         switch (face) {
-        case "hover1":
-            return box(P.ZONE_PAD, P.ZONE_L1_H);
         case "hover2":
-            return box(P.ZONE_PAD, P.ZONE_L2_H);
+            return box(P.ZONE_PAD, Math.ceil(g.top + g.h + P.ZONE_PAD));
         case "picker":
             return box(P.ZONE_PAD, P.ZONE_PICKER_H);
         case "peek":
@@ -330,7 +340,7 @@ QtObject {
         return { x: Math.floor(sw / 2 - w / 2), y: Math.floor(geom.top + geom.h + P.NAV_GAP), w: Math.ceil(w), h: P.NAV_H };
     }
 
-    // Faixa invisível de 3 px na borda de cima (só abre o L1).
+    // Faixa invisível de 3 px na borda de cima (só abre o seletor).
     function stripRect(ctx) {
         const sw = Number((ctx || {}).screenW) || 1920;
         const w = Math.min(theme.px.STRIP_W, sw - theme.px.EDGE);

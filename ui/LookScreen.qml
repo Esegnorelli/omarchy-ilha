@@ -5,7 +5,7 @@ import QtQuick
 // abre já na fileira de baixo). Duas fileiras, uma sobre a outra, na largura
 // dos papéis de parede:
 //
-// - Em cima, os temas (ThemeScreen embutida): busca, contador e os cartões
+// - Em cima, os temas (ThemeScreen embutida): busca, contador no modo teclado e os cartões
 //   com a imagem de prévia, as cores e o nome de cada tema.
 // - Embaixo, os papéis de parede do tema atual (WallpaperScreen embutida).
 //
@@ -95,7 +95,6 @@ Item {
         y: 0
         width: implicitWidth
         height: implicitHeight
-        embedded: true
         active: root.row === "themes"
         island: root.island
         theme: root.theme
@@ -135,7 +134,6 @@ Item {
         y: root.theme ? root.theme.px.THEMES_ROW_H : 180
         width: implicitWidth
         height: implicitHeight
-        embedded: true
         active: root.row === "walls"
         island: root.island
         theme: root.theme

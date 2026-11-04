@@ -57,7 +57,7 @@ Item {
 
     // Retângulo da marca (alvo) em coordenadas da janela.
     readonly property real markLeft: root.rtl ? root.clockRight + priv.px("MARK_GAP", 8) : root.clockLeft - priv.px("MARK_GAP", 8) - root.markW
-    readonly property real centerY: root.morph ? root.morph.centerY : 26
+    readonly property real centerY: root.morph ? root.morph.bandY : 26
     // Barrinhas ± 3 px (para "mark:media"), em coordenadas da janela.
     readonly property rect barsRect: {
         if (!root.barsShown)

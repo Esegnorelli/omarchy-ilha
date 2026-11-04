@@ -29,6 +29,10 @@ QtObject {
     readonly property real right: root.centerX + root.w / 2
     readonly property real bottom: root.top + root.h
     readonly property real centerY: root.top + root.h / 2
+    // Faixa: repouso, seletor e a linha do L2 centram nela; abaixo dela o
+    // L2 abre a fileira dos módulos (a pílula cresce sem mover a linha).
+    property real bandH: 52
+    readonly property real bandY: root.top + Math.min(root.h, root.bandH) / 2
     readonly property real inset: 0.2929 * root.radius
     readonly property bool moving: root.cw.moving || root.ch.moving || root.ct.moving || root.cc.moving
 

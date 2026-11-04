@@ -9,6 +9,7 @@ import "Motion.js" as Motion
 //
 // Coordenadas do cartão (largura 470):
 // - Cabeçalho igual ao do Wi-Fi: voltar, "Bluetooth" 18.5/600, interruptor
+//   O voltar é secundário (hover do cabeçalho ou do botão).
 //   (omarchy-bluetooth-power).
 // - Sem adaptador ou desligado: faixa raised de 42 em y 68 com o texto 13.
 // - "Salvos" com o centro em y 75 (cap top ~71 no vídeo), só com aparelhos
@@ -345,7 +346,17 @@ Item {
 
     // ---- Cabeçalho ----
 
+    // Cabeçalho: o hover dele mostra o chevron de voltar (secundário; Esc, Alt+←, a navegação e o toque fora também voltam).
+    Item {
+        id: headerBand
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 0
+        height: 60
+        HoverHandler { id: headerHover }
+    }
     CircleButton {
+        id: backBtn
         anchors.left: parent.left
         anchors.leftMargin: 14
         y: 22
@@ -355,6 +366,7 @@ Item {
         size: 24
         glyphSize: 14
         accessibleName: root.t("common.back")
+        veil: (headerHover.hovered || backBtn.hovered) ? 1 : 0
         onClicked: root.back()
     }
 

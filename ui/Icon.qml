@@ -1,23 +1,23 @@
 import QtQuick
 import qs.Commons as Commons
 
-// Ícone Material Symbols Rounded pelo nome (ligadura): Icon { name: "wifi" }.
-// FINAL do Phase 0 (dono: lead).
+// Ícone. name é uma ligadura Material (Icon { name: "wifi" }). glyph, quando
+// preenchido, é o glifo cru do menu do Omarchy, na mesma fonte do shell
+// (Commons.Style.font.family): uma atualização do menu não depende do recorte
+// Material que vem com o plugin.
 //
-// - O nome é SEMPRE um literal de dev/icons.txt escrito no próprio arquivo
-//   (condicional como `cond ? "a" : "b"`, nunca concatenado). dev/icons.py
-//   confere cada literal com HarfBuzz; um ícone novo passa pelo lead.
+// - O nome Material é SEMPRE um literal de dev/icons.txt escrito no próprio
+//   arquivo. dev/icons.py confere cada literal com HarfBuzz.
 // - A caixa é size x size: o layout nunca depende da métrica do glifo.
-// - "filled" anima o eixo FILL (180 ms; 0 com reduzir movimento).
-// - NativeRendering: o preenchimento usa contornos sobrepostos e o render
-//   padrão deixa buracos. Um glifo que muda de tamanho entre L1 e L2 é
-//   desenhado no tamanho maior e só escalado para baixo.
-// - A fonte vem com o plugin (fonts/MaterialSymbolsRoundedIlha2.ttf): o
-//   Omarchy não instala Material Symbols.
+// - "filled" anima o eixo FILL só na fonte Material (180 ms; 0 com reduzir
+//   movimento). O glifo do Omarchy não tem esse eixo.
+// - NativeRendering: o preenchimento Material usa contornos sobrepostos.
 Text {
     id: root
 
     property string name: ""
+    // Glifo do Omarchy (fonte do shell). Vazio: ligadura Material em name.
+    property string glyph: ""
     property real size: 18
     property bool filled: false
     property int weight: 400
@@ -30,7 +30,7 @@ Text {
 
     width: root.size
     height: root.size
-    text: root.name
+    text: root.glyph !== "" ? root.glyph : root.name
     textFormat: Text.PlainText
     renderType: Text.NativeRendering
     horizontalAlignment: Text.AlignHCenter
@@ -42,7 +42,8 @@ Text {
         id: symbols
         source: Qt.resolvedUrl("../fonts/MaterialSymbolsRoundedIlha2.ttf")
     }
-    font.family: symbols.status === FontLoader.Ready ? symbols.name : "Material Symbols Rounded"
+    font.family: root.glyph !== "" ? Commons.Style.font.family
+        : (symbols.status === FontLoader.Ready ? symbols.name : "Material Symbols Rounded")
     font.pixelSize: Math.max(1, Math.round(root.size))
-    font.variableAxes: ({ "FILL": root.fill, "wght": root.weight, "opsz": Math.max(20, Math.min(48, root.size)) })
+    font.variableAxes: root.glyph !== "" ? ({}) : ({ "FILL": root.fill, "wght": root.weight, "opsz": Math.max(20, Math.min(48, root.size)) })
 }

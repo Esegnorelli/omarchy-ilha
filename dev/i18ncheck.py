@@ -9,8 +9,7 @@
 # 3. Paridade de %N (o mesmo conjunto de %1, %2… que o inglês).
 # 4. Plurais: objeto com as categorias CLDR do idioma (porte do Plural.js do
 #    Omarchy), cada forma com os mesmos %N; texto simples só onde o inglês é simples.
-# 5. Regras da casa: hint.line mantém "Alt+1–6" (ASCII + travessão –);
-#    ilha.title é "Ilha"; "·" aparece quando aparece no inglês.
+# 5. Regras da casa: ilha.title é "Ilha"; "·" aparece quando aparece no inglês.
 # 6. Cobertura de glifos: todo caractere de um catálogo de escrita não
 #    complexa existe em fonts/InterIlha2.ttf (as escritas complexas caem no
 #    fontconfig). Sem fontTools, este passo é pulado com aviso.
@@ -180,8 +179,6 @@ def main():
                 text.append(v)
         if cat.get("ilha.title") != "Ilha":
             bad.append("%s.json: ilha.title precisa ser \"Ilha\"" % code)
-        if "Alt+1–6" not in str(cat.get("hint.line", "")):
-            bad.append("%s.json: hint.line precisa manter \"Alt+1–6\"" % code)
         untranslated[code] = same
         if code not in COMPLEX:
             chars[code] = set("".join(text))

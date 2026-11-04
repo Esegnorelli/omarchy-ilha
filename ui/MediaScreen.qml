@@ -422,7 +422,13 @@ Item {
             tnum: true
             color: root.theme ? root.theme.inkFaint : "gray"
             horizontalAlignment: Text.AlignLeft
-            opacity: root.has && (root.length > 0 || root.shownPosition > 0) ? 1 : 0
+            opacity: root.has && (root.length > 0 || root.shownPosition > 0) && seek.hot ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.fade(seek.hot ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT)
+                    easing.type: Easing.OutCubic
+                }
+            }
             text: root.clock(root.shownPosition)
         }
         IlhaText {
@@ -434,7 +440,13 @@ Item {
             tnum: true
             color: root.theme ? root.theme.inkFaint : "gray"
             horizontalAlignment: Text.AlignRight
-            opacity: root.has && root.length > 0 ? 1 : 0
+            opacity: root.has && root.length > 0 && seek.hot ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.fade(seek.hot ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT)
+                    easing.type: Easing.OutCubic
+                }
+            }
             text: "−" + root.clock(Math.max(0, root.length - root.shownPosition))
         }
 
@@ -487,6 +499,8 @@ Item {
             NumberAnimation { duration: root.fade(Motion.FADE.HOVER); easing.type: Easing.OutCubic }
         }
 
+        // Ponteiro na fileira do transporte. A tela não tem foco por botão.
+        HoverHandler { id: transportHover }
         TransportButton {
             x: 0
             diameter: 36
@@ -590,7 +604,14 @@ Item {
         y: (transport.height - btn.diameter) / 2
         width: btn.diameter
         height: btn.diameter
-        opacity: btn.available ? 1 : 0.4
+        // Aleatório e repetir (toggle) são secundários: aparecem no hover da fileira e ficam enquanto ligados.
+        opacity: (!btn.toggle || btn.on || btn.hovered || transportHover.hovered) ? (btn.available ? 1 : 0.4) : 0
+        Behavior on opacity {
+            NumberAnimation {
+                duration: root.fade((!btn.toggle || btn.on || btn.hovered || transportHover.hovered) ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT)
+                easing.type: Easing.OutCubic
+            }
+        }
 
         Accessible.role: Accessible.Button
         Accessible.name: btn.label

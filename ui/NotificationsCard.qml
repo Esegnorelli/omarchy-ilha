@@ -5,18 +5,17 @@ import qs.Commons as Commons
 import "Motion.js" as Motion
 
 // Cartão de notificações da Central (screens §5, amendments §12.1 e §12.2):
-// cabeçalho "Notificações" + "Limpar", a faixa de atalhos revelada no hover
-// (Ajustes da Ilha, Apps, Temas, Papéis, Energia) e a lista do StatusSvc: as
+// cabeçalho "Notificações" + "Limpar" + o botão de Ajustes da Ilha, e a
+// lista do StatusSvc: as
 // da tela primeiro, depois o histórico de 24 h depois do clearedAt.
 //
 // Medidas (cartão 486 x 200, raio 21, fill card; coordenadas do cartão):
 // - "Notificações" em x 15, topo das maiúsculas em 15 (12,5 / 500 inkMuted).
 //   "Limpar" (12 accentInk) 10 depois do rótulo, só quando há linhas: chama
 //   status.clearAll() (dismissAll do Omarchy + clearedAt = agora).
-// - Faixa: CircleButtons 26, vão 6, fill transparente, glifo 15 inkFaint;
-//   hover rowHover com glifo ink. Da direita: Energia em w − 12, Papéis,
-//   Temas, Apps e Ajustes da Ilha (x 320). Aparece com o ponteiro no cartão
-//   ou no modo teclado (0 -> 1 em 110 ms) e só aceita clique acima de 0,5.
+// - Ajustes da Ilha: CircleButton 26 no canto direito do cabeçalho (glifo 15),
+//   secundário (hover do cartão ou foco). É a origem da página de ajustes;
+//   Apps, Temas, Papéis e Energia não ficam aqui (já estão no seletor e na navegação).
 // - Lista y 44..h − 10, recortada, sem barra. Linhas 458 x 48, vão 4, raio
 //   12, fill raised. Ícone 28 em x 10; resumo 13,5 / 600 ink em x 48; corpo
 //   12 inkMuted numa linha (sem corpo: o app); idade 11,5 inkFaint à direita
@@ -29,8 +28,8 @@ import "Motion.js" as Motion
 //   explícitos da faixa passam por mx().
 //
 // Teclado (a Central entrega o foco aqui ao descer da linha da Tela):
-//   faixa [Limpar?, Ilha, Apps, Temas, Papéis, Energia] e depois uma linha
-//   por notificação. Esquerda/Direita andam na faixa pela posição visual;
+//   faixa [Limpar?, Ajustes da Ilha] e depois uma linha por notificação.
+//   Esquerda/Direita andam na faixa pela posição visual;
 //   Cima/Baixo entre a faixa e as linhas; Tab / Shift+Tab em ordem. Enter
 //   ativa; Delete dispensa uma da tela; Enter na mais nova da tela chama
 //   invokeLast e fecha a ilha. handleKey devolve false quando o foco sai pelo
@@ -48,19 +47,17 @@ Item {
     property Theme theme: null
     property var strings: null
     property bool keyboardMode: false
-    property bool revealed: hover.hovered || root.keyboardMode
-    // Para a Central (dona deste arquivo também): opacidade do botão Ajustes
-    // da Ilha (origem da transformação J) e anéis escondidos com subpágina aberta.
+    HoverHandler { id: cardHover }
+    // Opacidade do botão Ajustes (origem da J). Anéis somem com subpágina aberta.
     property real settingsOpacity: 1
     property bool ringsShown: true
 
     readonly property var status: root.island ? root.island.status : null
     readonly property var rows: root.status && root.status.visibleRows ? root.status.visibleRows : []
     // O botão Ajustes da Ilha (a Central mede o retângulo de origem da J).
-    readonly property Item settingsButton: priv.settingsItem
+    readonly property Item settingsButton: settingsBtn
     readonly property bool hasFocus: priv.focus !== ""
 
-    signal navigate(string id)
     signal openSettings()
     signal closeRequested()
 
@@ -212,15 +209,15 @@ Item {
     }
 
     function stripIds() {
-        const ids = ["settings", "launcher", "themes", "wallpapers", "power"];
-        return root.rows.length > 0 ? ["clear"].concat(ids) : ids;
+        return root.rows.length > 0 ? ["clear", "settings"] : ["settings"];
     }
 
     function stripItem(id) {
         if (id === "clear")
             return clearHit;
-        const i = priv.stripOrder.indexOf(id);
-        return i >= 0 ? strip.itemAt(i) : null;
+        if (id === "settings")
+            return settingsBtn;
+        return null;
     }
 
     function centerXOf(id) {
@@ -288,12 +285,6 @@ Item {
             break;
         case "settings":
             root.openSettings();
-            break;
-        case "launcher":
-        case "themes":
-        case "wallpapers":
-        case "power":
-            root.navigate(id);
             break;
         case "row":
             if (!space && priv.focusRow === 0)
@@ -405,13 +396,10 @@ Item {
 
     QtObject {
         id: priv
-        // "" | "clear" | "settings" | "launcher" | "themes" | "wallpapers" | "power" | "row"
+        // "" | "clear" | "settings" | "row"
         property string focus: ""
         property int focusRow: 0
         property string lastStrip: ""
-        property var settingsItem: null
-        // Ordem dos atalhos no Repeater (o 0 é o Ajustes da Ilha, o mais de dentro).
-        readonly property var stripOrder: ["settings", "launcher", "themes", "wallpapers", "power"]
         // Destaque (flash)
         property int flashIndex: -1
         property real flashLevel: 0
@@ -442,9 +430,6 @@ Item {
         onFinished: priv.flashIndex = -1
     }
 
-    HoverHandler {
-        id: hover
-    }
 
     Rectangle {
         anchors.fill: parent
@@ -504,50 +489,27 @@ Item {
         }
     }
 
-    // ---- Faixa de atalhos ----
-    Item {
-        id: stripLayer
-        anchors.fill: parent
-        opacity: root.revealed ? 1 : 0
-        enabled: stripLayer.opacity > 0.5
-        Behavior on opacity {
-            NumberAnimation { duration: root.ms(Motion.FADE.HOVER); easing.type: Easing.OutCubic }
-        }
-
-        Repeater {
-            id: strip
-            // slot 0 = Energia (a mais de fora); x LTR = w − 12 − 26 − 32·slot.
-            model: [
-                { id: "settings", slot: 4, icon: "settings", label: "cc.ilhaSettings" },
-                { id: "launcher", slot: 3, icon: "apps", label: "cc.apps" },
-                { id: "themes", slot: 2, icon: "palette", label: "cc.themes" },
-                { id: "wallpapers", slot: 1, icon: "wallpaper", label: "cc.wallpapers" },
-                { id: "power", slot: 0, icon: "power_settings_new", label: "cc.power" }
-            ]
-            onItemAdded: (index, item) => {
-                if (index === 0)
-                    priv.settingsItem = item;
-            }
-
-            CircleButton {
-                id: shortcut
-                required property var modelData
-                x: root.mx(486 - 12 - 26 - 32 * shortcut.modelData.slot, 26)
-                y: 8
-                opacity: shortcut.modelData.id === "settings" ? root.settingsOpacity : 1
-                theme: root.theme
-                icon: shortcut.modelData.icon
-                size: 26
-                glyphSize: 15
-                fill: "transparent"
-                hoverFill: root.theme ? root.theme.rowHover : "transparent"
-                glyphColor: root.theme ? root.theme.inkFaint : "gray"
-                hoverGlyphColor: root.theme ? root.theme.ink : "white"
-                focused: root.keyboardMode && root.ringsShown && priv.focus === shortcut.modelData.id
-                accessibleName: root.t(shortcut.modelData.label)
-                onClicked: shortcut.modelData.id === "settings" ? root.openSettings() : root.navigate(shortcut.modelData.id)
-            }
-        }
+    // Ajustes da Ilha, à direita do cabeçalho. Secundário: hover do cartão ou foco.
+    // Apps, Temas, Papéis e Energia já estão no seletor e na cápsula de navegação.
+    CircleButton {
+        id: settingsBtn
+        x: root.mx(root.width - 12 - 26, 26)
+        readonly property string host: root.island && root.island.glyphs ? root.island.glyphs.glyph("setup") : ""
+        y: 8
+        opacity: root.settingsOpacity
+        veil: (cardHover.hovered || settingsBtn.hovered || (root.keyboardMode && priv.focus === "settings")) ? 1 : 0
+        theme: root.theme
+        icon: settingsBtn.host === "" ? "settings" : ""
+        glyph: settingsBtn.host
+        size: 26
+        glyphSize: 15
+        fill: "transparent"
+        hoverFill: root.theme ? root.theme.rowHover : "transparent"
+        glyphColor: root.theme ? root.theme.inkFaint : "gray"
+        hoverGlyphColor: root.theme ? root.theme.ink : "white"
+        focused: root.keyboardMode && root.ringsShown && priv.focus === "settings"
+        accessibleName: root.t("cc.ilhaSettings")
+        onClicked: root.openSettings()
     }
 
     // ---- Vazio ----

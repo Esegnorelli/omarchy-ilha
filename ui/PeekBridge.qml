@@ -19,7 +19,7 @@ import "Motion.js" as Motion
 //   já mostrando: prioridade >= a atual -> troca no lugar e reinicia o tempo -> "shown"
 //                 senão fica na vaga (a de maior prioridade)                 -> "queued"
 //   monitor focado em repouso                       -> mostra                -> "shown"
-//   senão (L1, L2, OSD na frente)                   -> vaga                  -> "queued"
+//   senão (seletor, L2, OSD na frente)                   -> vaga                  -> "queued"
 //
 // Vaga (uma só): a de maior prioridade fica; empate, a mais nova. Sai quando
 // o monitor focado volta ao repouso ou quando o aviso atual termina. Cai
@@ -27,7 +27,7 @@ import "Motion.js" as Motion
 // force). Abrir tela, seletor ou L2 (end()) esvazia a vaga.
 //
 // Na tela: PEEK_MS 2,6 s (urgente PEEK_URGENT_MS 4 s). hold(true) pausa
-// (ponteiro na zona; a face continua "peek", nunca vira L1); hold(false)
+// (ponteiro na zona; a face continua "peek", nunca vira seletor); hold(false)
 // recomeça com a cauda PEEK_TAIL_MS (1 s). Termina quando: o tempo acaba; a
 // chave desliga (menos urgente e force); abre tela ou seletor; um OSD aparece
 // no mesmo monitor (o OSD ganha); livePeek desliga ou a barra some; o

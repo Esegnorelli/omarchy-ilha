@@ -8,21 +8,21 @@ import "Motion.js" as Motion
 
 // Uma janela por monitor: a forma da ilha (Morph), a sombra, o recorte do
 // conteúdo, o relógio único, o HoverBar, os desenhos do OSD e do aviso, as
-// telas (ScreenStack), a dica da linha, a máscara de entrada e o teclado.
+// telas (ScreenStack), a máscara de entrada e o teclado.
 // Dono: Agent A.
 //
 // Face (amendments §1; primeira que casar):
-//   screen > osd > peek > picker > hover2 (expanded) > hover1 (hovered && !markHold) > rest
+//   screen > osd > peek > picker > hover2 (expanded) > rest
 // Cada troca de face (T0) chama applyFace(from, to): a forma vai ao alvo de
 // Theme.geometryFor com a mola da transição, o relógio faz a sua parte, os
 // desenhos do OSD e do aviso fazem fade, a pilha de telas abre/troca/fecha e
-// a face é relatada ao Ilha (reportFace). Os itens do L1/L2, a marca do
+// a face é relatada ao Ilha (reportFace). Os itens do L2, a marca do
 // repouso e o seletor fazem os próprios fades no HoverBar.
 //
 // Molas da forma (motionFor): telas "panel"; L2 -> repouso "slow" com o
 // mergulho do topo (E: 22 no hover já, 10 no slow em +50 ms); o resto "hover".
 //
-// Relógio (um só; regra 1): p (clockP) 0 = repouso/L1, 1 = L2; deslocamento
+// Relógio (um só; regra 1): p (clockP) 0 = repouso/seletor, 1 = L2; deslocamento
 // dx = lerp(restDxSpring, l2ClockDx, p). restDxSpring mira restDx (marca ao
 // lado, §4.2) só no repouso e 0 nas outras faces, então o relógio desliza em
 // vez de pular (A, B, E, N, R). Entra em faces sem relógio (tela, OSD, aviso,
@@ -78,11 +78,9 @@ PanelWindow {
         : win.peekHere ? "peek"
         : win.pickerHere ? "picker"
         : win.expanded ? "hover2"
-        // Repouso: só a hora. Ponteiro em cima: a pílula vira os seis ícones
-        // das telas (o L1 de workspaces saiu do caminho do hover).
+        // Repouso: só a hora. Ponteiro em cima: o seletor (workspaces · relógio · telas).
         : (win.hovered && !win.markHold) ? "picker"
         : "rest"
-    readonly property int hoverLevel: win.face === "hover2" ? 2 : (win.face === "hover1" ? 1 : 0)
     readonly property bool layerOverlay: win.face === "screen" && !!win.island && win.island.fullscreenOn(win.output)
 
     // ---- Geometria-alvo ----
@@ -90,11 +88,11 @@ PanelWindow {
     property real panelH: 0
     readonly property var ctx: ({
         clockW: clock.naturalWidth,
-        privacy: !!win.island && win.island.status.privacy,
-        sideL: bar.sideL,
-        sideR: bar.sideR,
         osdW: osdFace.implicitWidth,
         markW: bar.restMarkW,
+        pickerW: bar.pickerW,
+        modsW: bar.modsW,
+        bandW: bar.l2FitW,
         peekW: peekFace.implicitWidth,
         screenW: win.screenW,
         screenH: win.screenH,
@@ -103,7 +101,9 @@ PanelWindow {
     })
     readonly property var targetGeom: win.theme ? win.theme.geometryFor(win.face, win.ctx) : ({ w: 84, h: 32, top: 10, cap: 16 })
     // A face por baixo do OSD (a zona do OSD é unida com a dela).
-    readonly property string underFace: win.expanded ? "hover2" : (win.hovered ? "hover1" : "rest")
+    readonly property string underFace: win.expanded ? "hover2"
+        : (win.pickerHere || (win.hovered && !win.markHold)) ? "picker"
+        : "rest"
     readonly property var zone: {
         if (!win.theme)
             return { x: 0, y: 0, w: 0, h: 0 };
@@ -121,6 +121,11 @@ PanelWindow {
 
     // Deslocamento do relógio no repouso (marca ao lado): restDx = dir·(markW/2 + 2).
     readonly property real restDxTarget: bar.restMarkW > 0 ? (win.theme ? win.theme.dir : 1) * (bar.restMarkW / 2 + 2) : 0
+    readonly property real pickerDxTarget: bar.pickerClockDx
+    onPickerDxTargetChanged: {
+        if (priv.ready && win.face === "picker")
+            restDxSpring.go(win.pickerDxTarget, "hover");
+    }
 
     // A marca está de fato na tela e tocável (porte do markLive da 1.x): um
     // HoverHandler que some pode não avisar a saída.
@@ -204,10 +209,12 @@ PanelWindow {
     Morph {
         id: pill
         centerX: win.cx
+        bandH: win.theme ? win.theme.px.L2_H : 52
         onSettled: if (win.restFadingOut && win.face === "rest") win.restFadingOut = false
     }
 
-    // p do relógio: 0 = repouso / L1, 1 = L2. restDxSpring: a base do deslocamento.
+    // p do relógio: 0 = repouso/seletor, 1 = L2. restDxSpring: a base do deslocamento:
+    // no repouso, ao lado da marca; no seletor, a vaga do relógio.
     SpringValue { id: clockP; settlePos: 0.001; settleVel: 0.04 }   // progresso 0..1
     SpringValue { id: restDxSpring }
 
@@ -271,7 +278,7 @@ PanelWindow {
     }
 
     function clockWanted(f) {
-        return f === "rest" || f === "hover1" || f === "hover2";
+        return f === "rest" || f === "hover2" || f === "picker";
     }
 
     function motionFor(from, to) {
@@ -301,24 +308,15 @@ PanelWindow {
         }
 
         // ---- Relógio: p e a base do deslocamento ----
-        const hoverFaces = from === "rest" || from === "hover1" || from === "hover2";
+        const hoverFaces = from === "rest" || from === "hover2" || from === "picker";
         switch (to) {
         case "hover2":
-            // C (do L1) e N (direto do repouso) andam; M (do aviso) e os outros pulam.
+            // N (do repouso ou do seletor) anda; M (do aviso) e os outros pulam.
             if (hoverFaces) {
                 clockP.go(1, "hover");
                 restDxSpring.go(0, "hover");
             } else {
                 clockP.snap(1);
-                restDxSpring.snap(0);
-            }
-            break;
-        case "hover1":
-            if (hoverFaces) {
-                clockP.go(0, "hover");
-                restDxSpring.go(0, "hover");
-            } else {
-                clockP.snap(0);
                 restDxSpring.snap(0);
             }
             break;
@@ -334,8 +332,17 @@ PanelWindow {
                 restDxSpring.snap(win.restDxTarget);
             }
             break;
+        case "picker":
+            if (hoverFaces) {
+                clockP.go(0, "hover");
+                restDxSpring.go(win.pickerDxTarget, "hover");
+            } else {
+                clockP.snap(0);
+                restDxSpring.snap(win.pickerDxTarget);
+            }
+            break;
         default:
-            // tela, OSD, aviso, seletor: o relógio sai; p e dx no fim do fade.
+            // tela, OSD, aviso: o relógio sai.
             break;
         }
 
@@ -378,7 +385,6 @@ PanelWindow {
             win.markHold = false;
         win.refreshHit();
         win.island.reportFace(win.output, to);
-        win.hintOnFace(from, to);
     }
 
     // O ponteiro parado sobre a face nova: cursor e destaque do seletor certos
@@ -388,7 +394,7 @@ PanelWindow {
         const hit = win.pointerInside && win.face !== "screen" && p.x >= 0 ? bar.hitTest(p.x, p.y) : "";
         priv.hit = hit;
         if (bar.screenPicker)
-            bar.screenPicker.setHover(win.face === "picker" && hit.indexOf("pick:") === 0 ? hit.slice(5) : "");
+            bar.screenPicker.setHover(win.face === "picker" ? hit : "");
     }
 
     onFaceChanged: {
@@ -493,7 +499,7 @@ PanelWindow {
         pill.snap(win.targetGeom);
         priv.applied = Object.assign({}, win.targetGeom);
         clockP.snap(win.face === "hover2" ? 1 : 0);
-        restDxSpring.snap(win.face === "rest" ? win.restDxTarget : 0);
+        restDxSpring.snap(win.face === "rest" ? win.restDxTarget : (win.face === "picker" ? win.pickerDxTarget : 0));
         clockLayer.opacity = win.clockWanted(win.face) ? 1 : 0;
         osdFace.opacity = win.face === "osd" ? 1 : 0;
         peekFace.opacity = win.face === "peek" ? 1 : 0;
@@ -539,28 +545,16 @@ PanelWindow {
             osdOpacity: r(osdFace.opacity),
             peekOpacity: r(peekFace.opacity),
             markW: bar.restMarkW,
-            hint: hint.shown,
             panelH: win.panelH,
             stack: { screen: priv.shownScreen, ready: stack.ready }
         };
     }
 
-    // Nível de hover pedido por código (0 / 1 / 2).
-    function setLevel(n) {
-        if (!win.island)
-            return;
-        if (n >= 2) {
-            win.island.setExpanded(win.output, true);
-        } else {
-            win.island.setExpanded(win.output, false);
-            win.island.hoverOutput = n === 1 ? win.output : "";
-        }
-    }
 
     // ---- Ponteiro ----
     // Um caminho só para os dois HoverHandlers (zona e faixa de cima). A
     // ordem importa: markHold e a folga da saída mudam ANTES das bandeiras
-    // de dentro/fora, senão a face passaria um instante pelo L1 (e a marca
+    // de dentro/fora, senão a face passaria um instante pelo seletor (e a marca
     // piscaria) ao entrar em cima da marca.
     function trackPointer() {
         const inZone = zoneHover.hovered;
@@ -593,7 +587,7 @@ PanelWindow {
         const hit = inside && win.face !== "screen" ? bar.hitTest(p.x, p.y) : "";
         priv.hit = hit;
         if (bar.screenPicker)
-            bar.screenPicker.setHover(win.face === "picker" && hit.indexOf("pick:") === 0 ? hit.slice(5) : "");
+            bar.screenPicker.setHover(win.face === "picker" ? hit : "");
 
         const was = win.pointerInside;
         if (was && !inside)
@@ -613,10 +607,11 @@ PanelWindow {
         interval: win.face === "picker" ? Motion.TIMING.HOVER_PICKER_GRACE_MS : Motion.TIMING.LEAVE_GRACE_MS
     }
 
-    // L2 com o ponteiro fora por 2,5 s: volta ao repouso.
+    // L2 com o ponteiro fora por 2,5 s: volta ao repouso. Módulo sob o ponteiro
+    // ou painel aberto segura o L2.
     Timer {
         interval: Motion.TIMING.L2_COLLAPSE_MS
-        running: win.face === "hover2" && !win.pointerInside && !!win.island && win.island.hoverOutput !== win.output
+        running: win.face === "hover2" && !win.pointerInside && !bar.modsPointerOver && !bar.widgetsPopoutOpen && !!win.island && win.island.hoverOutput !== win.output
         onTriggered: if (win.island) win.island.setExpanded(win.output, false)
     }
 
@@ -731,7 +726,7 @@ PanelWindow {
             }
         }
 
-        // Faixa invisível de 3 px na borda de cima: só abre o L1 (§8.1).
+        // Faixa invisível de 3 px na borda de cima: só abre o seletor (§8.1).
         Item {
             id: stripItem
             x: win.strip.x
@@ -797,7 +792,6 @@ PanelWindow {
                     strings: win.island ? win.island.strings : null
                     morph: pill
                     output: win.output
-                    level: win.hoverLevel
                     face: win.face
                     motion: priv.motion
                     statusPin: win.island && win.island.expandedOutput === win.output ? win.island.expandedPin : ""
@@ -813,12 +807,12 @@ PanelWindow {
                     }
                 }
 
-                // O relógio único (repouso, L1, L2).
+                // O relógio único (repouso, seletor e L2).
                 Item {
                     id: clockLayer
                     readonly property real dx: Motion.lerp(restDxSpring.value, bar.l2ClockDx, clockP.value)
                     x: win.cx + clockLayer.dx - clock.width / 2
-                    y: pill.centerY - clock.height / 2
+                    y: pill.bandY - clock.height / 2
                     width: clock.width
                     height: clock.height
                     opacity: 1
@@ -900,25 +894,18 @@ PanelWindow {
             }
         }
 
-        // Dica da linha: fora do recorte e da máscara (a entrada passa por ela).
-        LineHint {
-            id: hint
-            theme: win.theme
-            strings: win.island ? win.island.strings : null
-            glassy: !!win.island && win.island.glassy
-            cx: win.cx
-            topY: (win.theme ? win.theme.px.L1_TOP + win.theme.px.L1_H + win.theme.px.HINT_GAP : 72)
-            screenW: win.screenW
-        }
 
-        // Navegação: Voltar e as seis telas, presa à borda de baixo do painel.
+        // Navegação: Voltar e as sete telas, presa à borda de baixo do painel; desenhada só com o ponteiro na tela ou nela.
         ScreenNav {
             id: nav
             theme: win.theme
             strings: win.island ? win.island.strings : null
+            glyphs: win.island ? win.island.glyphs : null
             glassy: !!win.island && win.island.glassy
             rtl: !!win.island && win.island.rtl
             shown: win.navOn
+            // Fora do modo teclado, o ponteiro na tela acende a cápsula; sobre ela, sempre.
+            revealed: (win.pointerInside && !!win.island && !win.island.keyboardMode) || nav.pointerOver
             cx: win.cx
             topY: pill.top + pill.h + (win.theme ? win.theme.px.NAV_GAP : 8)
             current: win.island ? win.island.screen : ""
@@ -931,41 +918,6 @@ PanelWindow {
         }
     }
 
-    // ---- Dica da linha (§7): primeira face hover1 da sessão ----
-    function hintOnFace(from, to) {
-        if (from === "hover1" && to !== "hover1") {
-            hintDelay.stop();
-            hintTimer.stop();
-            // fast antes de shown: a duração certa vale no quadro da troca.
-            hint.fast = to !== "rest";
-            hint.shown = false;
-        }
-        if (to === "hover1" && win.island && !win.island.lineHintSeen && !win.island.barHidden && !win.island.restartNoticeShowing)
-            hintDelay.restart();
-    }
-    Timer {
-        id: hintDelay
-        interval: Motion.FADE.HINT_IN.delay
-        onTriggered: {
-            if (win.face !== "hover1" || !win.island || win.island.lineHintSeen || win.island.barHidden || win.island.restartNoticeShowing)
-                return;
-            hint.fast = false;
-            hint.shown = true;
-            hintTimer.restart();
-            Qt.callLater(() => {
-                if (win.island)
-                    win.island.lineHintSeen = true;
-            });
-        }
-    }
-    Timer {
-        id: hintTimer
-        interval: Motion.TIMING.HINT_MS
-        onTriggered: {
-            hint.fast = false;
-            hint.shown = false;
-        }
-    }
 
     // ---- Toque (amendments §3) ----
     function primary(p) {
@@ -998,7 +950,6 @@ PanelWindow {
             return;
         switch (win.face) {
         case "rest":
-        case "hover1":
         case "hover2":
             win.island.openPicker(win.output);
             return;
@@ -1038,7 +989,7 @@ PanelWindow {
                 win.navBack();
             return true;
         }
-        if (k >= Qt.Key_1 && k <= Qt.Key_6 && mods === Qt.AltModifier) {
+        if (k >= Qt.Key_1 && k <= Qt.Key_9 && mods === Qt.AltModifier) {
             if (!event.isAutoRepeat)
                 win.altScreen(k - Qt.Key_1);
             return true;
@@ -1146,6 +1097,18 @@ PanelWindow {
             enabled: win.face === "screen"
             autoRepeat: false
             onActivated: win.altScreen(5)
+        }
+        Shortcut {
+            sequence: "Alt+7"
+            enabled: win.face === "screen"
+            autoRepeat: false
+            onActivated: win.altScreen(6)
+        }
+        Shortcut {
+            sequence: "Alt+8"
+            enabled: win.face === "screen"
+            autoRepeat: false
+            onActivated: win.altScreen(7)
         }
     }
 }

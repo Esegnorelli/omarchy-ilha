@@ -4,8 +4,8 @@ import QtQuick.Effects
 import qs.Commons as Commons
 import "Motion.js" as Motion
 
-// Seletor de temas (screens §12; dono: Agent G). Painel 30 + 194k x 222
-// (k = 2..4 cartões pela largura da tela), cap 30. Cresce da pílula.
+// Seletor de temas (screens §12; dono: Agent G). Fileira embutida na tela
+// unida (mesma largura dos papéis). O contador n/N só no modo teclado.
 //
 // Duas camadas (motion F):
 // - CABEÇALHO, preso às bordas vivas da forma (só x): lupa 13 a 16 px da
@@ -13,8 +13,7 @@ import "Motion.js" as Motion
 //   "12/18" a 16 px da borda direita. Centro em y 29. Sem título e sem
 //   fundo de campo, como no vídeo.
 // - CORPO, no layout final centrado: a faixa de cartões 187 x 98 (passo 194)
-//   recortada em exatamente k passos (o vizinho ±2 aparece pela metade) e o
-//   rodapé "Enter para aplicar".
+//   recortada em exatamente k passos (o vizinho ±2 aparece pela metade).
 //
 // Cartão: o fundo do próprio tema, seis bolinhas de 14 px (as cores 1–6 do
 // tema), o nome na cor de texto do tema. O escolhido sobe 8 px (140 ms) e
@@ -50,10 +49,7 @@ Item {
     signal navigate(string id, var payload)
     signal closeRequested()
 
-    // ---- Dentro da tela unida (LookScreen) ----
-    // embedded: sem rodapé, medidas da fileira, aplicar não fecha a tela.
-    // active: esta fileira tem o teclado (a borda do escolhido só aparece nela).
-    property bool embedded: false
+    // Esta fileira tem o teclado (a borda do escolhido só aparece nela).
     property bool active: true
     // ↑/↓, e as teclas que chegam pelo campo com a outra fileira ativa.
     signal rowKey(var event)
@@ -94,7 +90,7 @@ Item {
     }
 
     // ---- Medidas ----
-    readonly property var dims: root.theme && root.island ? root.theme.screenSize(root.embedded ? "themeRow" : "themes", root.island.screenGeometry(root.island.screenOutput)) : ({ w: 806, h: 222, k: 4 })
+    readonly property var dims: root.theme && root.island ? root.theme.screenSize("themeRow", root.island.screenGeometry(root.island.screenOutput)) : ({ w: 806, h: 180, k: 4 })
     implicitWidth: root.dims.w
     implicitHeight: root.dims.h
 
@@ -168,11 +164,8 @@ Item {
         if (!t || priv.waiting || !root.themesSvc)
             return;
         if (t.slug === root.currentSlug) {
-            // Já é o tema: nada para aplicar (na tela unida, segue para os papéis).
-            if (root.embedded)
-                root.themeApplied();
-            else
-                root.closeRequested();
+            // Já é o tema: nada para aplicar. Na tela unida, segue para os papéis.
+            root.themeApplied();
             return;
         }
         if (!root.themesSvc.apply(t.slug))
@@ -186,18 +179,16 @@ Item {
     function nav(event, fromField) {
         const k = event.key;
         const mods = event.modifiers;
-        if (root.embedded) {
-            const plain = !(mods & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier));
-            // ↑/↓ trocam de fileira; com a outra fileira ativa, as teclas de
-            // navegação dela passam por aqui (o campo de busca fica com o foco).
-            if (plain && (k === Qt.Key_Up || k === Qt.Key_Down)) {
-                root.rowKey(event);
-                return true;
-            }
-            if (!root.active && plain && k !== Qt.Key_Escape) {
-                root.rowKey(event);
-                return true;
-            }
+        const plain = !(mods & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier));
+        // ↑/↓ trocam de fileira; com a outra fileira ativa, as teclas de
+        // navegação dela passam por aqui (o campo de busca fica com o foco).
+        if (plain && (k === Qt.Key_Up || k === Qt.Key_Down)) {
+            root.rowKey(event);
+            return true;
+        }
+        if (!root.active && plain && k !== Qt.Key_Escape) {
+            root.rowKey(event);
+            return true;
         }
         if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
             if (mods & Qt.ControlModifier) {
@@ -290,10 +281,7 @@ Item {
             if (!priv.waiting)
                 return;
             priv.waiting = false;
-            if (root.embedded)
-                root.themeApplied();
-            else
-                root.closeRequested();
+            root.themeApplied();
         }
     }
 
@@ -304,10 +292,7 @@ Item {
                 return;
             priv.waiting = false;
             applyFallback.stop();
-            if (root.embedded)
-                root.themeApplied();
-            else if (root.current)
-                root.closeRequested();
+            root.themeApplied();
         }
     }
 
@@ -345,7 +330,13 @@ Item {
             weight: 500
             tnum: true
             color: root.theme ? root.theme.inkFaint : "gray"
-            opacity: root.list.length > 0 ? 1 : 0
+            opacity: root.keyboardMode && root.list.length > 0 ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.theme ? root.theme.dur((root.keyboardMode && root.list.length > 0) ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
             text: root.strings && root.list.length > 0
                 ? root.strings.t("common.counter").arg(root.digits(strip.index + 1)).arg(root.digits(root.list.length))
                 : ""
@@ -401,17 +392,6 @@ Item {
             text: root.strings ? root.strings.t("themes.empty") : ""
         }
 
-        IlhaText {
-            x: root.bodyX(root.implicitWidth - 16 - width, width)
-            y: 199 - height / 2
-            theme: root.theme
-            size: 12
-            weight: 500
-            color: root.theme ? root.theme.inkFaint : "gray"
-            opacity: root.list.length > 0 ? 1 : 0
-            visible: !root.embedded
-            text: root.strings ? root.strings.t("common.enterToApply") : ""
-        }
     }
 
     // ---- Cartão de um tema ----

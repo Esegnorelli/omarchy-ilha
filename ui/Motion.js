@@ -14,7 +14,7 @@
 //   sem `from` }, cancelado pela face seguinte (gen) e partindo da opacidade atual.
 
 // ---- Molas (validadas com tmp/v2/architect/spring.py) ----
-// hover: rest <-> L1 <-> L2, fechar tela, OSD, aviso e seletor.
+// hover: rest <-> seletor <-> L2, fechar tela, OSD, aviso e seletor.
 // slow:  só L2 -> repouso (com o mergulho do topo, E).
 // panel: abrir telas e trocar de tela.
 var PRESETS = {
@@ -35,27 +35,15 @@ var SETTLE_VEL = 2;
 
 // ---- Fades e pequenos movimentos (ms) ----
 var FADE = {
-    // A) repouso -> L1: itens do L1 entram em 60 ms a partir do T0.
-    L1_IN: { delay: 0, dur: 60 },
-    // B) L1 -> repouso: itens do L1 saem em 90 ms a partir de T0 + 30.
-    L1_OUT: { delay: 30, dur: 90 },
-    // C) L1 -> L2
-    L2_EQ_OUT: { delay: 0, dur: 60 },          // equalizador e ponto de privacidade saem
-    L2_ICONS_IN: { delay: 70, dur: 60 },       // ícones da linha de cima
-    L2_LABELS_IN: { delay: 130, dur: 80 },     // rótulos da linha de cima
+    // L2: ícones, rótulos, módulos e data.
+    L2_ICONS_IN: { delay: 70, dur: 60 },
+    L2_LABELS_IN: { delay: 130, dur: 80 },
+    L2_MODS_IN: { delay: 150, dur: 90 },
     L2_DATE_IN: { delay: 60, dur: 70, dx: 5 }, // data: x = final + dir·5·(1 − opacidade)
-    CAPSULE_STAGGER_IN: 25,                    // atraso por cápsula (i = 0 é a mais de fora)
-    NETWORK_DELAY_IN: 25,
-    BATTERY_DELAY_IN: 0,
-    // D) L2 -> L1
+    // L2 -> repouso: a data sai; o topo mergulha (hover) e volta (slow) em +50.
     L2_DATE_OUT: { delay: 30, dur: 60, dx: 5 },
-    L1_EQ_IN: { delay: 120, dur: 60 },
-    CAPSULE_STAGGER_OUT: 10,                   // j = 0 é a mais de dentro
-    NETWORK_LEAD_OUT: 15,                      // a rede sai 15 ms antes da bateria
-    // E) L2 -> repouso: topo vai a 22 (hover) e é redirecionado a 10 (slow) em +50.
     DIP_TOP: 22,
     DIP_DELAY: 50,
-    L2_ITEMS_OUT: { delay: 40, dur: 90 },
     // F) qualquer face -> tela
     CONTENT_OUT: { delay: 0, dur: 60 },        // relógio e conteúdo do hover saem
     SCREEN_IN: { delay: 16, dur: 130, blur: 8 },   // CC, Energia, Mídia (um fade só)
@@ -65,10 +53,9 @@ var FADE = {
     SWAP_OUT: { delay: 0, dur: 50, blur: 6 },
     SWAP_IN: { delay: 30, dur: 130, blur: 8 },
     SWAP_BODY_IN: { delay: 70, dur: 100, blur: 8 },
-    // H) tela -> repouso / L1
+    // H) tela -> repouso / seletor
     SCREEN_OUT: { delay: 0, dur: 60, blur: 6 },
     CLOCK_IN_AFTER: { delay: 50, dur: 70 },    // também I-out
-    L1_IN_AFTER: { delay: 90, dur: 60 },
     // I) * -> osd / osd -> *
     OSD_IN: { delay: 40, dur: 90 },
     OSD_OUT: { delay: 0, dur: 60 },
@@ -94,7 +81,6 @@ var FADE = {
     CARD_HEIGHT: 160,                          // linha de senha, listas inline
     // L) micro-movimento
     HOVER: 110,                                // fundo de bloco, linha, botão
-    CAPSULE_HOVER: 100,
     L2_HIGHLIGHT_IN: 120,                      // linear
     L2_HIGHLIGHT_OUT: 70,
     SWITCH: 140,
@@ -106,8 +92,6 @@ var FADE = {
     THEME_LIFT: { dur: 140, px: 8 },
     THEME_BORDER: 150,
     CLOCK_ROLL: { dur: 110, dy: 6 },
-    WS_SWITCH: 180,                            // escala 1 <-> 1,25, cor e brilho
-    EQ_PERIOD: 900,
     CARET: { solid: 600, period: 750, on: 250, fade: 180, low: 150, lowOpacity: 0.25 },
     THEME_COLORS: 150,
     IMAGE_IN: 120,                             // miniaturas
@@ -120,7 +104,6 @@ var FADE = {
     HIDDEN_SCREEN_OUT: 120,
     // Amendments §2: marca do repouso
     MARK_OUT: 60,
-    MARK_IN_FROM_L1: { delay: 140, dur: 80 },
     MARK_IN_FROM_L2: { delay: 200, dur: 80 },
     MARK_IN_AFTER: { delay: 50, dur: 70 },
     MARK_SWAP: { out: 60, inDelay: 60, inDur: 90 },
@@ -135,12 +118,9 @@ var FADE = {
     PICKER_OUT: 60,
     PICKER_HOVER_IN: 110,
     PICKER_HOVER_OUT: 70,
-    // L2 direto (N: repouso -> L2; M: aviso -> L2)
-    DIRECT_L2: { itemsDelay: 60, itemsDur: 90, clockDelay: 50, clockDur: 70 },
-    // Dica da linha
-    HINT_IN: { delay: 180, dur: 120, dyFrom: -4 },
-    HINT_OUT: 150,
-    HINT_OUT_FAST: 60,
+    // Entrada e saída de um secundário (só opacidade).
+    REVEAL_IN: 110,
+    REVEAL_OUT: 70,
     // Navegação abaixo da tela: entra depois do painel começar a abrir.
     NAV_IN: { delay: 90, dur: 120, dyFrom: -4 },
     NAV_OUT: 60,
@@ -154,6 +134,7 @@ var FADE = {
 var TIMING = {
     LEAVE_GRACE_MS: 60,          // saída do hover
     HOVER_PICKER_GRACE_MS: 250,  // saída do hover com os ícones na pílula
+    NAV_REVEAL_GRACE_MS: 250,    // a navegação espera isto antes de sumir (o vão de 8 px entre tela e cápsula)
     L2_COLLAPSE_MS: 2500,        // L2 com o ponteiro fora
     KEYBOARD_MOVE_PX: 8,         // ponteiro andou isto: sai do modo teclado
     RUN_TIMEOUT_MS: 3000,        // ilha run: espera a tela ficar pronta
@@ -184,7 +165,6 @@ var TIMING = {
     LONG_PRESS_MS: 500,
     WHEEL_DECAY_MS: 200,
     WHEEL_STEP: 120,
-    HINT_MS: 3000,
     SETTLE_MS: 4000,
     REMINDER_SOON_S: 300
 };
@@ -268,7 +248,7 @@ function ease(t, curve) {
 }
 
 // Rank de entrada de um ícone do seletor (P): 0 para 2 e 3, 1 para 1 e 4, 2 para 0 e 5.
-// Entrada do centro para as pontas: com cinco ícones, 2 / 1 e 3 / 0 e 4.
+// Entrada do centro para as pontas (sete ícones: o 3, depois 2 e 4…).
 function pickerRank(slot) {
-    return Math.abs(slot - 2);
+    return Math.abs(slot - 3);
 }

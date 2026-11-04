@@ -8,11 +8,12 @@ import "Motion.js" as Motion
 // Coordenadas do cartão (x 22, y 21 no painel, 470 de largura; o fundo é do
 // contêiner da Central, que também faz a transformação J e o fade):
 // - Voltar 24 em (26, 34); título x 52, topo da maiúscula 26, 18.5 / 600.
+//   O chevron de voltar é secundário (hover do cabeçalho ou do botão).
 // - "Saída" (topo da maiúscula 71.25, 12.5 / 500 inkMuted). Linhas de saída
 //   a partir de y 96: 442 x 40.5, passo 45, raio 9.5, raised; círculo 30 a 8;
 //   rótulo x 49.5, 14.5 (600 selecionada); ✓ a 15 da direita.
 // - Barra de saída 11.5 abaixo das linhas: 398 x 28, "79%" alinhado à direita
-//   da linha (12.5 inkMuted, tnum).
+//   da linha (12.5 inkMuted, tnum). A porcentagem é secundária (hover da linha da barra, arraste ou foco ov/iv).
 // - "Entrada" 15 abaixo da barra; linhas 23.5 abaixo do rótulo; barra 10.5
 //   abaixo das linhas; 14 de margem embaixo.
 // - cardH = 217.5 + 45·(min(nOut,5) + min(nIn,3)); lista vazia conta como uma
@@ -217,7 +218,17 @@ Item {
     onNInChanged: if (priv.focusKey.indexOf("i:") === 0 && Number(priv.focusKey.slice(2)) >= root.nIn) priv.focusKey = "iv"
 
     // ---- Cabeçalho ----
+    // Cabeçalho: o hover dele mostra o chevron de voltar (secundário; Esc, Alt+←, a navegação e o toque fora também voltam).
+    Item {
+        id: headerBand
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 0
+        height: root.bodyTop
+        HoverHandler { id: headerHover }
+    }
     CircleButton {
+        id: backBtn
         anchors.left: parent.left
         anchors.leftMargin: 14
         y: 22
@@ -227,6 +238,7 @@ Item {
         size: 24
         glyphSize: 14
         accessibleName: root.tr("common.back")
+        veil: (headerHover.hovered || backBtn.hovered) ? 1 : 0
         onClicked: root.back()
     }
     IlhaText {
@@ -323,6 +335,14 @@ Item {
                 text: root.tr("sound.noOutput")
             }
 
+            Item {
+                id: outRowHit
+                anchors.left: parent.left
+                anchors.right: parent.right
+                y: outSlider.y
+                height: outSlider.height
+                HoverHandler { id: outRowHover }
+            }
             IlhaSlider {
                 id: outSlider
                 anchors.left: parent.left
@@ -355,6 +375,15 @@ Item {
                 tnum: true
                 color: root.theme ? root.theme.inkMuted : "gray"
                 text: root.percent(outSlider.shownValue)
+                HoverHandler { id: outPctHover }
+                readonly property bool reveal: outRowHover.hovered || outSlider.hovered || outSlider.dragging || outPctHover.hovered || (root.keyboardMode && priv.focusKey === "ov")
+                opacity: reveal ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
 
             // Entrada
@@ -420,6 +449,14 @@ Item {
                 text: root.tr("sound.noInput")
             }
 
+            Item {
+                id: inRowHit
+                anchors.left: parent.left
+                anchors.right: parent.right
+                y: inSlider.y
+                height: inSlider.height
+                HoverHandler { id: inRowHover }
+            }
             IlhaSlider {
                 id: inSlider
                 anchors.left: parent.left
@@ -452,6 +489,15 @@ Item {
                 tnum: true
                 color: root.theme ? root.theme.inkMuted : "gray"
                 text: root.percent(inSlider.shownValue)
+                HoverHandler { id: inPctHover }
+                readonly property bool reveal: inRowHover.hovered || inSlider.hovered || inSlider.dragging || inPctHover.hovered || (root.keyboardMode && priv.focusKey === "iv")
+                opacity: reveal ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
         }
     }

@@ -86,7 +86,8 @@ Item {
     readonly property var monitors: root.island ? root.island.monitors : null
 
     implicitWidth: 514
-    implicitHeight: priv.sub !== "" && root.subItem ? Math.max(513, root.cardHeightFor(root.subItem) + 42) : 513
+    readonly property real baseH: root.theme ? root.theme.px.CC_H : 588
+    implicitHeight: priv.sub !== "" && root.subItem ? Math.max(root.baseH, root.cardHeightFor(root.subItem) + 42) : root.baseH
 
     // ---- Subpágina / popover ----
 
@@ -278,11 +279,12 @@ Item {
                 return true;
             if (k === Qt.Key_Up) {
                 const p = notifications.mapToItem(root, notifications.focusX(), 0);
-                root.focusNearest(3, p.x);
+                // A última linha da grade (o cartão "tocando agora").
+                root.focusNearest(root.cellRows.length - 1, p.x);
                 return true;
             }
             if (k === Qt.Key_Tab || k === Qt.Key_Backtab) {
-                root.focusCell(k === Qt.Key_Backtab || shift ? "displayChevron" : "wifi");
+                root.focusCell(k === Qt.Key_Backtab || shift ? "mediaNext" : "wifi");
                 return true;
             }
             return false;
@@ -623,10 +625,19 @@ Item {
 
     // ---- Grade do teclado ----
 
-    readonly property var cellRows: [["wifi", "focus", "lock"], ["bt", "game", "night"], ["sound", "soundChevron"], ["display", "displayChevron"]]
+    readonly property var cellRows: [["wifi", "focus", "lock"], ["bt", "game", "night"], ["sound", "soundChevron"], ["display", "displayChevron"],
+        ["mediaOpen", "mediaPrev", "mediaPlay", "mediaNext"]]
 
     function cellItem(id) {
         switch (id) {
+        case "mediaOpen":
+            return mediaCard.openArea;
+        case "mediaPrev":
+            return mediaCard.prevButton;
+        case "mediaPlay":
+            return mediaCard.playButton;
+        case "mediaNext":
+            return mediaCard.nextButton;
         case "wifi":
             return wifiTile;
         case "focus":
@@ -767,6 +778,21 @@ Item {
         case "display":
         case "displayChevron":
             root.openSub("display", displayCard.chevron);
+            break;
+        case "mediaOpen":
+            root.navigate("media", ({}));
+            break;
+        case "mediaPrev":
+            if (root.island && root.island.media)
+                root.island.media.previous();
+            break;
+        case "mediaPlay":
+            if (root.island && root.island.media)
+                root.island.media.playPause();
+            break;
+        case "mediaNext":
+            if (root.island && root.island.media)
+                root.island.media.next();
             break;
         default:
             break;
@@ -1049,6 +1075,8 @@ Item {
         property real chevronOpacity: 1
         readonly property Item chevron: chev
         readonly property IlhaSlider slider: bar
+        HoverHandler { id: cardHover }
+        readonly property bool pointed: cardHover.hovered || chev.hovered || bar.hovered
 
         signal moved(real v)
         signal committed(real v)
@@ -1086,6 +1114,7 @@ Item {
             anchors.rightMargin: 23 - 12
             y: 14 - 12
             opacity: card.chevronOpacity
+            veil: (card.pointed || card.chevronFocused) ? 1 : 0
             theme: card.theme
             icon: "chevron_right"
             flip: !!card.theme && card.theme.rtl
@@ -1243,17 +1272,29 @@ Item {
             onOpenRequested: root.openSub("display", displayCard.chevron)
         }
 
+        // Música dentro da Central: o que toca agora, com o transporte.
+        MediaCard {
+            id: mediaCard
+            x: 14
+            y: 299
+            theme: root.theme
+            strings: root.strings
+            media: root.island ? root.island.media : null
+            focusedPart: root.keyboardMode && priv.sub === "" && priv.focus.indexOf("media") === 0
+                ? priv.focus.slice(5).toLowerCase() : ""
+            onOpenRequested: root.navigate("media", ({}))
+        }
+
         NotificationsCard {
             id: notifications
             x: 14
-            y: 299
+            y: 374
             island: root.island
             theme: root.theme
             strings: root.strings
             keyboardMode: root.keyboardMode
             ringsShown: priv.sub === ""
             settingsOpacity: priv.srcKey === "ilha" ? priv.sourceOpacity : 1
-            onNavigate: id => root.navigate(id, ({}))
             onOpenSettings: root.openSub("ilha", notifications.settingsButton)
             onCloseRequested: root.closeRequested()
         }

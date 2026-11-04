@@ -17,7 +17,7 @@ import "Motion.js" as Motion
 //   12,5, fill raised, hover rowHover em 110 ms. Título 14,5 / 600 em x 16,
 //   topo das maiúsculas 13; dica 12 / 400 inkMuted, topo 33; ambos cortam em
 //   357. IlhaSwitch 43 x 24 à direita (14), centrado. Clicar na linha ou no
-//   interruptor chama prefs.toggle(chave).
+//   interruptor chama prefs.toggle(chave). O chevron e a versão são secundários (hover do cabeçalho). A dica de cada linha é secundária (hover da linha ou foco nela).
 // - Só sem host (!prefs.canPersist): a nota ilha.localOnly, 12 inkFaint,
 //   x 16, topo das maiúsculas 210. cardH = 212, ou 234 com a nota.
 // - RTL: tudo por âncoras (espelham com o LayoutMirroring herdado).
@@ -107,7 +107,17 @@ Item {
         readonly property var keys: ["focusedOnly", "livePeek"]
     }
 
+    // Cabeçalho: o hover dele mostra o chevron de voltar (secundário; Esc, Alt+←, a navegação e o toque fora também voltam).
+    Item {
+        id: headerBand
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 0
+        height: 60
+        HoverHandler { id: headerHover }
+    }
     CircleButton {
+        id: backBtn
         anchors.left: parent.left
         anchors.leftMargin: 26 - 12
         y: 34 - 12
@@ -117,6 +127,7 @@ Item {
         size: 24
         glyphSize: 14
         accessibleName: root.t("common.back")
+        veil: (headerHover.hovered || backBtn.hovered) ? 1 : 0
         onClicked: root.back()
     }
 
@@ -142,6 +153,14 @@ Item {
         weight: 400
         color: root.theme ? root.theme.inkFaint : "gray"
         text: root.t("ilha.version").arg(root.island ? (root.island.manifestVersion || root.island.codeVersion) : "")
+        readonly property bool reveal: headerHover.hovered
+        opacity: reveal ? 1 : 0
+        Behavior on opacity {
+            NumberAnimation {
+                duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                easing.type: Easing.OutCubic
+            }
+        }
     }
 
     Repeater {
@@ -207,6 +226,14 @@ Item {
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignLeft
                 text: root.t(row.modelData.hint)
+                readonly property bool reveal: area.containsMouse || (root.keyboardMode && priv.focus === row.index)
+                opacity: reveal ? 1 : 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
 
             IlhaSwitch {

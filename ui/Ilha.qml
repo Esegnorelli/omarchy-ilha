@@ -9,8 +9,8 @@ import "Motion.js" as Motion
 
 // Ilha 2.0: plugin de barra (kind "bar") que troca a barra do Omarchy por uma
 // ilha flutuante por monitor. Em repouso é uma pílula com a hora (e a marca
-// do indicador mais importante); no hover cresce para a linha dos
-// workspaces (L1) e, num clique, para a linha completa (L2); um atalho, o
+// do indicador mais importante); no hover abre o seletor (workspaces,
+// relógio e telas) e, num clique no relógio ou num vão, o nível 2; um atalho, o
 // seletor ou o IPC abre uma tela no lugar da pílula (Central, Apps,
 // Energia, Temas, Papéis, Mídia). OSDs e avisos ao vivo também moram nela.
 //
@@ -41,6 +41,7 @@ Item {
 
     // ---- Injetado pelo host ----
     property string omarchyPath: ""
+    property OmarchyGlyphs glyphs: OmarchyGlyphs { omarchyPath: island.omarchyPath }
     property var shell: null
     property var manifest: null
     property var barWidgetRegistry: null
@@ -48,7 +49,7 @@ Item {
     property var barConfig: null
 
     // ---- Versão ----
-    readonly property string codeVersion: "2.3.0"
+    readonly property string codeVersion: "2.4.0"
     readonly property string manifestVersion: island.manifest && island.manifest.version ? String(island.manifest.version) : ""
 
     // Referência à raiz para objetos que têm uma propriedade `island` própria
@@ -96,16 +97,15 @@ Item {
     property string expandedPin: ""
     // Seletor de telas: monitor onde está aberto ("" = fechado).
     property string pickerOutput: ""
-    // Dica da linha: uma vez por sessão (nunca gravada).
-    property bool lineHintSeen: false
     // Face de cada janela (reportFace): {output: face}.
     readonly property var faces: priv.faces
     // Hover forçado pelo IPC `ilha hover 1` (testes): monitor e nível.
     property string hoverOutput: ""
 
-    readonly property var screenIds: ["control", "launcher", "power", "themes", "media"]
+    readonly property var screenIds: ["control", "launcher", "power", "themes", "media", "calendar", "capture", "menu"]
     readonly property var subIds: ["sound", "display", "wifi", "bluetooth", "ilha"]
-    readonly property var aliases: ({ apps: "launcher", theme: "themes", look: "themes", cc: "control", controls: "control" })
+    readonly property var aliases: ({ apps: "launcher", theme: "themes", look: "themes", cc: "control", controls: "control",
+        clock: "calendar", time: "calendar", screenshot: "capture", record: "capture", omarchy: "menu" })
     // Papel de parede: a tela de temas, já na fileira de baixo.
     readonly property var wallpaperAliases: ["wallpapers", "wallpaper", "background", "backgrounds"]
 
@@ -134,7 +134,10 @@ Item {
         power: Qt.resolvedUrl("PowerScreen.qml"),
         // Tema e papel de parede numa tela só.
         themes: Qt.resolvedUrl("LookScreen.qml"),
-        media: Qt.resolvedUrl("MediaScreen.qml")
+        media: Qt.resolvedUrl("MediaScreen.qml"),
+        calendar: Qt.resolvedUrl("CalendarScreen.qml"),
+        capture: Qt.resolvedUrl("CaptureScreen.qml"),
+        menu: Qt.resolvedUrl("MenuScreen.qml")
     })
     property var components: ({})
 
@@ -534,15 +537,101 @@ Item {
         "omarchy.monitor": { id: "control", sub: "display" },
         "omarchy.power": { id: "power", sub: "" },
         "omarchy.media": { id: "media", sub: "" },
+        // A tecla de calendário do Omarchy (Super+Ctrl+Alt+D) abre o Calendário.
+        "omarchy.clock": { id: "calendar", sub: "" },
         "omarchy.elsewhen": { id: "control", sub: "" }
     })
 
+    // ---- Widgets do Omarchy dentro da pílula (OmarchyWidgets) ----
+    // O que a Ilha desenha por conta própria fica fora: o menu (ícone Omarchy),
+    // os workspaces (na cápsula do hover) e o relógio (o Calendário).
+    readonly property var nativeWidgets: ["omarchy.menu", "omarchy.workspaces", "omarchy.clock"]
+    // Telas da Ilha que respondem no lugar do widget do Omarchy.
+    readonly property var nativeFirst: ["omarchy.clock", "omarchy.media"]
+    readonly property var layoutSections: ["left", "centerBegin", "center", "centerEnd", "right"]
+    // [{id, section, settings}] na ordem da barra padrão.
+    readonly property var hostedEntries: {
+        const layout = island.barConfig && island.barConfig.layout ? island.barConfig.layout : null;
+        const out = [];
+        if (!layout || typeof layout !== "object")
+            return out;
+        for (let s = 0; s < island.layoutSections.length; s++) {
+            const section = island.layoutSections[s];
+            const list = Array.isArray(layout[section]) ? layout[section] : [];
+            for (let i = 0; i < list.length; i++) {
+                const e = list[i];
+                const id = typeof e === "string" ? e : (e && typeof e === "object" && e.id ? String(e.id) : "");
+                if (id === "" || island.nativeWidgets.indexOf(id) !== -1)
+                    continue;
+                const settings = {};
+                if (e && typeof e === "object") {
+                    for (const k in e) {
+                        if (k !== "id")
+                            settings[k] = e[k];
+                    }
+                }
+                out.push({ id: id, section: section, settings: settings });
+            }
+        }
+        return out;
+    }
+    property var widgetHosts: []
+    function registerWidgetHost(h) {
+        if (h && island.widgetHosts.indexOf(h) === -1)
+            island.widgetHosts = island.widgetHosts.concat([h]);
+    }
+    function unregisterWidgetHost(h) {
+        island.widgetHosts = island.widgetHosts.filter(x => x !== h);
+    }
+    function widgetHostFor(output) {
+        for (let i = 0; i < island.widgetHosts.length; i++) {
+            if (island.widgetHosts[i].output === output)
+                return island.widgetHosts[i];
+        }
+        return null;
+    }
+    function hostedWidgets(id) {
+        let out = [];
+        for (let i = 0; i < island.widgetHosts.length; i++)
+            out = out.concat(island.widgetHosts[i].localWidgets(id));
+        return out;
+    }
+    // O painel de um widget hospedado: o aberto primeiro, depois o do monitor focado.
+    function hostedPanel(id) {
+        let fallback = null;
+        for (let i = 0; i < island.widgetHosts.length; i++) {
+            const p = island.widgetHosts[i].panelFor(id);
+            if (!p)
+                continue;
+            if (p.opened === true)
+                return p;
+            if (island.widgetHosts[i].output === island.focusedOutput() || !fallback)
+                fallback = p;
+        }
+        return fallback;
+    }
+    // Uma tecla ou IPC abre o painel de um módulo: o L2 abre no monitor focado
+    // (a fileira é a âncora) e o painel abre embaixo dela.
+    function openHostedPanel(id) {
+        const out = island.focusedOutput();
+        const host = island.widgetHostFor(out);
+        const panel = host ? host.panelFor(id) : island.hostedPanel(id);
+        if (!panel)
+            return false;
+        island.setExpanded(out, true);
+        Qt.callLater(() => {
+            if (typeof panel.openFromHotkey === "function")
+                panel.openFromHotkey();
+            else
+                panel.open();
+        });
+        return true;
+    }
+
     function summonBarWidget(pluginId) {
         const id = String(pluginId || "");
-        if (id === "omarchy.clock") {
-            island.keyboardMode = true;
-            return island.setExpanded(island.focusedOutput(), true);
-        }
+        if (island.nativeFirst.indexOf(id) === -1 && island.hostedPanel(id))
+            return island.openHostedPanel(id);
         const t = island.widgetScreens[id];
         if (!t) {
             console.log("ilha: no island screen for " + id);
@@ -554,8 +643,11 @@ Item {
 
     function hideBarWidget(pluginId) {
         const id = String(pluginId || "");
-        if (id === "omarchy.clock")
-            return island.setExpanded(island.focusedOutput(), false);
+        const hosted = island.nativeFirst.indexOf(id) === -1 ? island.hostedPanel(id) : null;
+        if (hosted) {
+            hosted.close();
+            return true;
+        }
         const t = island.widgetScreens[id];
         if (!t)
             return false;
@@ -566,14 +658,23 @@ Item {
 
     function isBarWidgetOpen(pluginId) {
         const id = String(pluginId || "");
-        if (id === "omarchy.clock")
-            return island.expandedOutput !== "" && island.expandedOutput === island.focusedOutput();
+        const hosted = island.nativeFirst.indexOf(id) === -1 ? island.hostedPanel(id) : null;
+        if (hosted)
+            return hosted.opened === true;
         const t = island.widgetScreens[id];
         return !!t && island.screen === t.id && island.screenSub === t.sub;
     }
 
     // Super+Ctrl+1..4: a N-ésima entrada de cada seção, contando de 1.
     function panelWidgetIdAt(section, index) {
+        // Com os widgets do Omarchy na pílula: a mesma conta da barra padrão
+        // (os painéis visíveis da seção, na ordem do bar.layout, sem a bandeja).
+        const host = island.widgetHostFor(island.focusedOutput()) || island.widgetHosts[0];
+        if (host) {
+            const ids = host.panelIds(String(section || ""));
+            const hit = ids[Math.round(Number(index)) - 1];
+            return hit ? hit : "";
+        }
         const sections = {
             "center": ["omarchy.clock"],
             "right": ["omarchy.audio", "omarchy.network", "omarchy.power", "omarchy.media"]
@@ -606,6 +707,13 @@ Item {
             screen: island.screen,
             sub: island.screenSub,
             history: island.screenHistory.map(e => e.id),
+            widgets: {
+                registry: !!island.barWidgetRegistry,
+                components: island.barWidgetRegistry && island.barWidgetRegistry.widgets ? Object.keys(island.barWidgetRegistry.widgets) : [],
+                entries: island.hostedEntries.map(e => e.section + ":" + e.id),
+                hosts: island.widgetHosts.length,
+                host: island.widgetHosts.length > 0 ? island.widgetHosts[0].debugSlots() : null
+            },
             output: island.screenOutput,
             faces: island.faces,
             expanded: island.expandedOutput,
@@ -616,16 +724,13 @@ Item {
             prefs: { focusedOnly: island.prefs.focusedOnly, livePeek: island.prefs.livePeek, reserveTop: island.prefs.reserveTop, canPersist: island.prefs.canPersist },
             peek: { showing: island.peek.showing, key: island.peek.key, output: island.peek.output, pending: island.peek.pending },
             picker: island.pickerOutput,
-            lineHintSeen: island.lineHintSeen,
             restartNotice: { showing: island.restartNoticeShowing },
             windows: wins
         };
     }
 
     // ---- Aviso de reinício (screens §15) ----
-    // Quem dispara e trata o toque é o OsdBridge (uma vez por sessão, quando o
-    // manifest injetado não bate com codeVersion). Aqui só o estado, para a
-    // dica da linha não aparecer junto.
+    // O OsdBridge dispara o aviso; aqui só o estado para o debug.
     readonly property bool restartNoticeShowing: island.osd.internal === "restart"
 
     function clockFormatIs12h(config) {
@@ -749,21 +854,24 @@ Item {
             clock.enabled = false;
             clock.enabled = true;
         }
+        // O relógio do Omarchy é o Calendário da Ilha.
         function open(): void {
-            island.setExpanded(island.focusedOutput(), true);
+            island.summonBarWidget("omarchy.clock");
         }
         function show(): void {
-            island.setExpanded(island.focusedOutput(), true);
+            island.summonBarWidget("omarchy.clock");
         }
         function close(): void {
-            island.setExpanded(island.focusedOutput(), false);
+            island.hideBarWidget("omarchy.clock");
         }
         function hide(): void {
-            island.setExpanded(island.focusedOutput(), false);
+            island.hideBarWidget("omarchy.clock");
         }
         function toggle(): void {
-            const out = island.focusedOutput();
-            island.setExpanded(out, island.expandedOutput !== out);
+            if (island.isBarWidgetOpen("omarchy.clock"))
+                island.hideBarWidget("omarchy.clock");
+            else
+                island.summonBarWidget("omarchy.clock");
         }
     }
 
@@ -797,7 +905,7 @@ Item {
             island.osd.hide();
             return "ok";
         }
-        // 0 repouso, 1 linha (L1), 2 linha completa (L2), no monitor focado.
+        // 0 repouso, 1 seletor, 2 nível 2, no monitor focado.
         function hover(level: string): string {
             const out = island.focusedOutput();
             const n = String(level).trim();

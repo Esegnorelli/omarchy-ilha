@@ -65,7 +65,7 @@ Item {
     // heightMotion da própria tela (a Central usa Motion.INNER).
     signal heightRequest(real h, var motion)
 
-    readonly property var ids: ["control", "launcher", "power", "themes", "media"]
+    readonly property var ids: ["control", "launcher", "power", "themes", "media", "calendar", "capture", "menu"]
 
     function loaderFor(id) {
         const i = root.ids.indexOf(String(id || ""));

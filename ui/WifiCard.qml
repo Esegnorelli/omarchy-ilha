@@ -12,6 +12,7 @@ import "Motion.js" as Motion
 // Coordenadas do cartão (largura 470):
 // - Cabeçalho: voltar 24 centrado em (26, 34); título 18.5/600 em x 52;
 //   interruptor 43 x 24 a 14 da direita, centrado em y 34.
+//   O voltar é secundário (hover do cabeçalho ou do botão).
 // - Bloco de estado em y 68:
 //   rede conectada  442 x 69, raio 12.5, círculo accent 41 com wifi,
 //                   SSID 16/600, "Conectado · WPA2 · sinal de 60%",
@@ -424,7 +425,17 @@ Item {
 
     // ---- Cabeçalho ----
 
+    // Cabeçalho: o hover dele mostra o chevron de voltar (secundário; Esc, Alt+←, a navegação e o toque fora também voltam).
+    Item {
+        id: headerBand
+        anchors.left: parent.left
+        anchors.right: parent.right
+        y: 0
+        height: 60
+        HoverHandler { id: headerHover }
+    }
     CircleButton {
+        id: backBtn
         anchors.left: parent.left
         anchors.leftMargin: 14
         y: 22
@@ -434,6 +445,7 @@ Item {
         size: 24
         glyphSize: 14
         accessibleName: root.t("common.back")
+        veil: (headerHover.hovered || backBtn.hovered) ? 1 : 0
         onClicked: root.back()
     }
 

@@ -8,40 +8,35 @@ import Quickshell.Services.UPower
 import qs.Commons as Commons
 import "Motion.js" as Motion
 
-// Conteúdo dos níveis de hover (L1 e L2), a marca do repouso e o seletor de
-// telas. Camada do tamanho da janela, sem layout próprio e sem nada que
+// Conteúdo do L2, a marca do repouso e o seletor de telas.
+// Camada do tamanho da janela, sem layout próprio e sem nada que
 // aceite hover: fica dentro do recorte do conteúdo da IslandWindow, em
 // coordenadas da janela, recebe o ponteiro (`pointer`) e responde hitTest.
 // O relógio NÃO é daqui (um só por janela, da IslandWindow); daqui saem
 // l2ClockDx e as larguras que alimentam geometryFor.
 //
-// Layout (px lógicos, LTR; em RTL todo x calculado espelha com
-// x' = 2·cx − x − largura; relógio, bateria e barras de rede seguem LTR):
-// - L1 (h 42, topo 22): cápsulas a partir de L + 33; à direita, com o fim do
-//   pino da bateria em R − 37: equalizador (com faixa), 10, ponto de
-//   privacidade, 10, rede (14), 9, bateria (27,5). sideL = 33 + G + 23;
-//   sideR = 37 + rightW + 23 (Theme.geometryFor usa max dos dois).
-// - L2 (718 x 75, topo 10): linha de cima presa às bordas vivas (contexto em
-//   morph.left + 34; estado com o glifo em morph.right − 37); cápsulas a 1,33
-//   em L + 33,6; rede e bateria a 1,0 com o corpo da bateria em R − 37; no
-//   centro o relógio (1,375, da janela) e a data 11 px depois.
-// - Cada item da linha de baixo tem uma mola p (0 = vaga do L1, 1 = vaga do
-//   L2): x = lerp(xL1, xL2, p), y = centerY + 12,5·p, escala lerp(sL1, sL2, p).
-//   Nada depende de morph.w / morph.h; só a linha de cima segue as bordas.
+// L2 (faixa de 52, topo 10, e a fileira dos módulos do Omarchy
+// embaixo quando há módulos): uma linha só em morph.bandY. O contexto
+// fica em morph.left + 34. À direita ficam o glifo do estado em
+// morph.right − 37, o texto 11 antes e, 11 antes do texto, a rede e a
+// bateria próprias (só sem omarchy.network/omarchy.power na fileira). No
+// centro ficam o relógio (1,375, da janela) e a data 11 px depois. Em RTL
+// todo x espelha com x' = 2·cx − x − largura.
 //
-// Choreografias (motion + amendments §13): A, B, C, D, E (o mergulho do
-// topo é da IslandWindow), F, H, I, M, N, P e as entradas e saídas da marca.
-// Cada troca de face recomeça os fades a partir da opacidade atual (regra 7).
+// A linha do L2 some fora dele; a marca só no repouso; a data sai ao
+// deixar o L2. O mergulho do topo é da IslandWindow. Cada troca de face
+// recomeça os fades a partir da opacidade atual (regra 7).
 //
 // hitTest(x, y) (coordenadas da janela) ->
-//   "ws:<id>" | "eq" | "privacy" | "context" | "center" | "status"   (L1/L2)
+//   "context" | "center" | "status"                                  (L2)
 //   "mark" | "mark:media"                                            (repouso)
-//   "pick:<screenId>" | "pick:"                                      (seletor)
+//   "pick:<screenId>" | "pick:" | "clock" | "ws:<id>"                (seletor)
+//   "widget"                                                         (L2)
 //   ""                                                               (vazio)
-// activate(hit) executa: ws -> foco; eq / mark:media -> Mídia; mark -> dono
-// (§4.5); pick:<id> -> island.open(id); pick: -> closePicker; context ->
-// Mídia (player) ou Apps; center -> Central; status -> ação da linha
-// (fixada por statusPin); "" ou privacy no L1 -> expand(); "" no L2 -> collapse().
+// activate(hit) executa: ws -> foco; mark:media -> Mídia; mark -> dono
+// (§4.5); pick:<id> -> island.open(id); pick: e clock -> L2; widget -> o
+// próprio módulo; context -> Mídia (player) ou Apps; center -> Central;
+// status -> ação da linha (fixada por statusPin); "" no L2 -> collapse().
 Item {
     id: root
 
@@ -51,8 +46,7 @@ Item {
     property var strings: null
     property var morph: null
     property string output: ""
-    // Nível de hover 0 / 1 / 2 e a face da janela (rest, hover1, hover2, picker, peek, osd, screen).
-    property int level: 0
+    // Face da janela (rest, hover2, picker, peek, osd, screen).
     property string face: "rest"
     property var motion: "hover"
     // Ponteiro em coordenadas da janela (destaques de módulo); (-1, -1) fora.
@@ -72,9 +66,6 @@ Item {
     // ---- Saídas ----
     readonly property bool rtl: root.theme ? root.theme.rtl : false
     readonly property real cx: root.morph ? root.morph.centerX : root.width / 2
-    // Larguras laterais do L1 (geometryFor ctx.sideL / sideR).
-    readonly property real sideL: root.dims.l1InsetL + workspaces.groupWidth + root.dims.l1Gap
-    readonly property real sideR: root.dims.l1InsetR + root.rightW + root.dims.l1Gap
     // Data do L2 e o deslocamento do relógio no L2.
     readonly property real dateW: Math.ceil(dateMetrics.advanceWidth)
     readonly property real l2ClockDx: -(root.theme ? root.theme.dir : 1) * (root.dateW + root.dims.dateGap) / 2
@@ -87,9 +78,18 @@ Item {
     }
     // O que está sob o ponteiro agora (hitTest) e se merece a mãozinha.
     readonly property string hoverHit: root.pointer.x >= 0 ? root.hitTest(root.pointer.x, root.pointer.y) : ""
-    readonly property bool wantsHand: root.hoverHit !== "" && root.hoverHit !== "privacy" && root.hoverHit !== "pick:"
+    readonly property bool wantsHand: root.hoverHit !== "" && root.hoverHit !== "pick:"
     // Marca do repouso: largura (geometryFor ctx.markW) e coluna (janela).
     readonly property real restMarkW: mark.markW
+    // Largura do seletor (workspaces + relógio + ícones).
+    readonly property real pickerW: picker.implicitWidth
+    // Seletor: deslocamento do relógio até a vaga dele.
+    readonly property real pickerClockDx: picker.clockDx
+    // Fileira dos módulos do Omarchy no L2 (largura viva; 0 sem módulos).
+    readonly property real modsW: mods.implicitWidth
+    readonly property bool modsPointerOver: mods.pointerOver
+    // Um painel de módulo do Omarchy aberto: o L2 fica.
+    readonly property bool widgetsPopoutOpen: mods.popoutOpen
     readonly property rect markRect: {
         if (root.face !== "rest" || mark.markW <= 0)
             return Qt.rect(0, 0, 0, 0);
@@ -110,27 +110,20 @@ Item {
 
     // ---- Medidas do layout (px lógicos) ----
     readonly property var dims: ({
-        // Cápsulas: 12 x 16 (16 x 16 para "10"), raio 6, vão 4.
-        capW: 12, capWide: 16, capH: 16, capR: 6, capGap: 4,
-        // L1: margens e vãos
-        l1InsetL: 33, l1InsetR: 37, l1Gap: 23,
-        eqW: 11.5, eqH: 12, eqGap: 10, dot: 8, dotGap: 10, netW1: 14, netGap: 9, battW1: 27.5,
-        // Rede e bateria desenhadas no tamanho do L2
+        // Rede e bateria próprias
         netW: 19.25, netH: 16,
         battBodyW: 33, battBodyH: 16.5, battR: 5.5, battNubGap: 1.4, battNubW: 2.75, battNubH: 8.25,
-        // L2
-        capLeft2: 33.6, rowDy: 12.5, topRow: 23.5, ctxIconX: 34, ctxLabelX: 58, ctxIcon: 14,
+        // L2 (uma linha em morph.bandY)
+        ctxIconX: 34, ctxLabelX: 58, ctxIcon: 14,
         labelMax: 200, statusGlyph: 15, statusInset: 37, statusGap: 11, netBattGap2: 10, dateGap: 11,
         // Destaques do L2
-        hlTop: 11, hlH: 25, hlR: 10, hlCenterPad: 14, hlCenterH: 36, hlCenterR: 12, hlPad: 10
+        hlH: 25, hlR: 10, hlCenterPad: 14, hlCenterH: 36, hlCenterR: 12, hlPad: 10
     })
     readonly property real battFullW: root.dims.battBodyW + root.dims.battNubGap + root.dims.battNubW
 
     function px(name, fallback) {
         return root.theme && root.theme.px[name] !== undefined ? root.theme.px[name] : fallback;
     }
-    readonly property real s1: root.px("L1_INDICATOR_SCALE", 0.727)
-    readonly property real s2: root.px("L2_CAPSULE_SCALE", 1.33)
 
     // Espelho de um centro calculado em LTR.
     function mir(c) {
@@ -158,6 +151,10 @@ Item {
     readonly property var battery: UPower.displayDevice
     readonly property bool hasBattery: !!root.battery && root.battery.isLaptopBattery && root.battery.isPresent
     readonly property real batteryLevel: root.hasBattery ? Math.max(0, Math.min(1, root.battery.percentage)) : 0
+    // A rede e a bateria próprias somem quando o módulo do Omarchy já está na fileira.
+    readonly property bool hostNet: mods.liveIds.indexOf("omarchy.network") !== -1
+    readonly property bool hostPower: mods.liveIds.indexOf("omarchy.power") !== -1
+    readonly property bool nativeBatt: root.hasBattery && !root.hostPower
     readonly property bool batteryCharging: root.hasBattery && !UPower.onBattery
     readonly property bool batteryLow: root.hasBattery && UPower.onBattery && root.batteryLevel <= 0.15
 
@@ -167,65 +164,16 @@ Item {
     readonly property string battAccessible: root.fmt(root.tr(root.batteryCharging ? "bar.batteryCharging" : "bar.battery"),
         [Commons.I18n.formatNumber(Math.round(root.batteryLevel * 100))])
 
-    readonly property bool eqShown: !!root.media && root.media.hasTrack
-    readonly property bool privacyShown: !!root.status && root.status.privacy
-    readonly property real rightW: (root.eqShown ? root.dims.eqW + root.dims.eqGap : 0) + (root.privacyShown ? root.dims.dot + root.dims.dotGap : 0)
-        + root.dims.netW1 + (root.hasBattery ? root.dims.netGap + root.dims.battW1 : 0)
 
     // ---- Geometria-alvo das faces (nunca animada) ----
     readonly property real clockW: Math.max(0, root.clockRight - root.clockLeft)
     readonly property real screenW: root.cx * 2
     readonly property var geomRest: root.theme ? root.theme.geometryFor("rest", { clockW: root.clockW, markW: mark.markW, screenW: root.screenW }) : ({ w: 84, h: 32, top: 10, cap: 16 })
-    readonly property var geomL1: root.theme ? root.theme.geometryFor("hover1", { clockW: root.clockW, sideL: root.sideL, sideR: root.sideR, screenW: root.screenW }) : ({ w: 308, h: 42, top: 22, cap: 21 })
-    readonly property var geomL2: root.theme ? root.theme.geometryFor("hover2", { screenW: root.screenW }) : ({ w: 718, h: 75, top: 10, cap: 31 })
+    readonly property var geomL2: root.theme ? root.theme.geometryFor("hover2", { screenW: root.screenW, modsW: root.modsW, bandW: root.l2FitW }) : ({ w: 718, h: 52, top: 10, cap: 26 })
     readonly property real l2Left: root.cx - root.geomL2.w / 2
     readonly property real l2Right: root.cx + root.geomL2.w / 2
 
-    // Meia largura do L1 desenhada: pula para o alvo, mas desliza (hover)
-    // quando o L1 já está à vista e o conteúdo muda (música, workspace novo):
-    // os itens acompanham a forma em vez de pular.
-    SpringValue { id: l1Half }
-    readonly property real l1HalfTarget: root.geomL1.w / 2
-    onL1HalfTargetChanged: {
-        if (root.face === "hover1" && capsLayer.opacity > 0.01)
-            l1Half.go(root.l1HalfTarget, "hover");
-        else
-            l1Half.snap(root.l1HalfTarget);
-    }
-    readonly property real l1LeftLive: root.cx - l1Half.value
-    readonly property real l1RightLive: root.cx + l1Half.value
 
-    // Cápsulas: deslocamento e largura de cada uma (unidades do L1).
-    readonly property var capGeo: {
-        const out = [];
-        let off = 0;
-        const items = workspaces.items;
-        for (let i = 0; i < items.length; i++) {
-            const w = items[i].wide ? root.dims.capWide : root.dims.capW;
-            out.push({ off: off, w: w });
-            off += w + root.dims.capGap;
-        }
-        return out;
-    }
-    function capCenterL1(g, left) {
-        return left + root.dims.l1InsetL + g.off + g.w / 2;
-    }
-    function capCenterL2(g) {
-        return root.l2Left + root.dims.capLeft2 + root.s2 * (g.off + g.w / 2);
-    }
-
-    // Grupo da direita do L1 (centros LTR) a partir da borda direita R.
-    function rightL1(R) {
-        const netRight = root.hasBattery ? R - root.dims.l1InsetR - root.dims.battW1 - root.dims.netGap : R - root.dims.l1InsetR;
-        const netC = netRight - root.dims.netW1 / 2;
-        const battC = R - root.dims.l1InsetR - root.battFullW * root.s1 / 2;
-        const privC = netRight - root.dims.netW1 - root.dims.dotGap - root.dims.dot / 2;
-        const eqRight = root.privacyShown ? netRight - root.dims.netW1 - root.dims.dotGap - root.dims.dot - root.dims.eqGap : netRight - root.dims.netW1 - root.dims.eqGap;
-        return { netC: netC, battC: battC, privC: privC, eqC: eqRight - root.dims.eqW / 2 };
-    }
-    // Rede e bateria no L2 (centros LTR): o corpo da bateria termina em R − 37.
-    readonly property real battC2: root.l2Right - root.dims.statusInset - root.dims.battBodyW + root.battFullW / 2
-    readonly property real netC2: (root.hasBattery ? root.l2Right - root.dims.statusInset - root.dims.battBodyW - root.dims.netBattGap2 : root.l2Right - root.dims.statusInset) - root.dims.netW / 2
 
     // ---- Linha de estado do L2 (fixada por statusPin) ----
     readonly property var line: {
@@ -322,6 +270,30 @@ Item {
     // Grupo do centro (relógio a 1,375 + 11 + data) e onde a data começa (LTR).
     readonly property real centerGroupW: root.clockW * root.px("L2_CLOCK_SCALE", 1.375) + root.dims.dateGap + root.dateW
     readonly property real dateLeftLTR: root.cx - root.centerGroupW / 2 + root.clockW * root.px("L2_CLOCK_SCALE", 1.375) + root.dims.dateGap
+    // Rede e bateria próprias: só sem o módulo do Omarchy na fileira.
+    readonly property bool netOn: !root.hostNet
+    readonly property bool battOn: root.nativeBatt
+    readonly property real l2LeftExtent: root.dims.ctxLabelX + root.ctxLabelW
+    readonly property real l2IndW: (root.netOn ? root.dims.netW : 0)
+        + (root.battOn ? root.battFullW : 0)
+        + (root.netOn && root.battOn ? root.dims.netBattGap2 : 0)
+        + (root.netOn || root.battOn ? root.dims.statusGap : 0)
+    // O texto do estado entra sempre na conta (o "Tudo em dia" escondido não encolhe a pílula).
+    readonly property real l2RightExtent: root.dims.statusInset + root.dims.statusGlyph + root.dims.statusGap + root.statusShownW + root.l2IndW
+    // Os lados grudam nas bordas e o centro fica no meio: a soma deixa o lado
+    // maior em cima do relógio. A largura usa o maior dos dois, duas vezes.
+    readonly property real l2FitW: {
+        const gap = 18;
+        const side = Math.max(root.l2LeftExtent, root.l2RightExtent);
+        const band = 2 * side + root.centerGroupW + 2 * gap;
+        const mods = root.modsW > 0 ? root.modsW + 2 * root.px("L2_MOD_PAD", 24) : 0;
+        return Math.ceil(Math.max(band, mods));
+    }
+    // À direita, em LTR: [rede][10][bateria][11][texto][11][glifo][37] até a borda viva.
+    readonly property real statusEdgeR: (root.morph ? root.morph.right : 0) - root.dims.statusInset - root.dims.statusGlyph - root.dims.statusGap
+    readonly property real indRight: root.statusEdgeR - root.statusShownW - root.dims.statusGap
+    readonly property real l2BattC: root.indRight - root.battFullW / 2
+    readonly property real l2NetC: (root.battOn ? root.indRight - root.battFullW - root.dims.netBattGap2 : root.indRight) - root.dims.netW / 2
 
     // ---- hitTest / activate ----
     function hitTest(x, y) {
@@ -337,8 +309,6 @@ Item {
         }
         case "picker":
             return picker.hitTest(x, y);
-        case "hover1":
-            return root.hitL1(x, y);
         case "hover2":
             return root.hitL2(x, y);
         default:
@@ -346,54 +316,26 @@ Item {
         }
     }
 
-    function hitL1(x, y) {
-        const top = root.px("L1_TOP", 22), bottom = top + root.px("L1_H", 42);
-        if (y < top || y > bottom)
-            return "";
-        const lx = root.rtl ? 2 * root.cx - x : x;
-        const L = root.cx - root.geomL1.w / 2, R = root.cx + root.geomL1.w / 2;
-        // Cápsula: o passo inteiro (largura + vão) x a altura da pílula.
-        const items = workspaces.items;
-        for (let i = 0; i < items.length && i < root.capGeo.length; i++) {
-            const g = root.capGeo[i];
-            if (Math.abs(lx - root.capCenterL1(g, L)) <= g.w / 2 + root.dims.capGap / 2)
-                return "ws:" + items[i].id;
-        }
-        const rg = root.rightL1(R);
-        if (root.eqShown && Math.abs(lx - rg.eqC) <= 14)
-            return "eq";
-        if (root.privacyShown && Math.abs(lx - rg.privC) <= root.dims.dot / 2 + 5)
-            return "privacy";
-        return "";
-    }
 
     function hitL2(x, y) {
         const lx = root.rtl ? 2 * root.cx - x : x;
         const top = root.px("TOP", 10);
-        const cy = top + root.geomL2.h / 2;
-        // Centro: o grupo relógio + data, 14 px a mais de cada lado, 36 de altura.
-        if (Math.abs(lx - root.cx) <= root.centerGroupW / 2 + root.dims.hlCenterPad && Math.abs(y - (cy - 1)) <= root.dims.hlCenterH / 2)
+        const cy = top + root.px("L2_H", 52) / 2;
+        const L = root.l2Left, R = root.l2Right;
+        if (Math.abs(lx - root.cx) <= root.centerGroupW / 2 + root.dims.hlCenterPad && Math.abs(y - cy) <= root.dims.hlCenterH / 2)
             return "center";
-        const rowTop = top + root.dims.hlTop, rowBottom = top + root.dims.hlTop + root.dims.hlH;
-        if (y >= rowTop && y <= rowBottom) {
-            const L = root.l2Left, R = root.l2Right;
+        if (Math.abs(y - cy) <= root.dims.hlH / 2) {
             if (lx >= L + root.dims.ctxIconX - root.dims.hlPad && lx <= L + root.dims.ctxLabelX + root.ctxLabelW + root.dims.hlPad)
                 return "context";
             const glyphRight = R - root.dims.statusInset;
             const textLeft = glyphRight - root.dims.statusGlyph - root.dims.statusGap - root.statusShownW;
             if (root.lineClickable && lx >= textLeft - root.dims.hlPad && lx <= glyphRight + root.dims.hlPad)
                 return "status";
-            return "";
         }
-        // Cápsulas da linha de baixo: o passo inteiro a 1,33, da linha de cima até o fim da zona.
-        if (y > rowBottom && y <= root.px("ZONE_L2_H", 91)) {
-            const items = workspaces.items;
-            for (let i = 0; i < items.length && i < root.capGeo.length; i++) {
-                const g = root.capGeo[i];
-                if (Math.abs(lx - root.capCenterL2(g)) <= root.s2 * (g.w / 2 + root.dims.capGap / 2))
-                    return "ws:" + items[i].id;
-            }
-        }
+        // Fileira dos módulos: o próprio widget trata o clique.
+        const bandBottom = top + root.px("L2_H", 52);
+        if (root.modsW > 0 && y > bandBottom && Math.abs(lx - root.cx) <= root.modsW / 2 + 4)
+            return "widget";
         return "";
     }
 
@@ -404,13 +346,15 @@ Item {
         if (h.indexOf("pick:") === 0) {
             const id = h.slice(5);
             if (id === "") {
-                root.island.closePicker();
-                return true;
+                // Vão do L1: sobe um nível.
+                return root.island.setExpanded(root.output, true);
             }
             root.island.keyboardMode = false;
             return root.island.open(id, root.output);
         }
-        if (h === "mark:media" || h === "eq")
+        if (h === "clock")
+            return root.island.setExpanded(root.output, true);
+        if (h === "mark:media")
             return root.island.open("media", root.output);
         if (h === "mark") {
             const key = mark.markKey;
@@ -439,12 +383,8 @@ Item {
             workspaces.focus(Number(h.slice(3)));
             return true;
         }
-        if (h === "" || h === "privacy") {
-            // Relógio -> linha -> clique: o menu das telas (o L2 largo fica para o
-            // atalho do calendário e para as linhas de estado da marca).
-            if (root.face === "hover1")
-                root.island.openPicker(root.output);
-            else if (root.face === "hover2" && h === "")
+        if (h === "") {
+            if (root.face === "hover2")
                 root.collapse();
             return true;
         }
@@ -455,13 +395,8 @@ Item {
     QtObject {
         id: priv
         property string lastFace: "rest"
-        // Alvo do p dos itens da linha de baixo (0 = L1, 1 = L2).
-        property real pTarget: 0
         // O ponteiro andou desde que o L2 abriu (o destaque só aparece então).
         property bool movedInL2: false
-        // Ordem para as molas p das cápsulas: mode 0 pula, 1 desliza sem
-        // escalonar, 2 expande (C), 3 recolhe (D, E).
-        signal pCommand(real v, string motion, int mode)
     }
 
     onPointerChanged: if (root.face === "hover2") priv.movedInL2 = true
@@ -484,102 +419,35 @@ Item {
         f.start();
     }
 
-    // p de todos os itens com o escalonamento de C (expandindo: cápsula i
-    // com 25·i, a de fora primeiro; bateria 0, rede 25) ou de D/E (recolhendo:
-    // a de dentro primeiro, 10·j; a rede sai 15 ms antes da bateria).
-    function moveP(v, motion, expanding) {
-        const F = Motion.FADE;
-        priv.pTarget = v;
-        priv.pCommand(v, motion, expanding ? 2 : 3);
-        netP.go(v, motion, expanding ? F.NETWORK_DELAY_IN : 0);
-        battP.go(v, motion, expanding ? F.BATTERY_DELAY_IN : F.NETWORK_LEAD_OUT);
-    }
-
-    // p sem escalonamento: pula se a camada está invisível (N, M, H, P…),
-    // senão desliza (uma volta rápida no meio de outra transição).
-    function placeP(v) {
-        priv.pTarget = v;
-        const hidden = capsLayer.opacity < 0.02;
-        priv.pCommand(v, "hover", hidden ? 0 : 1);
-        if (hidden) {
-            netP.snap(v);
-            battP.snap(v);
-        } else {
-            netP.go(v, "hover", 0);
-            battP.go(v, "hover", 0);
-        }
-    }
 
     function choreo(from, to) {
         const F = Motion.FADE;
-        // Linha de cima do L2: some na hora fora do L2 (D, E, F, P).
+        // A linha do L2 some na hora fora do L2.
         if (to !== "hover2") {
             root.fade(iconsF, 0, 0, 0);
             root.fade(labelsF, 0, 0, 0);
+            root.fade(modsF, 0, 0, 0);
             priv.movedInL2 = false;
         }
         // Marca: só no repouso; entra conforme de onde vem.
         if (to === "rest") {
-            const m = from === "hover1" ? F.MARK_IN_FROM_L1 : (from === "hover2" ? F.MARK_IN_FROM_L2 : F.MARK_IN_AFTER);
+            const m = from === "hover2" ? F.MARK_IN_FROM_L2 : F.MARK_IN_AFTER;
             root.fade(markF, 1, m.delay, m.dur);
         } else {
             root.fade(markF, 0, 0, F.MARK_OUT);
         }
-
         switch (to) {
-        case "hover1":
-            if (from === "hover2") {
-                // D
-                root.fade(dateF, 0, F.L2_DATE_OUT.delay, F.L2_DATE_OUT.dur);
-                root.moveP(0, "hover", false);
-                root.fade(capsF, 1, 0, F.L1_IN.dur);
-                root.fade(l1F, 1, F.L1_EQ_IN.delay, F.L1_EQ_IN.dur);
-            } else {
-                // A (do repouso), H (de uma tela), P out (do seletor), I out (OSD, aviso)
-                const t = from === "rest" ? F.L1_IN : ((from === "screen" || from === "picker") ? F.L1_IN_AFTER : F.CLOCK_IN_AFTER);
-                root.placeP(0);
-                root.fade(capsF, 1, t.delay, t.dur);
-                root.fade(l1F, 1, t.delay, t.dur);
-                root.fade(dateF, 0, 0, F.CONTENT_OUT.dur);
-            }
-            break;
         case "hover2":
-            if (from === "hover1") {
-                // C
-                root.moveP(1, "hover", true);
-                root.fade(capsF, 1, 0, F.L1_IN.dur);
-                root.fade(l1F, 0, F.L2_EQ_OUT.delay, F.L2_EQ_OUT.dur);
-            } else {
-                // N (repouso), M (aviso) e os outros caminhos diretos: p pula para 1.
-                root.placeP(1);
-                root.fade(capsF, 1, F.DIRECT_L2.itemsDelay, F.DIRECT_L2.itemsDur);
-                root.fade(l1F, 0, 0, F.CONTENT_OUT.dur);
-            }
             root.fade(iconsF, 1, F.L2_ICONS_IN.delay, F.L2_ICONS_IN.dur);
             root.fade(labelsF, 1, F.L2_LABELS_IN.delay, F.L2_LABELS_IN.dur);
             root.fade(dateF, 1, F.L2_DATE_IN.delay, F.L2_DATE_IN.dur);
+            root.fade(modsF, 1, F.L2_MODS_IN.delay, F.L2_MODS_IN.dur);
             break;
         case "rest":
-            if (from === "hover1") {
-                // B
-                root.fade(capsF, 0, F.L1_OUT.delay, F.L1_OUT.dur);
-                root.fade(l1F, 0, F.L1_OUT.delay, F.L1_OUT.dur);
-            } else if (from === "hover2") {
-                // E: as cápsulas voltam com o escalonamento de D na mola lenta.
-                root.fade(dateF, 0, F.L2_DATE_OUT.delay, F.L2_DATE_OUT.dur);
-                root.moveP(0, "slow", false);
-                root.fade(capsF, 0, F.L2_ITEMS_OUT.delay, F.L2_ITEMS_OUT.dur);
-                root.fade(l1F, 0, 0, F.CONTENT_OUT.dur);
-            } else {
-                root.fade(capsF, 0, 0, F.CONTENT_OUT.dur);
-                root.fade(l1F, 0, 0, F.CONTENT_OUT.dur);
-                root.fade(dateF, 0, 0, F.CONTENT_OUT.dur);
-            }
+            root.fade(dateF, 0, from === "hover2" ? F.L2_DATE_OUT.delay : 0, from === "hover2" ? F.L2_DATE_OUT.dur : F.CONTENT_OUT.dur);
             break;
         default:
-            // F (tela), I (OSD), aviso e P (seletor): todo o conteúdo do hover sai em 60 ms.
-            root.fade(capsF, 0, 0, F.CONTENT_OUT.dur);
-            root.fade(l1F, 0, 0, F.CONTENT_OUT.dur);
+            // Tela, OSD, aviso e seletor: o conteúdo do L2 sai em 60 ms.
             root.fade(dateF, 0, 0, F.CONTENT_OUT.dur);
             break;
         }
@@ -588,17 +456,12 @@ Item {
     // Estado parado de uma face (início, sem animação).
     function snapFace(f) {
         const l2 = f === "hover2";
-        const l1 = f === "hover1";
-        const pairs = [[markF, f === "rest" ? 1 : 0], [capsF, l1 || l2 ? 1 : 0], [l1F, l1 ? 1 : 0],
-                       [iconsF, l2 ? 1 : 0], [labelsF, l2 ? 1 : 0], [dateF, l2 ? 1 : 0]];
+        const pairs = [[markF, f === "rest" ? 1 : 0],
+                       [iconsF, l2 ? 1 : 0], [labelsF, l2 ? 1 : 0], [dateF, l2 ? 1 : 0], [modsF, l2 ? 1 : 0]];
         for (let i = 0; i < pairs.length; i++) {
             pairs[i][0].stop();
             pairs[i][0].item.opacity = pairs[i][1];
         }
-        priv.pTarget = l2 ? 1 : 0;
-        priv.pCommand(priv.pTarget, "hover", 0);
-        netP.snap(priv.pTarget);
-        battP.snap(priv.pTarget);
     }
 
     onFaceChanged: {
@@ -609,8 +472,6 @@ Item {
 
     Component.onCompleted: {
         priv.lastFace = root.face;
-        root.syncCaps();
-        l1Half.snap(root.l1HalfTarget);
         root.snapFace(root.face);
     }
 
@@ -723,69 +584,18 @@ Item {
         }
     }
 
-    // Equalizador do L1: 3 barras de 2,5 (vão 2) no accent. Tocando: alturas
-    // 4..12 em seno, fases 0 / 0,33 / 0,66, período 900 ms (só enquanto o L1
-    // aparece; parado com reduzir movimento). Pausado: 5 / 9 / 6 a 45%.
-    component Equalizer: Item {
-        id: eqz
-        property Theme theme: null
-        property bool playing: false
-        property bool animating: false
-        property real phase: 0
-        width: 11.5
-        height: 12
-        LayoutMirroring.enabled: false
 
-        FrameAnimation {
-            id: eqFrames
-            running: eqz.animating
-            onTriggered: eqz.phase = (eqz.phase + Math.min(eqFrames.frameTime, Motion.MAX_FRAME) * 1000 / Motion.FADE.EQ_PERIOD) % 1
-        }
-
-        Item {
-            anchors.fill: parent
-            opacity: eqz.playing ? 1 : 0.45
-            Repeater {
-                model: 3
-                Rectangle {
-                    required property int index
-                    readonly property real still: [5, 9, 6][index]
-                    x: index * 4.5
-                    y: eqz.height - height
-                    width: 2.5
-                    radius: 1.25
-                    height: eqz.playing && eqz.animating ? 8 + 4 * Math.sin(2 * Math.PI * (eqz.phase + index * 0.33)) : still
-                    color: eqz.theme ? eqz.theme.accent : "white"
-                }
-            }
-        }
-    }
-
-    Fader { id: capsF; item: capsLayer }
-    Fader { id: l1F; item: l1Layer }
     Fader { id: iconsF; item: iconsLayer }
     Fader { id: labelsF; item: labelsLayer }
     Fader { id: dateF; item: dateLayer }
+    Fader { id: modsF; item: modsLayer }
     Fader { id: markF; item: mark }
 
     Workspaces {
         id: workspaces
         output: root.output
-        onCountChanged: root.syncCaps()
     }
 
-    // Uma linha por cápsula, mexida só nas pontas: um workspace novo cria um
-    // delegado e os outros ficam (a mola p e os fades não recomeçam).
-    ListModel {
-        id: capModel
-    }
-    function syncCaps() {
-        const n = workspaces.count;
-        while (capModel.count < n)
-            capModel.append({ slot: capModel.count });
-        while (capModel.count > n)
-            capModel.remove(capModel.count - 1);
-    }
 
     IlhaMetrics {
         id: dateMetrics
@@ -817,9 +627,6 @@ Item {
         text: root.ctxRestText
     }
 
-    // Progressos 0..1: limiar fino (ver SpringValue).
-    SpringValue { id: netP; settlePos: 0.001; settleVel: 0.04 }
-    SpringValue { id: battP; settlePos: 0.001; settleVel: 0.04 }
 
     // ---- Destaques dos módulos do L2 (tinta a 10%; entra 120 ms linear, sai 70 ms) ----
     Rectangle {
@@ -828,7 +635,7 @@ Item {
         readonly property real l: root.morph ? root.morph.left + root.dims.ctxIconX - root.dims.hlPad : 0
         readonly property real w: root.dims.ctxLabelX - root.dims.ctxIconX + root.ctxLabelW + 2 * root.dims.hlPad
         x: root.mirX(ctxHighlight.l, ctxHighlight.w)
-        y: (root.morph ? root.morph.top : 10) + root.dims.hlTop
+        y: (root.morph ? root.morph.bandY : 36) - height / 2
         width: ctxHighlight.w
         height: root.dims.hlH
         radius: root.dims.hlR
@@ -845,7 +652,7 @@ Item {
         id: centerHighlight
         readonly property bool lit: root.hoverModule === "center"
         x: root.cx - width / 2
-        y: (root.morph ? root.morph.centerY : 47.5) - 1 - height / 2
+        y: (root.morph ? root.morph.bandY : 36) - height / 2
         width: root.centerGroupW + 2 * root.dims.hlCenterPad
         height: root.dims.hlCenterH
         radius: root.dims.hlCenterR
@@ -864,7 +671,7 @@ Item {
         readonly property real r: root.morph ? root.morph.right - root.dims.statusInset + root.dims.hlPad : 0
         readonly property real w: root.dims.statusGlyph + root.dims.statusGap + root.statusShownW + 2 * root.dims.hlPad
         x: root.mirX(statusHighlight.r - statusHighlight.w, statusHighlight.w)
-        y: (root.morph ? root.morph.top : 10) + root.dims.hlTop
+        y: (root.morph ? root.morph.bandY : 36) - height / 2
         width: statusHighlight.w
         height: root.dims.hlH
         radius: root.dims.hlR
@@ -878,221 +685,13 @@ Item {
         }
     }
 
-    // ---- Linha de baixo: cápsulas, rede e bateria (L1 e L2) ----
-    Item {
-        id: capsLayer
-        anchors.fill: parent
-        opacity: 0
 
-        Repeater {
-            id: capRepeater
-            model: capModel
-
-            Item {
-                id: cap
-                required property int index
-                readonly property var d: workspaces.items[cap.index] || ({ id: 0, label: "", wide: false, active: false, occupied: false, urgent: false })
-                readonly property var g: root.capGeo[cap.index] || ({ off: 0, w: root.dims.capW })
-                readonly property real p: capP.value
-                readonly property bool hot: root.hoverHit === "ws:" + cap.d.id
-                // Escala própria do ativo (1,25), animada na troca de workspace.
-                property real activeK: cap.d.active ? 1.25 : 1
-                Behavior on activeK {
-                    NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.WS_SWITCH) : 0; easing.type: Easing.OutCubic }
-                }
-
-                x: root.mir(Motion.lerp(root.capCenterL1(cap.g, root.l1LeftLive), root.capCenterL2(cap.g), cap.p)) - width / 2
-                y: (root.morph ? root.morph.centerY : 43) + root.dims.rowDy * cap.p - height / 2
-                width: cap.g.w
-                height: root.dims.capH
-                scale: Motion.lerp(1, root.s2, cap.p) * cap.activeK
-
-                Accessible.role: Accessible.Button
-                Accessible.name: root.fmt(root.tr("bar.workspace"), [cap.d.label])
-
-                SpringValue { id: capP; settlePos: 0.001; settleVel: 0.04 }
-                Connections {
-                    target: priv
-                    function onPCommand(v, motion, mode) {
-                        if (mode === 0)
-                            capP.snap(v);
-                        else if (mode === 1)
-                            capP.go(v, motion, 0);
-                        else
-                            capP.go(v, motion, mode === 2 ? Motion.FADE.CAPSULE_STAGGER_IN * cap.index
-                                                          : Motion.FADE.CAPSULE_STAGGER_OUT * (workspaces.count - 1 - cap.index));
-                    }
-                }
-
-                // Uma cápsula nova (workspace criado) entra em 100 ms.
-                opacity: 0
-                NumberAnimation {
-                    id: capIn
-                    target: cap
-                    property: "opacity"
-                    to: 1
-                    duration: root.theme ? root.theme.dur(Motion.FADE.CAPSULE_HOVER) : 0
-                    easing.type: Easing.OutCubic
-                }
-                Component.onCompleted: {
-                    capP.snap(priv.pTarget);
-                    if (capsLayer.opacity > 0.01)
-                        capIn.start();
-                    else
-                        cap.opacity = 1;
-                }
-
-                // Brilho do ativo: sombra no accent a 45%, blur 6.
-                RectangularShadow {
-                    anchors.fill: parent
-                    radius: root.dims.capR
-                    blur: 6
-                    spread: 0
-                    color: root.theme ? root.theme.alpha(root.theme.accent, 0.45) : "transparent"
-                    opacity: cap.d.active ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.WS_SWITCH) : 0; easing.type: Easing.OutCubic }
-                    }
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    radius: root.dims.capR
-                    antialiasing: true
-                    color: !root.theme ? "gray"
-                        : cap.d.active ? root.theme.accent
-                        : cap.d.urgent ? root.theme.mix(root.theme.surface, root.theme.danger, 0.45)
-                        : cap.d.occupied ? root.theme.mix(root.theme.surface, root.theme.accent, 0.40)
-                        : root.theme.mix(root.theme.surface, root.theme.ink, 0.15)
-                    Behavior on color {
-                        ColorAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.WS_SWITCH) : 0; easing.type: Easing.OutCubic }
-                    }
-                }
-                // Hover: +8% de tinta em 100 ms.
-                Rectangle {
-                    anchors.fill: parent
-                    radius: root.dims.capR
-                    color: root.theme ? root.theme.alpha(root.theme.ink, 0.08) : "transparent"
-                    opacity: cap.hot ? 1 : 0
-                    Behavior on opacity {
-                        NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.CAPSULE_HOVER) : 0 }
-                    }
-                }
-                IlhaText {
-                    anchors.centerIn: parent
-                    theme: root.theme
-                    size: 10
-                    weight: 600
-                    tnum: true
-                    color: !root.theme ? "white"
-                        : cap.d.active ? root.theme.onAccent
-                        : cap.d.urgent ? root.theme.ink
-                        : root.theme.alpha(root.theme.ink, cap.d.occupied ? 0.92 : 0.45)
-                    text: cap.d.label
-                    Behavior on color {
-                        ColorAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.WS_SWITCH) : 0 }
-                    }
-                }
-            }
-        }
-
-        NetIndicator {
-            id: netItem
-            theme: root.theme
-            wifi: root.netWifi
-            wired: root.netWired
-            bars: root.netBars
-            readonly property real c: Motion.lerp(root.rightL1(root.l1RightLive).netC, root.netC2, netP.value)
-            x: root.mir(netItem.c) - width / 2
-            y: (root.morph ? root.morph.centerY : 43) + root.dims.rowDy * netP.value - height / 2
-            scale: Motion.lerp(root.s1, 1, netP.value)
-            Accessible.role: Accessible.StaticText
-            Accessible.name: root.netAccessible
-        }
-
-        BatteryIndicator {
-            id: battItem
-            theme: root.theme
-            level: root.batteryLevel
-            charging: root.batteryCharging
-            low: root.batteryLow
-            readonly property real c: Motion.lerp(root.rightL1(root.l1RightLive).battC, root.battC2, battP.value)
-            x: root.mir(battItem.c) - width / 2
-            y: (root.morph ? root.morph.centerY : 43) + root.dims.rowDy * battP.value - height / 2
-            scale: Motion.lerp(root.s1, 1, battP.value)
-            opacity: root.hasBattery ? 1 : 0
-            Accessible.role: Accessible.StaticText
-            Accessible.name: root.battAccessible
-        }
-    }
-
-    // ---- Só no L1: equalizador e ponto de privacidade ----
-    Item {
-        id: l1Layer
-        anchors.fill: parent
-        opacity: 0
-        readonly property var slots: root.rightL1(root.l1RightLive)
-
-        Equalizer {
-            id: eqItem
-            theme: root.theme
-            playing: !!root.media && root.media.playing
-            animating: root.eqShown && eqItem.playing && root.face === "hover1" && l1Layer.opacity > 0.01
-                && !(root.theme && root.theme.reduceMotion)
-            x: root.mir(l1Layer.slots.eqC) - width / 2
-            y: (root.morph ? root.morph.centerY : 43) - height / 2
-            opacity: root.eqShown ? 1 : 0
-            Behavior on opacity {
-                NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.HOVER) : 0; easing.type: Easing.OutCubic }
-            }
-        }
-
-        Item {
-            id: dotSlot
-            x: root.mir(l1Layer.slots.privC) - width / 2
-            y: (root.morph ? root.morph.centerY : 43) - height / 2
-            width: root.dims.dot
-            height: root.dims.dot
-            opacity: root.privacyShown ? 1 : 0
-            Behavior on opacity {
-                NumberAnimation { duration: root.theme ? root.theme.dur(Motion.FADE.HOVER) : 0; easing.type: Easing.OutCubic }
-            }
-
-            Rectangle {
-                id: dot
-                anchors.fill: parent
-                radius: width / 2
-                color: root.theme ? root.theme.danger : "red"
-            }
-            // Pulsa 1 <-> 0,45 em 1200 ms (InOutSine) só gravando e com o L1 à vista.
-            SequentialAnimation {
-                id: pulse
-                running: !!root.status && root.status.recording && root.face === "hover1" && !(root.theme && root.theme.reduceMotion)
-                loops: Animation.Infinite
-                onRunningChanged: if (!pulse.running) dot.opacity = 1
-                NumberAnimation {
-                    target: dot
-                    property: "opacity"
-                    to: Motion.FADE.DOT_PULSE.low
-                    duration: Motion.FADE.DOT_PULSE.dur / 2
-                    easing.type: Easing.InOutSine
-                }
-                NumberAnimation {
-                    target: dot
-                    property: "opacity"
-                    to: 1
-                    duration: Motion.FADE.DOT_PULSE.dur / 2
-                    easing.type: Easing.InOutSine
-                }
-            }
-        }
-    }
-
-    // ---- L2, linha de cima: ícones (presos às bordas vivas) ----
+    // ---- L2, a linha: ícones (presos às bordas vivas) ----
     Item {
         id: iconsLayer
         anchors.fill: parent
         opacity: 0
-        readonly property real rowY: (root.morph ? root.morph.top : 10) + root.dims.topRow
+        readonly property real rowY: root.morph ? root.morph.bandY : 36
 
         // Contexto: capa (player), ícone do app (dessaturado) ou o ponto da área de trabalho.
         Item {
@@ -1164,18 +763,44 @@ Item {
             x: root.mirX((root.morph ? root.morph.right : 0) - root.dims.statusInset - root.dims.statusGlyph, root.dims.statusGlyph)
             y: iconsLayer.rowY - root.dims.statusGlyph / 2
             size: root.dims.statusGlyph
-            name: root.line ? String(root.line.icon || "") : ""
+            readonly property string host: root.island && root.island.glyphs && root.line ? root.island.glyphs.statusGlyph(root.line.key) : ""
+            name: host === "" ? (root.line ? String(root.line.icon || "") : "") : ""
+            glyph: host
             filled: !!root.line && !!root.line.filled
             color: root.theme && root.line ? root.theme.toneColor(root.line.tone) : "white"
         }
+        NetIndicator {
+            id: netItem
+            theme: root.theme
+            wifi: root.netWifi
+            wired: root.netWired
+            bars: root.netBars
+            x: root.mir(root.l2NetC) - width / 2
+            y: iconsLayer.rowY - height / 2
+            opacity: root.netOn ? 1 : 0
+            Accessible.role: Accessible.StaticText
+            Accessible.name: root.netAccessible
+        }
+        BatteryIndicator {
+            id: battItem
+            theme: root.theme
+            level: root.batteryLevel
+            charging: root.batteryCharging
+            low: root.batteryLow
+            x: root.mir(root.l2BattC) - width / 2
+            y: iconsLayer.rowY - height / 2
+            opacity: root.battOn ? 1 : 0
+            Accessible.role: Accessible.StaticText
+            Accessible.name: root.battAccessible
+        }
     }
 
-    // ---- L2, linha de cima: rótulos (relativos aos ícones) ----
+    // ---- L2, a linha: rótulos (relativos aos ícones) ----
     Item {
         id: labelsLayer
         anchors.fill: parent
         opacity: 0
-        readonly property real rowY: (root.morph ? root.morph.top : 10) + root.dims.topRow
+        readonly property real rowY: root.morph ? root.morph.bandY : 36
         readonly property real ctxX: (root.morph ? root.morph.left : 0) + root.dims.ctxLabelX
 
         IlhaText {
@@ -1210,7 +835,16 @@ Item {
 
         IlhaText {
             id: statusText
-            readonly property real edgeR: (root.morph ? root.morph.right : 0) - root.dims.statusInset - root.dims.statusGlyph - root.dims.statusGap
+            readonly property real edgeR: root.statusEdgeR
+            // "Tudo em dia" (chave vazia) é secundário: aparece com o ponteiro no grupo do estado. O glifo fica.
+            readonly property bool quiet: !root.line || String(root.line.key || "") === ""
+            opacity: !statusText.quiet || root.hoverModule === "status" ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.theme ? root.theme.dur((!statusText.quiet || root.hoverModule === "status") ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
             x: root.mirX(statusText.edgeR - width, width)
             y: labelsLayer.rowY - height / 2
             width: root.statusShownW
@@ -1236,7 +870,7 @@ Item {
         IlhaText {
             // Entra e sai deslizando 5 px para fora: x = final + dir·5·(1 − opacidade).
             x: root.mirX(root.dateLeftLTR, root.dateW) + (root.theme ? root.theme.dir : 1) * Motion.FADE.L2_DATE_IN.dx * (1 - dateLayer.opacity)
-            y: (root.morph ? root.morph.centerY : 47.5) - 1 - height / 2
+            y: (root.morph ? root.morph.bandY : 36) - height / 2
             width: root.dateW
             theme: root.theme
             size: 14
@@ -1245,6 +879,38 @@ Item {
             text: root.dateText
             Accessible.role: Accessible.StaticText
             Accessible.name: root.dateText
+        }
+    }
+
+    // ---- L2, fileira dos módulos do Omarchy (abaixo da faixa) ----
+    // Nunca `visible: false` aqui: os widgets leem a visibilidade herdada para a largura.
+    Item {
+        id: modsLayer
+        anchors.fill: parent
+        opacity: 0
+        Rectangle {
+            visible: root.modsW > 0
+            x: (root.morph ? root.morph.left : 0) + root.px("L2_MOD_PAD", 24)
+            y: (root.morph ? root.morph.top : 10) + root.px("L2_H", 52)
+            width: Math.max(0, (root.morph ? root.morph.w : 0) - 2 * root.px("L2_MOD_PAD", 24))
+            height: 1
+            color: root.theme ? root.theme.alpha(root.theme.ink, 0.08) : "transparent"
+        }
+        OmarchyWidgets {
+            id: mods
+            island: root.island
+            output: root.output
+            rtl: root.rtl
+            shown: root.face === "hover2"
+            glyph: root.theme ? root.theme.alpha(root.theme.ink, 0.9) : Commons.Color.bar.text
+            accent: root.theme ? root.theme.accent : Commons.Color.bar.text
+            divider: root.theme ? root.theme.alpha(root.theme.ink, 0.12) : "gray"
+            // KeyboardPanel abre em barSizeFor + gapsOut: a borda de baixo do L2, na tela.
+            popupFloor: (root.island ? root.island.devTop : 0) + root.geomL2.top + root.geomL2.h
+            x: root.cx - width / 2
+            y: (root.morph ? root.morph.top : 10) + root.px("L2_H", 52) + root.px("L2_MOD_DY", 17) - height / 2
+            width: implicitWidth
+            height: implicitHeight
         }
     }
 
@@ -1273,5 +939,8 @@ Item {
         rtl: root.rtl
         shown: root.face === "picker"
         pressed: root.pressed
+        workspaces: workspaces
+        clockW: root.clockW
+        glyphs: root.island ? root.island.glyphs : null
     }
 }

@@ -12,8 +12,8 @@ import "Motion.js" as Motion
 //   15 px da borda (topo das maiúsculas em 21,5) e o tema atual 12 inkFaint
 //   a 15 px da borda direita, na mesma linha de base.
 // - CORPO, no layout final centrado: a faixa (centro em y 120, passo 196,
-//   recortada em exatamente k passos) e o rodapé em y 209: o nome do arquivo
-//   à esquerda; "3/7 · Enter para aplicar" à direita.
+//   recortada em exatamente k passos) e o rodapé em y 209: nome do arquivo
+//   (hover ou teclado) e, no modo teclado, 3/7 · Enter para aplicar.
 //
 // Miniatura 189 x 116, raio 12. Escala 1 / 0,9 / 0,8 e opacidade
 // max(0,4, 1 − 0,3|d|), contínuas na posição da faixa. A escolhida tem uma
@@ -51,10 +51,7 @@ Item {
     signal navigate(string id, var payload)
     signal closeRequested()
 
-    // ---- Dentro da tela unida (LookScreen) ----
-    // embedded: aplicar um papel (sem takeover) não fecha a tela, para
-    // experimentar outro. active: esta fileira tem o teclado.
-    property bool embedded: false
+    // Esta fileira tem o teclado. Aplicar um papel não fecha; só o takeover fecha.
     property bool active: true
     // ↑/↓ trocam de fileira na tela unida.
     signal rowKey(var event)
@@ -89,7 +86,7 @@ Item {
             return false;
         const dir = root.theme ? root.theme.dir : 1;
         const page = Math.max(1, root.dims.k);
-        if (root.embedded && (k === Qt.Key_Up || k === Qt.Key_Down)) {
+        if (k === Qt.Key_Up || k === Qt.Key_Down) {
             root.rowKey(event);
             return true;
         }
@@ -226,8 +223,6 @@ Item {
             return;
         if (strip.index === root.markedIndex && root.themesSvc.pendingWallpaper === "") {
             // Já é o papel atual (na tela unida, fica aberta).
-            if (!root.embedded)
-                root.closeRequested();
             return;
         }
         if (!root.themesSvc.applyWallpaper(w.path))
@@ -242,7 +237,7 @@ Item {
         priv.applying = false;
         closeFallback.stop();
         // Na tela unida só o takeover fecha (o script do Omarchy terminou).
-        if (root.current && (!root.embedded || priv.takeoverApplied))
+        if (root.current && priv.takeoverApplied)
             root.closeRequested();
     }
 
@@ -311,6 +306,8 @@ Item {
     }
 
     // ---- Cabeçalho (x preso às bordas vivas) ----
+    // Ponteiro nesta fileira. O root.row da LookScreen gruda na última fileira e não serve de hover.
+    HoverHandler { id: rowHover }
     Item {
         id: header
         width: root.implicitWidth
@@ -404,6 +401,14 @@ Item {
             weight: 500
             color: root.theme ? root.theme.inkFaint : "gray"
             text: root.list[strip.index] ? root.list[strip.index].name : ""
+            readonly property bool reveal: rowHover.hovered || (root.keyboardMode && root.active)
+            opacity: reveal ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.theme ? root.theme.dur(reveal ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
         }
 
         Item {
@@ -413,7 +418,13 @@ Item {
             height: 20
             x: root.bodyX(root.implicitWidth - 16 - width, width)
             y: 209 - height / 2
-            opacity: root.list.length > 0 ? 1 : 0
+            opacity: root.keyboardMode && root.list.length > 0 ? 1 : 0
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: root.theme ? root.theme.dur((root.keyboardMode && root.list.length > 0) ? Motion.FADE.REVEAL_IN : Motion.FADE.REVEAL_OUT) : 0
+                    easing.type: Easing.OutCubic
+                }
+            }
 
             // A ordem interna também espelha em RTL (o contador fica na ponta).
             IlhaText {
